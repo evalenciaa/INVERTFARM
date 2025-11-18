@@ -1,0 +1,103 @@
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f0f0f5;
+}
+
+.header {
+    background-color: #800000;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    position: relative;
+}
+
+.usuario {
+    margin-top: 5px;
+    font-size: 1rem;
+}
+
+.logout-btn {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    background: white;
+    color: #800000;
+    padding: 8px 16px;
+    border: none;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 5px;
+    transition: background-color 0.3s;
+}
+
+.logout-btn:hover {
+    background-color: #ddd;
+}
+
+.modulos-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    padding: 40px;
+    justify-items: center;
+}
+
+.modulo {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    text-decoration: none;
+    color: inherit;
+    width: 160px;
+    position: relative;
+}
+
+.modulo:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.modulo img {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    margin-bottom: 10px;
+}
+
+/* Estilos para módulos bloqueados (sin acceso) */
+.modulo-bloqueado {
+    opacity: 0.6;
+    filter: grayscale(70%);
+    pointer-events: none;
+    background-color: #f9f9f9;
+}
+
+.modulo-bloqueado:hover {
+    transform: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    cursor: not-allowed;
+}
+
+.sin-acceso {
+    color: #d32f2f;
+    font-size: 0.8em;
+    margin-top: 8px;
+    font-style: italic;
+    display: block;
+}
+
+/* Efecto adicional para módulos accesibles */
+.modulo a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+/* Efecto hover solo para módulos accesibles */
+.modulo:not(.modulo-bloqueado):hover {
+    background-color: #fff8f8;
+}

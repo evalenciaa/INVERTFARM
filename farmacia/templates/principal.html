@@ -1,0 +1,94 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INVENTFARM - Sistema de Inventarios</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/principal.css' %}">
+    <link rel="stylesheet" href="{% static 'farmacia/css/sidebar.css' %}">
+    <script src="{% static 'farmacia/js/principal.js' %}" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Barra Lateral Simplificada -->
+<div class="app-container">
+        <!-- Barra Lateral Simplificada (sin info de usuario) -->
+        <aside class="sidebar collapsed">
+    <!-- Encabezado superior -->
+    <div class="sidebar-top">
+        <div class="logo-placeholder">
+            <i class="fas fa-hospital-alt"></i>
+        </div>
+    </div>
+    
+    <!-- Menú de navegación -->
+    <nav class="sidebar-nav">
+        <ul> <!-- Lista PRINCIPAL (solo debe haber un <ul> contenedor) -->
+            <li class="nav-item active">
+                <a href="{% url 'principal' %}">
+                    <i class="fas fa-home"></i>
+                    <span>Inicio</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{% url 'farmacia' %}">
+                    <i class="fas fa-pills"></i>
+                    <span>Farmacia</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#">
+                    <i class="fas fa-warehouse"></i>
+                    <span>Almacén</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#">
+                    <i class="fas fa-tshirt"></i>
+                    <span>Ropería</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#">
+                    <i class="fas fa-user-nurse"></i>
+                    <span>Enfermería</span>
+                </a>
+            </li>
+        </ul> <!-- Cierre del ÚNICO <ul> -->
+    </nav>
+    
+    <!-- Botón inferior -->
+    <div class="sidebar-bottom">
+        <a href="{% url 'logout' %}" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Cerrar Sesión</span>
+        </a>
+    </div>
+</aside>
+
+        <!-- Área Principal con Bienvenida -->
+        <main class="main-content">
+            <div class="welcome-container">
+                <div class="welcome-message">
+                    <h1>Bienvenido a INVENTFARM</h1>
+                    <p class="system-description">
+                        Sistema integral de gestión de inventarios para el Hospital Materno Infantil IMSS Bienestar
+                    </p>
+                    <div class="user-welcome">
+                        <p>Has iniciado sesión como: <strong>{{ request.user.username }}</strong></p>
+                        {% if request.user.is_superuser %}
+                        <p class="admin-notice">(Cuenta con privilegios de administrador)</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="welcome-image">
+                    <img src="{% static 'farmacia/img/nacimiento.jpg' %}" alt="Hospital IMSS Bienestar">
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

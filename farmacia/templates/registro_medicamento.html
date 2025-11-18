@@ -1,0 +1,61 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Medicamento - INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/r_medic_farm.css' %}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="contenedor-principal">
+        <!-- Botón de regreso -->
+        <a href="{% url 'farmacia_g' %}" class="btn-regresar">
+            <i class="fas fa-arrow-left"></i> Volver al Inventario
+        </a>
+
+        <div class="contenedor-formulario">
+            <h1><i class="fas fa-pills"></i> Registro de Nuevo Medicamento</h1>
+            
+            <form method="post" class="formulario-medicamento">
+                {% csrf_token %}
+                
+                <!-- Mensajes de error/success -->
+                {% if messages %}
+                <div class="mensajes">
+                    {% for message in messages %}
+                    <div class="mensaje {{ message.tags }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Campo Clave -->
+                {% for field in form %}
+            <div class="grupo-formulario">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.help_text %}
+                <small class="texto-ayuda">{{ field.help_text }}</small>
+                {% endif %}
+                {% for error in field.errors %}
+                <div class="error">{{ error }}</div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+
+            <div class="acciones-formulario">
+                <button type="reset" class="btn btn-secundario">
+                    <i class="fas fa-eraser"></i> Limpiar
+                </button>
+                <button type="submit" class="btn btn-primario">
+                    <i class="fas fa-save"></i> Registrar Medicamento
+                </button>
+            </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{% static 'farmacia/js/r_medic_farm.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+/* Estructura Principal */
+.app-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: #f5f7fa;
+    position: relative;
+}
+
+/* Barra Lateral Simplificada */
+.sidebar {
+    width: 220px;
+    background-color: #750000;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    height: 100vh;
+    z-index: 100;
+    overflow-x: hidden;
+    transition: all 0.3s ease;
+}
+
+/* Estado colapsado */
+.sidebar.collapsed {
+    width: 70px;
+    overflow-x: hidden;
+}
+
+/* Al hacer hover */
+.sidebar.collapsed:hover {
+    width: 220px;
+}
+
+/* Ocultar texto cuando está colapsado */
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .logout-btn span,
+.sidebar.collapsed .user-info {
+    display: inline-block;
+    width: 0;
+    opacity: 0;
+    transition: all 0.3s ease;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+/* Mostrar texto al hacer hover */
+.sidebar.collapsed:hover .nav-item span,
+.sidebar.collapsed:hover .logout-btn span,
+.sidebar.collapsed:hover .user-info {
+    width: auto;
+    opacity: 1;
+    margin-left: 10px;
+}
+
+/* Ajustar íconos cuando está colapsado */
+.sidebar.collapsed .nav-item a {
+    justify-content: center;
+    padding: 10px 0;
+}
+
+.sidebar.collapsed .nav-item i {
+    margin-right: 0;
+    font-size: 1.3rem;
+}
+
+/* Navegación */
+.sidebar-nav {
+    flex: 1; /* Ocupa todo el espacio disponible */
+    overflow-y: auto; /* Scroll si el contenido excede */
+    padding: 15px 0;
+    max-height: calc(100vh - 150px);
+}
+
+/* Pie de barra */
+.sidebar-bottom {
+    position: sticky;
+    bottom: 0;
+    padding: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    background-color: #750000;
+    z-index: 10;
+    margin-top: auto;
+}
+
+
+.sidebar-top {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-profile i {
+    font-size: 2rem;
+    color: white;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.username {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.user-role {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    margin-top: 3px;
+}
+
+.nav-item {
+    margin: 5px 0;
+}
+
+.nav-item a {
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    transition: all 0.2s;
+}
+
+.nav-item a:hover, .nav-item.active a {
+    background-color: #a00000;
+}
+
+.nav-item i {
+    width: 24px;
+    text-align: center;
+    margin-right: 10px;
+    font-size: 1.1rem;
+}
+
+.logout-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 4px;
+    transition: background 0.3s;
+    width: 80%;
+    margin: 0 auto;
+    justify-content: center;
+}
+
+.logout-btn:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Ajustes para el logo */
+.sidebar.collapsed .logo-placeholder {
+    padding: 15px 5px;
+    font-size: 1.8rem;
+}
+
+
+/* Ajustes para el botón de logout */
+.sidebar.collapsed .logout-btn {
+    padding: 8px 5px;
+    width: auto;
+}
+
+
+/* Contenido Principal */
+.main-content {
+    flex: 1;
+    margin-left: 220px;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    transition: margin-left 0.3s ease;
+}
+
+.sidebar.collapsed ~ .main-content {
+    margin-left: 70px;
+}
+
+.welcome-container {
+    display: flex;
+    align-items: center;
+    gap: 50px;
+    max-width: 1200px;
+    background-color: white;
+    border-radius: 10px;
+    padding: 40px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+
+.welcome-message {
+    flex: 1;
+}
+
+.welcome-message h1 {
+    color: #750000;
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+}
+
+.system-description {
+    font-size: 1.1rem;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    max-width: 500px;
+}
+
+.user-welcome {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    border-left: 4px solid #750000;
+    margin-bottom: 30px;
+}
+
+.user-welcome p {
+    margin: 5px 0;
+    color: #333;
+}
+
+.admin-notice {
+    color: #750000;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.welcome-image {
+    flex: 1;
+    text-align: center;
+}
+
+.welcome-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
+
+.logo-placeholder {
+    text-align: center;
+    padding: 15px 0;
+    font-size: 2rem;
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+    .welcome-container {
+        flex-direction: column;
+        gap: 30px;
+    }
+    
+    .welcome-image {
+        order: -1;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 60px !important;
+    }
+
+    .sidebar.collapsed:hover {
+        width: 60px !important; /* Desactiva hover en móvil */
+    }
+    
+    .sidebar-top, .sidebar-bottom {
+        padding: 15px 10px;
+        text-align: center;
+    }
+    
+    .sidebar-bottom { /* Cambiado de .logout-section a .sidebar-bottom */
+        margin-top: auto; /* Mantiene el botón abajo */
+    }
+    
+    .user-profile, .logout-btn {
+        justify-content: center;
+    }
+    
+    .username, .user-role, .nav-item span, .logout-btn span {
+        display: none;
+    }
+    
+    .main-content {
+        margin-left: 60px;
+        padding: 20px;
+    }
+    
+    .welcome-message h1 {
+        font-size: 2rem;
+    }
+}

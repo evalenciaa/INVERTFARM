@@ -1,0 +1,309 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control de Farmacia - INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}?v=8">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Biblioteca para generar QR -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <!-- Biblioteca para generar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Estilos específicos para ajustar las columnas -->
+    <style>
+        /* ANCHOS DE COLUMNAS AJUSTADOS - SIN CPM */
+        .medicamentos-table {
+            table-layout: auto !important;
+            width: auto !important;
+            min-width: 100% !important;
+        }
+        
+        .table-container {
+            overflow-x: auto !important;
+        }
+        
+        /* Ajustar anchos específicos de columnas */
+        .medicamentos-table td:nth-child(1) { /* Clave */
+            width: 130px !important;
+            min-width: 130px !important;
+            max-width: 130px !important;
+            font-family: monospace !important;
+        }
+        
+        .medicamentos-table td:nth-child(2) { /* Código de lote */
+            width: 100px !important;
+            min-width: 100px !important;
+            max-width: 100px !important;
+        }
+        
+        .medicamentos-table td:nth-child(3) { /* Descripción - MÁS ANCHA */
+            width: 400px !important;
+            min-width: 400px !important;
+            max-width: 400px !important;
+        }
+        
+        .medicamentos-table td:nth-child(4) { /* Existencia - ahora en posición de CPM */
+            width: 80px !important;
+            min-width: 80px !important;
+            max-width: 80px !important;
+        }
+        
+        .medicamentos-table td:nth-child(5) { /* Presentación */
+            width: 90px !important;
+            min-width: 90px !important;
+            max-width: 90px !important;
+        }
+        
+        .medicamentos-table td:nth-child(6) { /* Fecha caducidad */
+            width: 110px !important;
+            min-width: 110px !important;
+            max-width: 110px !important;
+        }
+        
+        .medicamentos-table td:nth-child(7) { /* Acción */
+            width: 80px !important;
+            min-width: 80px !important;
+            max-width: 80px !important;
+        }
+        
+        /* Ajustar inputs para que quepan en las celdas */
+        .medicamentos-table input,
+        .medicamentos-table select {
+            width: 90% !important;
+            max-width: 90% !important;
+            box-sizing: border-box !important;
+        }
+        
+        /* Centrar contenido de columnas específicas */
+        .medicamentos-table td:nth-child(4),  /* Existencia */
+        .medicamentos-table td:nth-child(5),  /* Presentación */
+        .medicamentos-table td:nth-child(6),  /* Fecha caducidad */
+        .medicamentos-table td:nth-child(7) { /* Acción */
+            text-align: center !important;
+        }
+        
+        /* Centrar encabezados */
+        .medicamentos-table th:nth-child(4),  /* Existencia */
+        .medicamentos-table th:nth-child(5),  /* Presentación */
+        .medicamentos-table th:nth-child(6),  /* Fecha caducidad */
+        .medicamentos-table th:nth-child(7) { /* Acción */
+            text-align: center !important;
+        }
+        
+        /* Fecha de caducidad en color blanco */
+        .caducidad {
+            color: black !important;
+            font-weight: bold !important;
+            font-size: 12px !important;
+        }
+        
+        /* Mantener colores para estados especiales pero con fondo oscuro */
+        .caducidad.proxima {
+            color: #ffcc00 !important;
+            background-color: #664d00 !important;
+        }
+        
+        .caducidad.vencida {
+            color: #ff6b6b !important;
+            background-color: #660000 !important;
+        }
+    </style>
+    <style>
+        /* Estilos para botones QR */
+        .btn-generar-qr { 
+            background-color: #28a745; 
+            color: white; 
+            border: none; 
+            padding: 6px 12px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            display: block;
+            margin: 0 auto;
+        }
+        .btn-generar-qr:hover { background-color: #218838; }
+        
+        /* Centrar encabezado y celdas de la columna QR */
+        .medicamentos-table th:nth-child(8),
+        .medicamentos-table td:nth-child(8) {
+            text-align: center !important;
+        }
+        
+        /* Asegurar que la columna QR tenga un ancho específico */
+        .medicamentos-table td:nth-child(8) {
+            width: 80px !important;
+            min-width: 80px !important;
+            max-width: 80px !important;
+        }
+    </style>
+</head>
+<body>
+    {% csrf_token %}
+    <h1>Control de Farmacia</h1>
+
+    <div style="text-align: right; margin: 10px 20px;">
+        <button id="btn-generar-todos-qr" class="btn-generar-qr">
+            <i class="fas fa-file-pdf"></i> Generar todos los QR
+        </button>
+    </div>
+
+    <!-- FILTROS -->
+    <div class="filtros-container">
+        <!-- Filtro de Medicamento -->
+        <div class="filtro-columna" style="width: 200px">
+            <label for="filtro-medicamento-input">Medicamento</label>
+            <input type="text" id="filtro-medicamento-input" class="form-control" 
+                placeholder="Escribe para buscar..." autocomplete="off">
+            <div id="resultados-filtro-medicamento" class="resultados-busqueda"></div>
+            <input type="hidden" id="filtro-medicamento-id">
+        </div>
+
+        <!-- Filtro de Color -->
+        <div class="filtro-columna" style="width: 100px">
+            <label for="filtro-color">Alerta</label>
+            <select id="filtro-color" class="form-control">
+                <option value="">Todos</option>
+                <option value="verde">Verde</option>
+                <option value="amarillo">Amarillo</option>
+                <option value="rojo">Rojo</option>
+            </select>
+        </div>
+
+        <!-- Botón de acción -->
+        <div class="filtro-acciones">
+            <button id="btn-filtrar" class="btn btn-filtrar">
+                <i class="fas fa-filter"></i> Filtrar
+            </button>
+            <button id="btn-limpiar" class="btn btn-limpiar">
+                <i class="fas fa-broom"></i> Limpiar
+            </button>
+        </div>
+    </div>
+
+    <!-- TABLA ACTUALIZADA - SIN CPM -->
+    <div class="table-container">
+        <table class="medicamentos-table">
+            <thead>
+                <tr>
+                    <th>Clave</th>
+                    <th>Código de lote</th>
+                    <th>Descripción</th>
+                    <th>Existencia</th> <!-- Ahora en la posición 4 -->
+                    <th>Presentación</th> <!-- Ahora en la posición 5 -->
+                    <th>Fecha de caducidad</th> <!-- Ahora en la posición 6 -->
+                    <th>Acción</th> <!-- Ahora en la posición 7 -->
+                    <th>QR</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lote in lotes %}
+                <tr data-id="{{ lote.id }}" 
+                    class="fondo-{{ lote.color_alerta }}"
+                    data-medicamento="{{ lote.medicamento.descripcion|lower }}"
+                    data-color="{{ lote.color_alerta }}"
+                    data-fecha="{{ lote.fecha_caducidad|date:'Y-m-d' }}"
+                    data-existencia="{{ lote.existencia }}">
+                    <!-- Columna Clave -->
+                    <td style="width: 130px; min-width: 130px; max-width: 130px; font-family: monospace;">
+                        {{ lote.medicamento.clave }}
+                    </td>
+                    
+                    <!-- Columna Código de Lote -->
+                    <td style="width: 100px; min-width: 100px; max-width: 100px;">
+                        <input type="text" name="lote_codigo_{{ lote.id }}" 
+                            class="campo campo-codigo form-control form-control-sm" 
+                            value="{{ lote.lote_codigo }}"
+                            style="width: 90%; max-width: 90%;">
+                    </td>
+                    
+                    <!-- Columna Descripción (editable) - MÁS ANCHA -->
+                    <td style="width: 400px; min-width: 400px; max-width: 400px;">
+                        <input type="text" name="descripcion_{{ lote.medicamento.id }}" 
+                               class="campo campo-descripcion form-control form-control-sm" 
+                               value="{{ lote.medicamento.descripcion }}"
+                               data-medicamento-id="{{ lote.medicamento.id }}"
+                               style="width: 95%; max-width: 95%;">
+                    </td>
+                    
+                    <!-- Columna Existencia - AHORA EN POSICIÓN 4 -->
+                    <td style="width: 80px; min-width: 80px; max-width: 80px; text-align: center;">
+                        <input type="number" name="existencia_{{ lote.id }}" 
+                            class="campo campo-existencia form-control form-control-sm" 
+                            value="{{ lote.existencia }}"
+                            style="width: 70px; max-width: 70px;">
+                    </td>
+                    
+                    <!-- Columna Presentación - AHORA EN POSICIÓN 5 -->
+                    <td style="width: 90px; min-width: 90px; max-width: 90px; text-align: center;">
+                        <select name="presentacion_{{ lote.id }}" class="campo campo-presentacion form-control form-control-sm"
+                                style="width: 80px; max-width: 80px;">
+                            {% for pres in presentaciones %}
+                                <option value="{{ pres.id }}" {% if lote.presentacion.id == pres.id %}selected{% endif %}>
+                                    {{ pres.nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    
+                    <!-- Columna Fecha de caducidad - AHORA EN POSICIÓN 6 -->
+                    <td class="caducidad" style="width: 110px; min-width: 110px; max-width: 110px; text-align: center;">
+                        {{ lote.fecha_caducidad|date:"d/m/Y" }}
+                        <input type="hidden" name="fecha_caducidad_{{ lote.id }}" value="{{ lote.fecha_caducidad|date:'Y-m-d' }}">
+                    </td>                
+                    
+                    <!-- Columna Acciones - AHORA EN POSICIÓN 7 -->
+                    <td style="width: 80px; min-width: 80px; max-width: 80px; text-align: center;">
+                        <button class="btn btn-sm btn-primary btn-guardar" 
+                                onclick="guardarFila({{ lote.id }})" 
+                                title="Guardar"
+                                style="margin: 0 auto; display: block;">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </td>
+                    <td style="width: 80px; min-width: 80px; max-width: 80px; text-align: center;">
+                        <button class="btn-generar-qr" title="Generar QR">
+                            <i class="fas fa-file-pdf"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script src="{% static 'farmacia/js/filtros-autocomplete.js' %}"></script>
+    <script src="{% static 'farmacia/js/qr-generator.js' %}"></script>
+    
+    <!-- Script para asegurar que las columnas no se encimen -->
+    <script>
+    function ajustarAnchoTabla() {
+        console.log("Ajustando ancho de tabla para evitar que se encimen las columnas...");
+        
+        // Calcular el ancho total necesario (sin CPM)
+        const anchoTotal = 130 + 100 + 400 + 80 + 90 + 110 + 80 + 30; // Suma de anchos + margen
+        
+        // Aplicar el ancho mínimo a la tabla
+        document.querySelector('.medicamentos-table').style.minWidth = anchoTotal + 'px';
+        
+        // Forzar el redimensionamiento
+        document.querySelectorAll('.medicamentos-table td').forEach(td => {
+            td.style.overflow = 'hidden';
+            td.style.whiteSpace = 'nowrap';
+        });
+        
+        console.log("Ancho de tabla ajustado: " + anchoTotal + "px");
+    }
+    
+    // Ejecutar cuando el DOM esté listo
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ajustarAnchoTabla);
+    } else {
+        ajustarAnchoTabla();
+    }
+    
+    // Reajustar después de un breve tiempo
+    setTimeout(ajustarAnchoTabla, 100);
+    </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INVENTFARM - Módulo de Farmacia</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Barra Lateral -->
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <div class="logo-placeholder">
+                    <i class="fas fa-pills"></i>
+                    <span>Farmacia</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item">
+                        <a href="{% url 'principal' %}">
+                            <i class="fas fa-arrow-left"></i>
+                            <span>Volver al inicio</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Contenido Principal -->
+        <main class="main-content">
+            <div class="module-header">
+                <h1><i class="fas fa-pills"></i> Módulo de Farmacia</h1>
+                <p class="user-info">Usuario: <strong>{{ request.user.username }}</strong> | Rol: <strong>Farmacéutico</strong></p>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Inventario General -->
+                <div class="module-card" onclick="location.href='{% url 'inventario_general' %}'">
+                    <div class="card-icon">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <h3>Inventario General</h3>
+                    <p>Consulta el stock completo de medicamentos</p>
+                </div>
+
+                <!-- Inventario por Lote -->
+                <div class="module-card" onclick="location.href='{% url 'farmacia_g' %}';">
+                    <div class="card-icon">
+                        <i class="fas fa-barcode"></i>
+                    </div>
+                    <h3>Inventario por Lote</h3>
+                    <p>Gestión por números de lote y caducidades</p>
+                </div>
+
+                <!-- Nuevo Medicamento -->
+                <div class="module-card" onclick="location.href='{% url 'registro_medicamento' %}';">
+                    <div class="card-icon">
+                        <i class="fas fa-pills"></i>
+                    </div>
+                    <h3>Nuevo Medicamento</h3>
+                    <p>Registrar nuevo medicamento en el sistema</p>
+                </div>
+
+                <!-- Entradas -->
+                <div class="module-card" onclick="location.href='{% url 'entrada_medicamentos' %}';">
+                    <div class="card-icon">
+                        <i class="fas fa-arrow-down"></i>
+                    </div>
+                    <h3>Entradas</h3>
+                    <p>Registro de nuevas existencias</p>
+                </div>
+
+                <!-- Salidas -->
+                <div class="module-card" onclick="location.href='{% url 'registrar_salida' %}'">
+                    <div class="card-icon">
+                        <i class="fas fa-arrow-up"></i>
+                    </div>
+                    <h3>Salidas</h3>
+                    <p>Registro de medicamentos dispensados</p>
+                </div>
+
+                <!-- Pacientes -->
+                <div class="module-card" onclick="location.href='#';">
+                    <div class="card-icon">
+                        <i class="fas fa-user-injured"></i>
+                    </div>
+                    <h3>Pacientes</h3>
+                    <p>Historial de medicamentos por paciente</p>
+                </div>
+
+                <!-- Surtir Colectivos -->
+                <div class="module-card" onclick="location.href='#';">
+                    <div class="card-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>Surtir Colectivos</h3>
+                    <p>Preparar medicamentos para grupos</p>
+                </div>
+
+                <!-- Surtir Recetas -->
+                <div class="module-card" onclick="location.href='{% url 'carga_masiva' %}'">
+                    <div class="card-icon">
+                        <i class="fas fa-file-prescription"></i>
+                    </div>
+                    <h3>Carga Masiva</h3>
+                    <p>Registro masivo de medicamentos</p>
+                </div>
+
+                <!-- Reportes -->
+                <div class="module-card" onclick="location.href='#';">
+                    <div class="card-icon">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <h3>Reportes</h3>
+                    <p>Generar reportes estadísticos</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{% static 'farmacia/js/farmacia.js' %}"></script>
+</body>
+</html>

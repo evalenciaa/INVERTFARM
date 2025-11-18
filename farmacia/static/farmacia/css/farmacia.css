@@ -1,0 +1,101 @@
+/* Estructura Principal */
+.app-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: #f5f7fa;
+}
+
+/* Barra Lateral */
+.sidebar {
+    width: 220px;
+    background-color: #750000;
+    color: white;
+    position: fixed;
+    height: 100vh;
+}
+
+/* Contenido Principal */
+.main-content {
+    margin-left: 220px;
+    padding: 20px;
+    width: calc(100% - 220px);
+}
+
+/* Encabezado del Módulo */
+.module-header {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.module-header h1 {
+    color: #750000;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-info {
+    color: #666;
+    margin-top: 10px;
+    font-size: 0.9rem;
+}
+
+/* Grid de Módulos */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+/* Tarjetas de Módulos */
+.module-card {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    border-left: 4px solid #750000;
+}
+
+.module-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.card-icon {
+    font-size: 2rem;
+    color: #750000;
+    margin-bottom: 15px;
+}
+
+.module-card h3 {
+    margin: 0 0 10px 0;
+    color: #333;
+}
+
+.module-card p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 60px;
+    }
+    
+    .main-content {
+        margin-left: 60px;
+        width: calc(100% - 60px);
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}

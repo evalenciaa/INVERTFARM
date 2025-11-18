@@ -1,0 +1,79 @@
+/* Estilos generales */
+.entrada-container {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.card {
+    margin-bottom: 20px;
+    border: none;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.card-header {
+    font-weight: bold;
+    padding: 15px 20px;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* Resultados de búsqueda */
+.resultados-busqueda {
+    position: absolute;
+    z-index: 1000;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+}
+
+.resultados-busqueda .list-group-item {
+    cursor: pointer;
+    padding: 10px 15px;
+    border-left: none;
+    border-right: none;
+}
+
+.resultados-busqueda .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* Tabla de medicamentos */
+#tabla-entradas th {
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+#tabla-entradas td {
+    vertical-align: middle;
+}
+
+/* Botones de acción */
+.btn-action {
+    padding: 5px 10px;
+    margin: 0 2px;
+    font-size: 0.85rem;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 15px;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+}
+
+.card-hover {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}

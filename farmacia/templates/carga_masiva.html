@@ -1,0 +1,203 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carga Masiva - INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/carga_masiva.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Barra Superior -->
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <a href="{% url 'farmacia' %}" class="btn-back">
+                    <i class="fas fa-arrow-left"></i> Volver a Farmacia
+                </a>
+            </div>
+            <div class="top-bar-center">
+                <h1><i class="fas fa-file-upload"></i> Carga Masiva de Medicamentos</h1>
+            </div>
+            <div class="top-bar-right">
+                <span class="user-badge">
+                    <i class="fas fa-user"></i> {{ user.username }}
+                </span>
+            </div>
+        </header>
+
+        <!-- Contenido Principal -->
+        <main class="main-content">
+            <!-- Sección de Instrucciones -->
+            <section class="info-section">
+                <div class="info-card">
+                    <div class="info-header">
+                        <i class="fas fa-info-circle"></i>
+                        <h2>Instrucciones de Uso</h2>
+                    </div>
+                    <div class="info-body">
+                        <ol>
+                            <li>Descarga la <a href="#" id="descargar-plantilla" class="link-primary">plantilla de Excel</a> con el formato correcto</li>
+                            <li>Llena las columnas requeridas: <strong>clave, descripcion, lote, cantidad, precio, caducidad, origen, contrato, fuente_financiamiento</strong></li>
+                            <li>Las fechas de caducidad deben estar en formato: <strong>YYYY-MM-DD</strong> (ej: 2025-12-31)</li>
+                            <li>Las cantidades deben ser números enteros positivos (sin decimales)</li>
+                            <li>Los precios pueden tener hasta 2 decimales (ej: 80.96, 682.57)</li>
+                            <li>Si un medicamento con el mismo lote ya existe, se sumará la cantidad automáticamente</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="warnings-card">
+                    <div class="warning-item">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Las claves de medicamentos deben ser únicas</span>
+                    </div>
+                    <div class="warning-item">
+                        <i class="fas fa-ban"></i>
+                        <span>No se permiten cantidades negativas o decimales</span>
+                    </div>
+                    <div class="warning-item">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Las fechas de caducidad deben ser posteriores a hoy</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sección de Carga -->
+            <section class="upload-section">
+                <div class="upload-card">
+                    <form id="form-carga-masiva" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="upload-area" id="upload-area">
+                            <div class="upload-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <h3>Arrastra tu archivo Excel aquí</h3>
+                            <p>o haz clic para seleccionar</p>
+                            <input type="file" id="archivo-excel" name="archivo" accept=".xlsx,.xls" required>
+                            <button type="button" class="btn-select" onclick="document.getElementById('archivo-excel').click()">
+                                Seleccionar Archivo
+                            </button>
+                        </div>
+
+                        <div class="file-info" id="file-info" style="display: none;">
+                            <i class="fas fa-file-excel"></i>
+                            <span id="file-name"></span>
+                            <button type="button" class="btn-remove" onclick="removerArchivo()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="btn-procesar">
+                                <i class="fas fa-cog"></i> Procesar Archivo
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='{% url 'farmacia' %}'">
+                                <i class="fas fa-times"></i> Cancelar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Sección de Resultados -->
+            <section class="results-section" id="results-section" style="display: none;">
+                <div class="results-card">
+                    <div class="results-header">
+                        <i class="fas fa-chart-pie"></i>
+                        <h2>Resultados de la Carga</h2>
+                    </div>
+                    <div class="results-body">
+                        <div class="stats-grid">
+                            <div class="stat-card stat-total">
+                                <i class="fas fa-list"></i>
+                                <div class="stat-content">
+                                    <span class="stat-label">Total Registros</span>
+                                    <span class="stat-value" id="stat-total">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card stat-success">
+                                <i class="fas fa-check-circle"></i>
+                                <div class="stat-content">
+                                    <span class="stat-label">Creados</span>
+                                    <span class="stat-value" id="stat-exitosos">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card stat-updated">
+                                <i class="fas fa-sync-alt"></i>
+                                <div class="stat-content">
+                                    <span class="stat-label">Actualizados</span>
+                                    <span class="stat-value" id="stat-actualizados">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card stat-error">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <div class="stat-content">
+                                    <span class="stat-label">Errores</span>
+                                    <span class="stat-value" id="stat-errores">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="advertencias-list" id="advertencias-list" style="display: none;">
+                            <h3>
+                                <i class="fas fa-exclamation-triangle"></i> 
+                                Advertencias (No Bloquean la Carga)
+                            </h3>
+                            <div class="advertencias-table-container">
+                                <table class="advertencias-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo</th>
+                                            <th>Detalle</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="advertencias-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="errors-list" id="errors-list" style="display: none;">
+                            <h3><i class="fas fa-bug"></i> Detalles de Errores</h3>
+                            <div class="errors-table-container">
+                                <table class="errors-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fila</th>
+                                            <th>Clave</th>
+                                            <th>Error</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="errors-tbody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="results-actions">
+                            <button class="btn btn-primary" onclick="location.href='{% url 'farmacia_g' %}'">
+                                <i class="fas fa-eye"></i> Ver Inventario
+                            </button>
+                            <button class="btn btn-secondary" onclick="location.reload()">
+                                <i class="fas fa-redo"></i> Nueva Carga
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Loader -->
+            <div class="loader-overlay" id="loader" style="display: none;">
+                <div class="loader-content">
+                    <div class="spinner"></div>
+                    <p>Procesando archivo...</p>
+                    <small>Por favor espera, esto puede tomar unos momentos</small>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{% static 'farmacia/js/carga_masiva.js' %}"></script>
+</body>
+</html>

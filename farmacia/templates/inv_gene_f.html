@@ -1,0 +1,116 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Inventario General - INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    {% csrf_token %}
+    
+    <!-- Botón de regreso -->
+    <div style="margin-bottom: 20px;">
+        <button onclick="window.location.href='{% url 'farmacia' %}'" class="btn btn-filtrar">
+            <i class="fas fa-arrow-left"></i> Volver a Farmacia
+        </button>
+    </div>
+
+    <h1>Inventario General de Farmacia</h1>
+
+    <!-- Filtros -->
+<div class="filtros-container">
+    <form method="get" action="{% url 'inventario_general' %}">
+        <div class="filtro-columna" style="flex-grow: 1;">
+            <label>Buscar Medicamento</label>
+            <input 
+                type="text" 
+                name="busqueda" 
+                value="{{ busqueda_actual }}"
+                placeholder="Nombre del medicamento"
+            >
+            <button type="submit">Buscar</button>
+        </div>
+    </form>
+    
+    <div class="filtro-acciones">
+        <button id="btn-exportar" class="btn btn-filtrar">
+            <i class="fas fa-file-export"></i> Exportar
+        </button>
+    </div>
+</div>
+
+    <!-- Tabla -->
+    <div class="table-container">
+        <table class="medicamentos-table" id="tabla-inventario-general">
+            <thead>
+                <tr>
+                    <th>Clave</th>
+                    <th>Descripción</th>
+                    <th>Existencia Total</th>
+                    <th>CPM</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in inventario %}
+                    <tr data-medicamento-id="{{ item.medicamento__id }}"
+                        data-clave="{{ item.medicamento__clave|default:'' }}" 
+                        data-descripcion="{{ item.medicamento__descripcion|default:'' }}"
+                        data-existencia="{{ item.existencia_total|default:0 }}"
+                        data-cpm="{{ item.cpm_medicamento|default:0 }}">
+                        <td>{{ item.medicamento__clave|default:"-" }}</td>
+                        <td>{{ item.medicamento__descripcion|default:"Sin descripción" }}</td>
+                        <td>{{ item.existencia_total|default:0 }}</td>
+                        <td>
+                            <div class="cpm-editable" 
+                                data-medicamento-id="{{ item.medicamento__id }}"
+                                contenteditable="true"
+                                style="min-width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"
+                                onblur="actualizarCPM(this)">
+                                {{ item.cpm_medicamento|default:0 }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if item.cpm_medicamento and item.existencia_total %}
+                                {% with existencia=item.existencia_total cpm=item.cpm_medicamento %}
+                                    {% if cpm > 0 %}
+                                        {% widthratio existencia cpm 100 as porcentaje %}
+                                        {% if porcentaje <= 50 %}
+                                            <span class="alerta-icono" title="Stock CRÍTICO (≤ 50% CPM)">🔴</span>
+                                        {% elif porcentaje <= 100 %}
+                                            <span class="alerta-icono" title="Stock BAJO (≤ 100% CPM)">🟡</span>
+                                        {% else %}
+                                            <span class="alerta-icono" title="Stock SUFICIENTE">✅</span>
+                                        {% endif %}
+                                        <br>
+                                        <small>{{ porcentaje }}%</small>
+                                    {% endif %}
+                                {% endwith %}
+                            {% else %}
+                                <span class="alerta-icono" title="Sin datos CPM">❓</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn-editar-cpm" 
+                                    data-medicamento-id="{{ item.medicamento__id }}"
+                                    title="Editar CPM">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </td>
+                    </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center">No se encontraron medicamentos en inventario</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script src="{% static 'farmacia/js/inv_gene_f.js' %}"></script>
+</body>
+</html>
