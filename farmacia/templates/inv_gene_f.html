@@ -1,116 +1,321 @@
 {% load static %}
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Inventario General - INVENTFARM</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario General - INVERTFARM</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    {% csrf_token %}
-    
-    <!-- Botón de regreso -->
-    <div style="margin-bottom: 20px;">
-        <button onclick="window.location.href='{% url 'farmacia' %}'" class="btn btn-filtrar">
-            <i class="fas fa-arrow-left"></i> Volver a Farmacia
-        </button>
-    </div>
-
-    <h1>Inventario General de Farmacia</h1>
-
-    <!-- Filtros -->
-<div class="filtros-container">
-    <form method="get" action="{% url 'inventario_general' %}">
-        <div class="filtro-columna" style="flex-grow: 1;">
-            <label>Buscar Medicamento</label>
-            <input 
-                type="text" 
-                name="busqueda" 
-                value="{{ busqueda_actual }}"
-                placeholder="Nombre del medicamento"
-            >
-            <button type="submit">Buscar</button>
+    <!-- Barra Superior -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <a href="{% url 'farmacia_g' %}" class="btn-back">
+                <i class="fas fa-arrow-left"></i> Volver a Inventario por Lotes
+            </a>
         </div>
-    </form>
-    
-    <div class="filtro-acciones">
-        <button id="btn-exportar" class="btn btn-filtrar">
-            <i class="fas fa-file-export"></i> Exportar
+        <div class="top-bar-center">
+            <h1><i class="fas fa-box-open"></i> Inventario General de Medicamentos</h1>
+        </div>
+        <div class="top-bar-right">
+            <span class="user-badge">
+                <i class="fas fa-user"></i> {{ user.username }}
+            </span>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="main-content">
+        <!-- Sección de Estadísticas -->
+        <section class="stats-section">
+            <div class="stats-grid">
+                <div class="stat-card stat-primary">
+                    <div class="stat-icon">
+                        <i class="fas fa-pills"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Total Medicamentos</span>
+                        <span class="stat-value" id="total-medicamentos">{{ medicamentos.count }}</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-success">
+                    <div class="stat-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Stock Adecuado</span>
+                        <span class="stat-value" id="stock-adecuado">0</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-warning">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Stock Bajo</span>
+                        <span class="stat-value" id="stock-bajo">0</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-danger">
+                    <div class="stat-icon">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Desabasto</span>
+                        <span class="stat-value" id="desabasto">0</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de Filtros y Acciones -->
+        <section class="controls-section">
+            <div class="controls-card">
+                <div class="controls-header">
+                    <h3><i class="fas fa-filter"></i> Filtros y Acciones</h3>
+                </div>
+                <div class="controls-body">
+                    <div class="filtros-container">
+                        <!-- Filtro por Clave -->
+                        <div class="filtro-columna">
+                            <label for="filtro-clave">
+                                <i class="fas fa-key"></i> Clave
+                            </label>
+                            <input 
+                                type="text" 
+                                id="filtro-clave" 
+                                class="form-control" 
+                                placeholder="Buscar por clave..."
+                            >
+                            <div id="resultados-clave" class="resultados-busqueda"></div>
+                        </div>
+
+                        <!-- Filtro por Descripción -->
+                        <div class="filtro-columna">
+                            <label for="filtro-descripcion">
+                                <i class="fas fa-file-medical"></i> Descripción
+                            </label>
+                            <input 
+                                type="text" 
+                                id="filtro-descripcion" 
+                                class="form-control" 
+                                placeholder="Buscar medicamento..."
+                            >
+                            <div id="resultados-descripcion" class="resultados-busqueda"></div>
+                        </div>
+
+                        <!-- Filtro por Estado -->
+                        <div class="filtro-columna">
+                            <label for="filtro-estado">
+                                <i class="fas fa-chart-line"></i> Estado Stock
+                            </label>
+                            <select id="filtro-estado" class="form-control">
+                                <option value="">Todos</option>
+                                <option value="sobreabasto">Sobreabasto (>100%)</option>
+                                <option value="adecuado">Adecuado (50-100%)</option>
+                                <option value="bajo">Bajo (<50%)</option>
+                                <option value="desabasto">Desabasto (0%)</option>
+                            </select>
+                        </div>
+
+                        <!-- Botones de Acción -->
+                        <div class="filtro-acciones">
+                            <button class="btn btn-primary" onclick="aplicarFiltros()">
+                                <i class="fas fa-search"></i> Filtrar
+                            </button>
+                            <button class="btn btn-secondary" onclick="limpiarFiltros()">
+                                <i class="fas fa-eraser"></i> Limpiar
+                            </button>
+                            <button class="btn btn-success" onclick="mostrarMenuExportacion()">
+                                <i class="fas fa-file-excel"></i> Exportar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabla de Inventario -->
+        <section class="table-section">
+            <div class="table-card">
+                <div class="table-header">
+                    <h3><i class="fas fa-table"></i> Listado de Medicamentos</h3>
+                    <span class="table-count" id="count-visible">
+                        Mostrando <strong>{{ medicamentos.count }}</strong> medicamentos
+                    </span>
+                </div>
+                <div class="table-container">
+                    <table class="medicamentos-table" id="tabla-inventario">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-key"></i> Clave</th>
+                                <th><i class="fas fa-file-medical"></i> Descripción</th>
+                                <th><i class="fas fa-cubes"></i> Existencia Total</th>
+                                <th><i class="fas fa-chart-bar"></i> CPM</th>
+                                <th><i class="fas fa-percentage"></i> Estado</th>
+                                <th><i class="fas fa-cogs"></i> Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in medicamentos %}
+                            <tr class="medicamento-row" 
+                                data-clave="{{ item.medicamento__clave|default:'-' }}"
+                                data-descripcion="{{ item.medicamento__descripcion|default:'Sin descripción' }}">
+                                
+                                <!-- Clave -->
+                                <td class="clave-cell">
+                                    <span class="badge badge-clave">
+                                        {{ item.medicamento__clave|default:"-" }}
+                                    </span>
+                                </td>
+
+                                <!-- Descripción -->
+                                <td class="descripcion-cell">
+                                    <div class="descripcion-content">
+                                        {{ item.medicamento__descripcion|default:"Sin descripción"|truncatewords:15 }}
+                                    </div>
+                                </td>
+
+                                <!-- Existencia Total -->
+                                <td class="existencia-cell" data-existencia="{{ item.existencia_total|default:0 }}">
+                                    <span class="badge badge-existencia">
+                                        {{ item.existencia_total|default:0 }} unidades
+                                    </span>
+                                </td>
+
+                                <!-- CPM -->
+                                <td class="cpm-cell" data-cpm="{{ item.cpm_medicamento|default:0 }}">
+                                    <div class="cpm-wrapper">
+                                        <span class="cpm-value">{{ item.cpm_medicamento|default:0 }}</span>
+                                        <button class="btn-editar-cpm" 
+                                                data-clave="{{ item.medicamento__clave }}"
+                                                title="Editar CPM">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                </td>
+
+                                <!-- Estado -->
+                                <td class="estado-cell">
+                                    {% if item.cpm_medicamento and item.existencia_total %}
+                                        {% with existencia=item.existencia_total cpm=item.cpm_medicamento %}
+                                            {% if cpm > 0 %}
+                                                {% widthratio existencia cpm 100 as porcentaje %}
+                                                <div class="estado-badge 
+                                                    {% if porcentaje <= 50 %}estado-bajo
+                                                    {% elif porcentaje <= 100 %}estado-normal
+                                                    {% else %}estado-sobre{% endif %}">
+                                                    
+                                                    <div class="estado-bar">
+                                                        <div class="estado-fill" style="width: {% if porcentaje > 100 %}100{% else %}{{ porcentaje }}{% endif %}%"></div>
+                                                    </div>
+                                                    <span class="estado-text">
+                                                        {% if porcentaje > 100 %}
+                                                            <i class="fas fa-arrow-up"></i> {{ porcentaje }}% Sobreabasto
+                                                        {% elif porcentaje >= 50 %}
+                                                            <i class="fas fa-check"></i> {{ porcentaje }}% Adecuado
+                                                        {% else %}
+                                                            <i class="fas fa-exclamation-triangle"></i> {{ porcentaje }}% Bajo
+                                                        {% endif %}
+                                                    </span>
+                                                </div>
+                                            {% else %}
+                                                <span class="badge badge-secondary">Sin CPM</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    {% else %}
+                                        <span class="badge badge-secondary">N/A</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Acciones -->
+                                <td class="acciones-cell">
+                                    <div class="action-buttons">
+                                        <button class="btn-action btn-view" 
+                                                onclick="verDetalle('{{ item.medicamento__clave }}')"
+                                                title="Ver detalles">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn-action btn-edit" 
+                                                onclick="editarMedicamento('{{ item.medicamento__clave }}')"
+                                                title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <div class="empty-content">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No se encontraron medicamentos en inventario</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Menú de Exportación (Modal) -->
+    <div id="overlay-export" style="display: none;" onclick="cerrarMenuExportacion()"></div>
+    <div id="menu-exportacion" style="display: none;">
+        <h3><i class="fas fa-download"></i> Exportar Inventario</h3>
+        <div class="export-options">
+            <button class="btn-exportar-option" onclick="exportarExcel()">
+                <i class="fas fa-file-excel"></i> Exportar a Excel
+            </button>
+            <button class="btn-exportar-option" onclick="exportarPDF()">
+                <i class="fas fa-file-pdf"></i> Exportar a PDF
+            </button>
+            <button class="btn-exportar-option" onclick="exportarCSV()">
+                <i class="fas fa-file-csv"></i> Exportar a CSV
+            </button>
+        </div>
+        <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="cerrarMenuExportacion()">
+            <i class="fas fa-times"></i> Cancelar
         </button>
     </div>
-</div>
 
-    <!-- Tabla -->
-    <div class="table-container">
-        <table class="medicamentos-table" id="tabla-inventario-general">
-            <thead>
-                <tr>
-                    <th>Clave</th>
-                    <th>Descripción</th>
-                    <th>Existencia Total</th>
-                    <th>CPM</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in inventario %}
-                    <tr data-medicamento-id="{{ item.medicamento__id }}"
-                        data-clave="{{ item.medicamento__clave|default:'' }}" 
-                        data-descripcion="{{ item.medicamento__descripcion|default:'' }}"
-                        data-existencia="{{ item.existencia_total|default:0 }}"
-                        data-cpm="{{ item.cpm_medicamento|default:0 }}">
-                        <td>{{ item.medicamento__clave|default:"-" }}</td>
-                        <td>{{ item.medicamento__descripcion|default:"Sin descripción" }}</td>
-                        <td>{{ item.existencia_total|default:0 }}</td>
-                        <td>
-                            <div class="cpm-editable" 
-                                data-medicamento-id="{{ item.medicamento__id }}"
-                                contenteditable="true"
-                                style="min-width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"
-                                onblur="actualizarCPM(this)">
-                                {{ item.cpm_medicamento|default:0 }}
-                            </div>
-                        </td>
-                        <td>
-                            {% if item.cpm_medicamento and item.existencia_total %}
-                                {% with existencia=item.existencia_total cpm=item.cpm_medicamento %}
-                                    {% if cpm > 0 %}
-                                        {% widthratio existencia cpm 100 as porcentaje %}
-                                        {% if porcentaje <= 50 %}
-                                            <span class="alerta-icono" title="Stock CRÍTICO (≤ 50% CPM)">🔴</span>
-                                        {% elif porcentaje <= 100 %}
-                                            <span class="alerta-icono" title="Stock BAJO (≤ 100% CPM)">🟡</span>
-                                        {% else %}
-                                            <span class="alerta-icono" title="Stock SUFICIENTE">✅</span>
-                                        {% endif %}
-                                        <br>
-                                        <small>{{ porcentaje }}%</small>
-                                    {% endif %}
-                                {% endwith %}
-                            {% else %}
-                                <span class="alerta-icono" title="Sin datos CPM">❓</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <button class="btn-editar-cpm" 
-                                    data-medicamento-id="{{ item.medicamento__id }}"
-                                    title="Editar CPM">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                    </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="text-center">No se encontraron medicamentos en inventario</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{% static 'farmacia/js/inv_gene_f.js' %}"></script>
+    <script src="{% static 'farmacia/js/filtros-autocomplete.js' %}"></script>
+    
+    <script>
+        // Calcular estadísticas al cargar
+        document.addEventListener('DOMContentLoaded', function() {
+            calcularEstadisticas();
+        });
+
+        function calcularEstadisticas() {
+            const filas = document.querySelectorAll('.medicamento-row');
+            let stockAdecuado = 0;
+            let stockBajo = 0;
+            let desabasto = 0;
+
+            filas.forEach(fila => {
+                const existencia = parseInt(fila.querySelector('.existencia-cell').dataset.existencia) || 0;
+                const cpm = parseInt(fila.querySelector('.cpm-cell').dataset.cpm) || 0;
+
+                if (cpm > 0) {
+                    const porcentaje = (existencia / cpm) * 100;
+                    if (porcentaje <= 0) desabasto++;
+                    else if (porcentaje < 50) stockBajo++;
+                    else stockAdecuado++;
+                }
+            });
+
+            document.getElementById('stock-adecuado').textContent = stockAdecuado;
+            document.getElementById('stock-bajo').textContent = stockBajo;
+            document.getElementById('desabasto').textContent = desabasto;
+        }
+    </script>
 </body>
 </html>

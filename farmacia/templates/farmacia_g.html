@@ -3,307 +3,977 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Control de Farmacia - INVENTFARM</title>
-    <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}?v=8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario por Lotes - INVERTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Biblioteca para generar QR -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
-    <!-- Biblioteca para generar PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- Estilos específicos para ajustar las columnas -->
-    <style>
-        /* ANCHOS DE COLUMNAS AJUSTADOS - SIN CPM */
-        .medicamentos-table {
-            table-layout: auto !important;
-            width: auto !important;
-            min-width: 100% !important;
-        }
-        
-        .table-container {
-            overflow-x: auto !important;
-        }
-        
-        /* Ajustar anchos específicos de columnas */
-        .medicamentos-table td:nth-child(1) { /* Clave */
-            width: 130px !important;
-            min-width: 130px !important;
-            max-width: 130px !important;
-            font-family: monospace !important;
-        }
-        
-        .medicamentos-table td:nth-child(2) { /* Código de lote */
-            width: 100px !important;
-            min-width: 100px !important;
-            max-width: 100px !important;
-        }
-        
-        .medicamentos-table td:nth-child(3) { /* Descripción - MÁS ANCHA */
-            width: 400px !important;
-            min-width: 400px !important;
-            max-width: 400px !important;
-        }
-        
-        .medicamentos-table td:nth-child(4) { /* Existencia - ahora en posición de CPM */
-            width: 80px !important;
-            min-width: 80px !important;
-            max-width: 80px !important;
-        }
-        
-        .medicamentos-table td:nth-child(5) { /* Presentación */
-            width: 90px !important;
-            min-width: 90px !important;
-            max-width: 90px !important;
-        }
-        
-        .medicamentos-table td:nth-child(6) { /* Fecha caducidad */
-            width: 110px !important;
-            min-width: 110px !important;
-            max-width: 110px !important;
-        }
-        
-        .medicamentos-table td:nth-child(7) { /* Acción */
-            width: 80px !important;
-            min-width: 80px !important;
-            max-width: 80px !important;
-        }
-        
-        /* Ajustar inputs para que quepan en las celdas */
-        .medicamentos-table input,
-        .medicamentos-table select {
-            width: 90% !important;
-            max-width: 90% !important;
-            box-sizing: border-box !important;
-        }
-        
-        /* Centrar contenido de columnas específicas */
-        .medicamentos-table td:nth-child(4),  /* Existencia */
-        .medicamentos-table td:nth-child(5),  /* Presentación */
-        .medicamentos-table td:nth-child(6),  /* Fecha caducidad */
-        .medicamentos-table td:nth-child(7) { /* Acción */
-            text-align: center !important;
-        }
-        
-        /* Centrar encabezados */
-        .medicamentos-table th:nth-child(4),  /* Existencia */
-        .medicamentos-table th:nth-child(5),  /* Presentación */
-        .medicamentos-table th:nth-child(6),  /* Fecha caducidad */
-        .medicamentos-table th:nth-child(7) { /* Acción */
-            text-align: center !important;
-        }
-        
-        /* Fecha de caducidad en color blanco */
-        .caducidad {
-            color: black !important;
-            font-weight: bold !important;
-            font-size: 12px !important;
-        }
-        
-        /* Mantener colores para estados especiales pero con fondo oscuro */
-        .caducidad.proxima {
-            color: #ffcc00 !important;
-            background-color: #664d00 !important;
-        }
-        
-        .caducidad.vencida {
-            color: #ff6b6b !important;
-            background-color: #660000 !important;
-        }
-    </style>
-    <style>
-        /* Estilos para botones QR */
-        .btn-generar-qr { 
-            background-color: #28a745; 
-            color: white; 
-            border: none; 
-            padding: 6px 12px; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            display: block;
-            margin: 0 auto;
-        }
-        .btn-generar-qr:hover { background-color: #218838; }
-        
-        /* Centrar encabezado y celdas de la columna QR */
-        .medicamentos-table th:nth-child(8),
-        .medicamentos-table td:nth-child(8) {
-            text-align: center !important;
-        }
-        
-        /* Asegurar que la columna QR tenga un ancho específico */
-        .medicamentos-table td:nth-child(8) {
-            width: 80px !important;
-            min-width: 80px !important;
-            max-width: 80px !important;
-        }
-    </style>
+</head>
 </head>
 <body>
-    {% csrf_token %}
-    <h1>Control de Farmacia</h1>
+    <!-- Barra Superior -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <a href="{% url 'inicio' %}" class="btn-back">
+                <i class="fas fa-home"></i> Inicio
+            </a>
+        </div>
+        <div class="top-bar-center">
+            <h1><i class="fas fa-warehouse"></i> Inventario por Lotes</h1>
+        </div>
+        <div class="top-bar-right">
+            <span class="user-badge">
+                <i class="fas fa-user"></i> {{ user.username }}
+            </span>
+        </div>
+    </header>
 
-    <div style="text-align: right; margin: 10px 20px;">
-        <button id="btn-generar-todos-qr" class="btn-generar-qr">
-            <i class="fas fa-file-pdf"></i> Generar todos los QR
+    <!-- Contenido Principal -->
+    <main class="main-content">
+        <!-- Sección de Estadísticas -->
+        <section class="stats-section">
+            <div class="stats-grid">
+                <div class="stat-card stat-primary">
+                    <div class="stat-icon">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Total Lotes</span>
+                        <span class="stat-value" id="total-lotes">{{ lotes.count }}</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-success">
+                    <div class="stat-icon">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Vigentes (+90 días)</span>
+                        <span class="stat-value" id="lotes-vigentes">0</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-warning">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Por Vencer (30-90 días)</span>
+                        <span class="stat-value" id="lotes-proximos">0</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-danger">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Críticos (<30 días)</span>
+                        <span class="stat-value" id="lotes-criticos">0</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de Controles -->
+        <section class="controls-section">
+            <div class="controls-card">
+                <div class="controls-header">
+                    <h3><i class="fas fa-filter"></i> Filtros y Acciones</h3>
+                </div>
+                <div class="controls-body">
+                    <div class="filtros-container">
+                        <!-- Filtro por Clave -->
+                        <div class="filtro-columna">
+                            <label for="filtro-clave">
+                                <i class="fas fa-key"></i> Clave
+                            </label>
+                            <input 
+                                type="text" 
+                                id="filtro-clave" 
+                                class="form-control" 
+                                placeholder="Buscar por clave..."
+                            >
+                            <div id="resultados-clave" class="resultados-busqueda"></div>
+                        </div>
+
+                        <!-- Filtro por Descripción -->
+                        <div class="filtro-columna">
+                            <label for="filtro-descripcion">
+                                <i class="fas fa-file-medical"></i> Descripción
+                            </label>
+                            <input 
+                                type="text" 
+                                id="filtro-descripcion" 
+                                class="form-control" 
+                                placeholder="Buscar medicamento..."
+                            >
+                            <div id="resultados-descripcion" class="resultados-busqueda"></div>
+                        </div>
+
+                        <!-- Filtro por Lote -->
+                        <div class="filtro-columna">
+                            <label for="filtro-lote">
+                                <i class="fas fa-barcode"></i> Lote
+                            </label>
+                            <input 
+                                type="text" 
+                                id="filtro-lote" 
+                                class="form-control" 
+                                placeholder="Buscar por lote..."
+                            >
+                            <div id="resultados-lote" class="resultados-busqueda"></div>
+                        </div>
+
+                        <!-- Filtro por Presentación -->
+                        <div class="filtro-columna">
+                            <label for="filtro-presentacion">
+                                <i class="fas fa-capsules"></i> Presentación
+                            </label>
+                            <select id="filtro-presentacion" class="form-control">
+                                <option value="">Todas</option>
+                                {% for presentacion in presentaciones %}
+                                    <option value="{{ presentacion.nombre }}">{{ presentacion.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Filtro por Caducidad -->
+                        <div class="filtro-columna">
+                            <label for="filtro-caducidad">
+                                <i class="fas fa-calendar-times"></i> Estado Caducidad
+                            </label>
+                            <select id="filtro-caducidad" class="form-control">
+                                <option value="">Todos</option>
+                                <option value="vigente">Vigente (+90 días)</option>
+                                <option value="proximo">Próximo a vencer (30-90 días)</option>
+                                <option value="critico">Crítico (<30 días)</option>
+                            </select>
+                        </div>
+
+                        <!-- Botones de Acción -->
+                        <div class="filtro-acciones">
+                            <button class="btn btn-primary" onclick="aplicarFiltros()">
+                                <i class="fas fa-search"></i> Filtrar
+                            </button>
+                            <button class="btn btn-secondary" onclick="limpiarFiltros()">
+                                <i class="fas fa-eraser"></i> Limpiar
+                            </button>
+                            <button class="btn btn-success" onclick="mostrarMenuExportacion()">
+                                <i class="fas fa-file-excel"></i> Exportar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Botones Rápidos -->
+                    <div class="quick-actions">
+                        <a href="{% url 'inv_gene_f' %}" class="btn btn-info">
+                            <i class="fas fa-box-open"></i> Ver Inventario General
+                        </a>
+                        <a href="{% url 'carga_masiva' %}" class="btn btn-primary">
+                            <i class="fas fa-upload"></i> Carga Masiva
+                        </a>
+                        <button class="btn btn-warning" id="btn-generar-qr-masivo" onclick="generarQRMasivo()">
+                            <i class="fas fa-qrcode"></i> Generar QR Masivo en PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabla de Lotes -->
+        <section class="table-section">
+            <div class="table-card">
+                <div class="table-header">
+                    <h3><i class="fas fa-table"></i> Listado de Lotes</h3>
+                    <span class="table-count" id="count-visible">
+                        Mostrando <strong>{{ lotes.count }}</strong> lotes
+                    </span>
+                </div>
+                <div class="table-container">
+                    <table class="lotes-table" id="tabla-lotes">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-key"></i> Clave</th>
+                                <th><i class="fas fa-file-medical"></i> Descripción</th>
+                                <th><i class="fas fa-barcode"></i> Lote</th>
+                                <th><i class="fas fa-capsules"></i> Presentación</th>
+                                <th><i class="fas fa-cubes"></i> Existencia</th>
+                                <th><i class="fas fa-chart-bar"></i> CPM</th>
+                                <th><i class="fas fa-calendar-alt"></i> Caducidad</th>
+                                <th><i class="fas fa-cogs"></i> Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for lote in lotes %}
+                            {% with dias_caducidad=lote.dias_para_caducidad %}
+                            <tr class="lote-row
+                                {% if dias_caducidad <= 30 %}fondo-rojo
+                                {% elif dias_caducidad <= 90 %}fondo-amarillo
+                                {% else %}fondo-verde{% endif %}"
+                                data-lote-id="{{ lote.id }}"
+                                data-clave="{{ lote.medicamento.clave }}"
+                                data-descripcion="{{ lote.medicamento.descripcion }}"
+                                data-lote="{{ lote.lote_codigo }}"
+                                data-existencia="{{ lote.existencia }}"
+                                data-presentacion="{{ lote.presentacion.nombre }}"
+                                data-dias="{{ dias_caducidad }}">
+                                
+                                <!-- Clave -->
+                                <td class="clave-cell">
+                                    <span class="badge badge-clave">
+                                        {{ lote.medicamento.clave }}
+                                    </span>
+                                </td>
+
+                                <!-- Descripción -->
+                                <td class="descripcion-cell">
+                                    <div class="descripcion-content">
+                                        {{ lote.medicamento.descripcion|truncatewords:12 }}
+                                    </div>
+                                </td>
+
+                                <!-- Lote -->
+                                <td class="lote-cell">
+                                    <span class="badge badge-lote">
+                                        <i class="fas fa-barcode"></i> {{ lote.lote_codigo|default:"-" }}
+                                    </span>
+                                </td>
+
+                                <!-- Presentación -->
+                                <td class="presentacion-cell">
+                                    <span class="badge badge-presentacion">
+                                        {{ lote.presentacion.nombre|default:"N/A" }}
+                                    </span>
+                                </td>
+
+                                <!-- Existencia -->
+                                <td class="existencia-cell">
+                                    <span class="badge badge-existencia">
+                                        {{ lote.existencia|default:0 }}
+                                    </span>
+                                </td>
+
+                                <!-- CPM -->
+                                <td class="cpm-cell">
+                                    <span class="cpm-value">
+                                        {{ lote.cpm|default:0 }}
+                                    </span>
+                                </td>
+
+                                <!-- Fecha Caducidad -->
+                                <td class="caducidad-cell">
+                                    <div class="fecha-wrapper">
+                                        <i class="fas fa-calendar-alt"></i>
+                                        <span>{{ lote.fecha_caducidad|date:"d/m/Y" }}</span>
+                                    </div>
+                                </td>
+
+                                <!-- Acciones -->
+                                <td class="acciones-cell">
+                                    <div class="action-buttons">
+                                        <!-- Generar QR -->
+                                        <button class="btn-action btn-qr" 
+                                                onclick="generarQRIndividual('{{ lote.id }}')"
+                                                title="Generar QR (PDF)">
+                                            <i class="fas fa-qrcode"></i>
+                                        </button>
+                                        
+                                        <!-- Ver Detalles -->
+                                        <button class="btn-action btn-view" 
+                                                onclick="verDetalleLote('{{ lote.id }}')"
+                                                title="Ver detalles">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        
+                                        <!-- Editar -->
+                                        <button class="btn-action btn-edit" 
+                                                onclick="editarLote('{{ lote.id }}')"
+                                                title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+
+                                        <!-- Eliminar -->
+                                        <button class="btn-action btn-delete" 
+                                                onclick="eliminarLote('{{ lote.id }}')"
+                                                title="Eliminar">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endwith %}
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="empty-state">
+                                    <div class="empty-content">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No se encontraron lotes en inventario</p>
+                                        <a href="{% url 'carga_masiva' %}" class="btn btn-primary">
+                                            <i class="fas fa-plus"></i> Agregar Lotes
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal de Generación QR -->
+    <div id="modal-qr" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-qrcode"></i> Código QR del Lote</h3>
+                <button class="btn-close" onclick="cerrarModalQR()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="qr-container" class="qr-display"></div>
+                <div class="qr-info">
+                    <p><strong>Lote:</strong> <span id="qr-lote-info"></span></p>
+                    <p><strong>Medicamento:</strong> <span id="qr-medicamento-info"></span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="descargarQR()">
+                    <i class="fas fa-download"></i> Descargar QR
+                </button>
+                <button class="btn btn-secondary" onclick="imprimirQR()">
+                    <i class="fas fa-print"></i> Imprimir
+                </button>
+                <button class="btn btn-secondary" onclick="cerrarModalQR()">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay para modales -->
+    <div id="modal-overlay" style="display: none;" onclick="cerrarModalQR()"></div>
+
+    <!-- Menú de Exportación -->
+    <div id="overlay-export" style="display: none;" onclick="cerrarMenuExportacion()"></div>
+    <div id="menu-exportacion" style="display: none;">
+        <h3><i class="fas fa-download"></i> Exportar Inventario</h3>
+        <div class="export-options">
+            <button class="btn-exportar-option" onclick="exportarExcel()">
+                <i class="fas fa-file-excel"></i> Exportar a Excel
+            </button>
+            <button class="btn-exportar-option" onclick="exportarPDF()">
+                <i class="fas fa-file-pdf"></i> Exportar a PDF
+            </button>
+            <button class="btn-exportar-option" onclick="exportarCSV()">
+                <i class="fas fa-file-csv"></i> Exportar a CSV
+            </button>
+        </div>
+        <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="cerrarMenuExportacion()">
+            <i class="fas fa-times"></i> Cancelar
         </button>
     </div>
 
-    <!-- FILTROS -->
-    <div class="filtros-container">
-        <!-- Filtro de Medicamento -->
-        <div class="filtro-columna" style="width: 200px">
-            <label for="filtro-medicamento-input">Medicamento</label>
-            <input type="text" id="filtro-medicamento-input" class="form-control" 
-                placeholder="Escribe para buscar..." autocomplete="off">
-            <div id="resultados-filtro-medicamento" class="resultados-busqueda"></div>
-            <input type="hidden" id="filtro-medicamento-id">
-        </div>
-
-        <!-- Filtro de Color -->
-        <div class="filtro-columna" style="width: 100px">
-            <label for="filtro-color">Alerta</label>
-            <select id="filtro-color" class="form-control">
-                <option value="">Todos</option>
-                <option value="verde">Verde</option>
-                <option value="amarillo">Amarillo</option>
-                <option value="rojo">Rojo</option>
-            </select>
-        </div>
-
-        <!-- Botón de acción -->
-        <div class="filtro-acciones">
-            <button id="btn-filtrar" class="btn btn-filtrar">
-                <i class="fas fa-filter"></i> Filtrar
-            </button>
-            <button id="btn-limpiar" class="btn btn-limpiar">
-                <i class="fas fa-broom"></i> Limpiar
-            </button>
+    <!-- Modal de Confirmación de Eliminación -->
+    <div id="modal-eliminar" class="modal" style="display: none;">
+        <div class="modal-content modal-eliminar">
+            <div class="modal-header">
+                <h3><i class="fas fa-exclamation-triangle"></i> <span id="modal-eliminar-titulo">Confirmar Eliminación</span></h3>
+                <button class="btn-close" onclick="cerrarModalEliminar()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-icon" id="modal-eliminar-icon">
+                    <i class="fas fa-trash-alt"></i>
+                </div>
+                <p id="modal-eliminar-mensaje" class="modal-mensaje"></p>
+                <p id="modal-eliminar-detalle" class="modal-detalle"></p>
+                <div id="modal-eliminar-info" class="lote-info-box" style="display: none;">
+                    <p><strong>Clave:</strong> <span id="info-clave"></span></p>
+                    <p><strong>Lote:</strong> <span id="info-lote"></span></p>
+                    <p><strong>Existencia:</strong> <span id="info-existencia"></span></p>
+                </div>
+            </div>
+            <div class="modal-footer" id="modal-eliminar-footer">
+                <!-- Botones dinámicos -->
+            </div>
         </div>
     </div>
 
-    <!-- TABLA ACTUALIZADA - SIN CPM -->
-    <div class="table-container">
-        <table class="medicamentos-table">
-            <thead>
-                <tr>
-                    <th>Clave</th>
-                    <th>Código de lote</th>
-                    <th>Descripción</th>
-                    <th>Existencia</th> <!-- Ahora en la posición 4 -->
-                    <th>Presentación</th> <!-- Ahora en la posición 5 -->
-                    <th>Fecha de caducidad</th> <!-- Ahora en la posición 6 -->
-                    <th>Acción</th> <!-- Ahora en la posición 7 -->
-                    <th>QR</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for lote in lotes %}
-                <tr data-id="{{ lote.id }}" 
-                    class="fondo-{{ lote.color_alerta }}"
-                    data-medicamento="{{ lote.medicamento.descripcion|lower }}"
-                    data-color="{{ lote.color_alerta }}"
-                    data-fecha="{{ lote.fecha_caducidad|date:'Y-m-d' }}"
-                    data-existencia="{{ lote.existencia }}">
-                    <!-- Columna Clave -->
-                    <td style="width: 130px; min-width: 130px; max-width: 130px; font-family: monospace;">
-                        {{ lote.medicamento.clave }}
-                    </td>
-                    
-                    <!-- Columna Código de Lote -->
-                    <td style="width: 100px; min-width: 100px; max-width: 100px;">
-                        <input type="text" name="lote_codigo_{{ lote.id }}" 
-                            class="campo campo-codigo form-control form-control-sm" 
-                            value="{{ lote.lote_codigo }}"
-                            style="width: 90%; max-width: 90%;">
-                    </td>
-                    
-                    <!-- Columna Descripción (editable) - MÁS ANCHA -->
-                    <td style="width: 400px; min-width: 400px; max-width: 400px;">
-                        <input type="text" name="descripcion_{{ lote.medicamento.id }}" 
-                               class="campo campo-descripcion form-control form-control-sm" 
-                               value="{{ lote.medicamento.descripcion }}"
-                               data-medicamento-id="{{ lote.medicamento.id }}"
-                               style="width: 95%; max-width: 95%;">
-                    </td>
-                    
-                    <!-- Columna Existencia - AHORA EN POSICIÓN 4 -->
-                    <td style="width: 80px; min-width: 80px; max-width: 80px; text-align: center;">
-                        <input type="number" name="existencia_{{ lote.id }}" 
-                            class="campo campo-existencia form-control form-control-sm" 
-                            value="{{ lote.existencia }}"
-                            style="width: 70px; max-width: 70px;">
-                    </td>
-                    
-                    <!-- Columna Presentación - AHORA EN POSICIÓN 5 -->
-                    <td style="width: 90px; min-width: 90px; max-width: 90px; text-align: center;">
-                        <select name="presentacion_{{ lote.id }}" class="campo campo-presentacion form-control form-control-sm"
-                                style="width: 80px; max-width: 80px;">
-                            {% for pres in presentaciones %}
-                                <option value="{{ pres.id }}" {% if lote.presentacion.id == pres.id %}selected{% endif %}>
-                                    {{ pres.nombre }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </td>
-                    
-                    <!-- Columna Fecha de caducidad - AHORA EN POSICIÓN 6 -->
-                    <td class="caducidad" style="width: 110px; min-width: 110px; max-width: 110px; text-align: center;">
-                        {{ lote.fecha_caducidad|date:"d/m/Y" }}
-                        <input type="hidden" name="fecha_caducidad_{{ lote.id }}" value="{{ lote.fecha_caducidad|date:'Y-m-d' }}">
-                    </td>                
-                    
-                    <!-- Columna Acciones - AHORA EN POSICIÓN 7 -->
-                    <td style="width: 80px; min-width: 80px; max-width: 80px; text-align: center;">
-                        <button class="btn btn-sm btn-primary btn-guardar" 
-                                onclick="guardarFila({{ lote.id }})" 
-                                title="Guardar"
-                                style="margin: 0 auto; display: block;">
-                            <i class="fas fa-save"></i>
-                        </button>
-                    </td>
-                    <td style="width: 80px; min-width: 80px; max-width: 80px; text-align: center;">
-                        <button class="btn-generar-qr" title="Generar QR">
-                            <i class="fas fa-file-pdf"></i>
-                        </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <!-- Overlay para modales -->
+    <div id="modal-overlay-eliminar" style="display: none;" onclick="cerrarModalEliminar()"></div>
 
+    <!-- Scripts -->
     <script src="{% static 'farmacia/js/filtros-autocomplete.js' %}"></script>
-    <script src="{% static 'farmacia/js/qr-generator.js' %}"></script>
     
-    <!-- Script para asegurar que las columnas no se encimen -->
     <script>
-    function ajustarAnchoTabla() {
-        console.log("Ajustando ancho de tabla para evitar que se encimen las columnas...");
-        
-        // Calcular el ancho total necesario (sin CPM)
-        const anchoTotal = 130 + 100 + 400 + 80 + 90 + 110 + 80 + 30; // Suma de anchos + margen
-        
-        // Aplicar el ancho mínimo a la tabla
-        document.querySelector('.medicamentos-table').style.minWidth = anchoTotal + 'px';
-        
-        // Forzar el redimensionamiento
-        document.querySelectorAll('.medicamentos-table td').forEach(td => {
-            td.style.overflow = 'hidden';
-            td.style.whiteSpace = 'nowrap';
+        // Calcular estadísticas al cargar
+        document.addEventListener('DOMContentLoaded', function() {
+            calcularEstadisticasLotes();
         });
+
+        function calcularEstadisticasLotes() {
+            const filas = document.querySelectorAll('.lote-row');
+            let vigentes = 0;
+            let proximos = 0;
+            let criticos = 0;
+
+            filas.forEach(fila => {
+                const dias = parseInt(fila.dataset.dias);
+                
+                // Semaforización correcta:
+                // Verde: > 90 días
+                // Amarillo: 31-90 días  
+                // Rojo: ≤ 30 días
+                if (dias > 90) {
+                    vigentes++;
+                } else if (dias > 30) {
+                    proximos++;
+                } else {
+                    criticos++;
+                }
+            });
+
+            document.getElementById('lotes-vigentes').textContent = vigentes;
+            document.getElementById('lotes-proximos').textContent = proximos;
+            document.getElementById('lotes-criticos').textContent = criticos;
+        }
+
+        // Aplicar filtros
+        function aplicarFiltros() {
+            const filtroClave = document.getElementById('filtro-clave').value.toLowerCase();
+            const filtroDescripcion = document.getElementById('filtro-descripcion').value.toLowerCase();
+            const filtroLote = document.getElementById('filtro-lote').value.toLowerCase();
+            const filtroPresentacion = document.getElementById('filtro-presentacion').value.toLowerCase();
+            const filtroCaducidad = document.getElementById('filtro-caducidad').value;
+
+            const filas = document.querySelectorAll('.lote-row');
+            let visibles = 0;
+
+            filas.forEach(fila => {
+                const clave = fila.dataset.clave.toLowerCase();
+                const descripcion = fila.dataset.descripcion.toLowerCase();
+                const lote = fila.dataset.lote.toLowerCase();
+                const presentacion = fila.dataset.presentacion.toLowerCase();
+                const dias = parseInt(fila.dataset.dias);
+
+                let mostrar = true;
+
+                // Filtro por clave
+                if (filtroClave && !clave.includes(filtroClave)) mostrar = false;
+
+                // Filtro por descripción
+                if (filtroDescripcion && !descripcion.includes(filtroDescripcion)) mostrar = false;
+
+                // Filtro por lote
+                if (filtroLote && !lote.includes(filtroLote)) mostrar = false;
+
+                // Filtro por presentación
+                if (filtroPresentacion && presentacion !== filtroPresentacion) mostrar = false;
+
+                // Filtro por caducidad
+                if (filtroCaducidad) {
+                    if (filtroCaducidad === 'vigente' && dias <= 90) mostrar = false;
+                    if (filtroCaducidad === 'proximo' && (dias <= 30 || dias > 90)) mostrar = false;
+                    if (filtroCaducidad === 'critico' && dias > 30) mostrar = false;
+                }
+
+                fila.style.display = mostrar ? '' : 'none';
+                if (mostrar) visibles++;
+            });
+
+            document.getElementById('count-visible').innerHTML = 
+                `Mostrando <strong>${visibles}</strong> de <strong>${filas.length}</strong> lotes`;
+        }
+
+        // Limpiar filtros
+        function limpiarFiltros() {
+            document.getElementById('filtro-clave').value = '';
+            document.getElementById('filtro-descripcion').value = '';
+            document.getElementById('filtro-lote').value = '';
+            document.getElementById('filtro-presentacion').value = '';
+            document.getElementById('filtro-caducidad').value = '';
+
+            const filas = document.querySelectorAll('.lote-row');
+            filas.forEach(fila => fila.style.display = '');
+
+            document.getElementById('count-visible').innerHTML = 
+                `Mostrando <strong>${filas.length}</strong> lotes`;
+        }
+
+        // Funciones de exportación
+        function mostrarMenuExportacion() {
+            document.getElementById('overlay-export').style.display = 'block';
+            document.getElementById('menu-exportacion').style.display = 'block';
+        }
+
+        function cerrarMenuExportacion() {
+            document.getElementById('overlay-export').style.display = 'none';
+            document.getElementById('menu-exportacion').style.display = 'none';
+        }
+
+        // DESPUÉS (temporal hasta implementar)
+        function exportarExcel() {
+            alert('Función de exportación a Excel en desarrollo');
+            cerrarMenuExportacion();
+        }
+
+        function exportarPDF() {
+            alert('Función de exportación a PDF en desarrollo');
+            cerrarMenuExportacion();
+        }
+
+        function exportarCSV() {
+            alert('Función de exportación a CSV en desarrollo');
+            cerrarMenuExportacion();
+        }
+
+
+        // Funciones de gestión de lotes
+        function verDetalleLote(loteId) {
+            window.location.href = `/farmacia/lote/${loteId}/`;
+        }
+
+        function editarLote(loteId) {
+            window.location.href = `/farmacia/lote/${loteId}/editar/`;
+        }
+
+        let loteAEliminar = null;
+
+        function eliminarLote(loteId) {
+            // Obtener info del lote desde la fila
+            const fila = document.querySelector(`[data-lote-id="${loteId}"]`);
+            if (!fila) {
+                mostrarModalError('No se encontró el lote', 'Error al obtener información del lote');
+                return;
+            }
+            
+            const clave = fila.dataset.clave;
+            const lote = fila.dataset.lote;
+            const existenciaText = fila.querySelector('.existencia-cell .badge-existencia');
+            const existencia = existenciaText ? existenciaText.textContent.trim().split(' ')[0] : '0';
+            
+            // Guardar info para uso posterior
+            loteAEliminar = {
+                id: loteId,
+                clave: clave,
+                lote: lote,
+                existencia: existencia
+            };
+            
+            // Mostrar modal de confirmación
+            mostrarModalEliminar(
+                'Confirmar Eliminación',
+                `¿Estás seguro de eliminar este lote?`,
+                `Esta acción no se puede deshacer.`,
+                'warning',
+                [
+                    { texto: 'Cancelar', clase: 'btn-secondary', accion: 'cerrarModalEliminar()' },
+                    { texto: 'Eliminar', clase: 'btn-danger', accion: 'confirmarEliminarLote()' }
+                ]
+            );
+            
+            // Mostrar info del lote
+            document.getElementById('info-clave').textContent = clave;
+            document.getElementById('info-lote').textContent = lote;
+            document.getElementById('info-existencia').textContent = existencia + ' unidades';
+            document.getElementById('modal-eliminar-info').style.display = 'block';
+        }
+
+        function confirmarEliminarLote() {
+            if (!loteAEliminar) return;
+            
+            // Mostrar loading en el footer
+            const footer = document.getElementById('modal-eliminar-footer');
+            footer.innerHTML = '<button class="btn btn-secondary" disabled><i class="fas fa-spinner fa-spin"></i> Eliminando...</button>';
+            
+            fetch(`/api/lote/${loteAEliminar.id}/eliminar/`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Éxito: mostrar mensaje de confirmación
+                    mostrarModalEliminar(
+                        '¡Eliminado Correctamente!',
+                        data.mensaje,
+                        `Clave: ${data.clave}`,
+                        'success',
+                        [
+                            { texto: 'Aceptar', clase: 'btn-primary', accion: 'location.reload()' }
+                        ]
+                    );
+                    
+                    // Cambiar icono a check
+                    document.getElementById('modal-eliminar-icon').innerHTML = 
+                        '<i class="fas fa-check-circle" style="color: #28a745;"></i>';
+                    document.getElementById('modal-eliminar-info').style.display = 'none';
+                    
+                } else {
+                    // Error: mostrar según tipo
+                    if (data.tipo === 'error_existencia') {
+                        // Error: lote con existencia > 0
+                        mostrarModalEliminar(
+                            '❌ No se puede eliminar',
+                            data.error,
+                            data.detalle,
+                            'error',
+                            [
+                                { texto: 'Entendido', clase: 'btn-primary', accion: 'cerrarModalEliminar()' }
+                            ]
+                        );
+                        
+                        // Cambiar icono a prohibido
+                        document.getElementById('modal-eliminar-icon').innerHTML = 
+                            '<i class="fas fa-ban" style="color: #dc3545;"></i>';
+                        
+                        // Agregar solución sugerida
+                        const detalle = document.getElementById('modal-eliminar-detalle');
+                        detalle.innerHTML = `
+                            <strong>Problema:</strong> ${data.detalle}<br><br>
+                            <strong>Solución:</strong> ${data.solucion}
+                        `;
+                        detalle.style.textAlign = 'left';
+                        detalle.style.background = '#fff3cd';
+                        detalle.style.padding = '1rem';
+                        detalle.style.borderRadius = '8px';
+                        detalle.style.borderLeft = '4px solid #ffc107';
+                        
+                    } else if (data.tipo === 'error_no_existe') {
+                        // Error: lote no existe
+                        mostrarModalEliminar(
+                            'Lote No Encontrado',
+                            data.error,
+                            data.detalle,
+                            'error',
+                            [
+                                { texto: 'Cerrar', clase: 'btn-primary', accion: 'cerrarModalEliminar()' }
+                            ]
+                        );
+                        document.getElementById('modal-eliminar-icon').innerHTML = 
+                            '<i class="fas fa-question-circle" style="color: #6c757d;"></i>';
+                            
+                    } else {
+                        // Error genérico
+                        mostrarModalEliminar(
+                            'Error',
+                            data.error || 'No se pudo eliminar el lote',
+                            data.detalle || 'Intenta nuevamente o contacta al administrador',
+                            'error',
+                            [
+                                { texto: 'Cerrar', clase: 'btn-primary', accion: 'cerrarModalEliminar()' }
+                            ]
+                        );
+                        document.getElementById('modal-eliminar-icon').innerHTML = 
+                            '<i class="fas fa-exclamation-circle" style="color: #dc3545;"></i>';
+                    }
+                    
+                    // Mantener info visible en caso de error
+                    document.getElementById('modal-eliminar-info').style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                mostrarModalEliminar(
+                    'Error de Conexión',
+                    'No se pudo conectar con el servidor',
+                    'Verifica tu conexión a internet e intenta nuevamente',
+                    'error',
+                    [
+                        { texto: 'Cerrar', clase: 'btn-primary', accion: 'cerrarModalEliminar()' }
+                    ]
+                );
+                document.getElementById('modal-eliminar-icon').innerHTML = 
+                    '<i class="fas fa-wifi-slash" style="color: #dc3545;"></i>';
+            });
+        }
+
+        function mostrarModalEliminar(titulo, mensaje, detalle, tipo, botones) {
+            // Actualizar contenido del modal
+            document.getElementById('modal-eliminar-titulo').textContent = titulo;
+            document.getElementById('modal-eliminar-mensaje').textContent = mensaje;
+            document.getElementById('modal-eliminar-detalle').innerHTML = detalle;
+            
+            // Resetear estilos del detalle
+            const detalleEl = document.getElementById('modal-eliminar-detalle');
+            detalleEl.style.textAlign = 'center';
+            detalleEl.style.background = 'transparent';
+            detalleEl.style.padding = '0';
+            detalleEl.style.border = 'none';
+            
+            // Actualizar icono según tipo
+            const iconEl = document.getElementById('modal-eliminar-icon');
+            if (tipo === 'warning') {
+                iconEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ffc107;"></i>';
+            } else if (tipo === 'error') {
+                iconEl.innerHTML = '<i class="fas fa-times-circle" style="color: #dc3545;"></i>';
+            } else if (tipo === 'success') {
+                iconEl.innerHTML = '<i class="fas fa-check-circle" style="color: #28a745;"></i>';
+            } else {
+                iconEl.innerHTML = '<i class="fas fa-trash-alt" style="color: #6c757d;"></i>';
+            }
+            
+            // Generar botones dinámicamente
+            const footer = document.getElementById('modal-eliminar-footer');
+            footer.innerHTML = botones.map(btn => 
+                `<button class="btn ${btn.clase}" onclick="${btn.accion}">${btn.texto}</button>`
+            ).join('');
+            
+            // Mostrar modal
+            document.getElementById('modal-overlay-eliminar').style.display = 'block';
+            document.getElementById('modal-eliminar').style.display = 'flex';
+        }
+
+        function cerrarModalEliminar() {
+            document.getElementById('modal-overlay-eliminar').style.display = 'none';
+            document.getElementById('modal-eliminar').style.display = 'none';
+            document.getElementById('modal-eliminar-info').style.display = 'none';
+            loteAEliminar = null;
+        }
+
+        function mostrarModalError(titulo, mensaje) {
+            mostrarModalEliminar(
+                titulo,
+                mensaje,
+                'Si el problema persiste, contacta al administrador',
+                'error',
+                [
+                    { texto: 'Cerrar', clase: 'btn-primary', accion: 'cerrarModalEliminar()' }
+                ]
+            );
+        }
+
+        // ===== FUNCIÓN QR INDIVIDUAL (PDF con existencia) =====
+        function generarQRIndividual(loteId) {
+            // Obtener info del lote desde la fila
+            const fila = document.querySelector(`[data-lote-id="${loteId}"]`);
+            if (!fila) {
+                alert('No se encontró el lote');
+                return;
+            }
+            
+            const clave = fila.dataset.clave;
+            const lote = fila.dataset.lote;
+            const caducidad = fila.dataset.fecha;
+            const existencia = parseInt(fila.dataset.existencia) || 0;
+            
+            if (existencia === 0) {
+                alert('Este lote no tiene existencia. No se pueden generar códigos QR.');
+                return;
+            }
+            
+            if (confirm(`¿Generar PDF con ${existencia} códigos QR del lote ${lote}?\n\nEstimado: ${Math.ceil(existencia / 9)} páginas`)) {
+                // Crear array con los datos del lote
+                const qrsArray = [];
+                for (let i = 0; i < existencia; i++) {
+                    qrsArray.push({
+                        clave: clave,
+                        lote: lote,
+                        caducidad: caducidad,
+                        numero: i + 1,
+                        totalExistencia: existencia
+                    });
+                }
+                
+            }
+        }
+
+        // ===== FUNCIÓN QR MASIVO (PDF con todos los lotes) =====
+        function generarQRMasivo() {
+            const filas = document.querySelectorAll('.lote-row:not([style*="display: none"])');
+            const totalLotes = filas.length;
+            
+            if (totalLotes === 0) {
+                alert('No hay lotes visibles para generar QR');
+                return;
+            }
+            
+            // Calcular total de QR (suma de existencias)
+            let totalQR = 0;
+            const qrsArray = [];
+            
+            filas.forEach(fila => {
+                const clave = fila.dataset.clave;
+                const lote = fila.dataset.lote;
+                const caducidad = fila.dataset.fecha;
+                const existencia = parseInt(fila.dataset.existencia) || 0;
+                
+                // Generar N QR según existencia
+                for (let i = 0; i < existencia; i++) {
+                    qrsArray.push({
+                        clave: clave,
+                        lote: lote,
+                        caducidad: caducidad,
+                        numero: i + 1,
+                        totalExistencia: existencia
+                    });
+                    totalQR++;
+                }
+            });
+            
+            if (totalQR === 0) {
+                alert('No hay lotes con existencia para generar QR');
+                return;
+            }
+            
+            if (confirm(`¿Generar PDF con ${totalQR} códigos QR (${totalLotes} lotes)?\n\nEstimado: ${Math.ceil(totalQR / 9)} páginas\n\nEsto puede tardar unos segundos.`)) {
+                const btn = document.getElementById('btn-generar-qr-masivo');
+                if (btn) {
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando PDF...';
+                    btn.disabled = true;
+                    
+                    setTimeout(() => {
+                        generarPDFConQRs(qrsArray, 'QR_Inventario_Completo');
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }, 100);
+                } else {
+                    generarPDFConQRs(qrsArray, 'QR_Inventario_Completo');
+                }
+            }
+        }
+
+        // ===== FUNCIÓN GENERADORA DE PDF (UNIFICADA) =====
         
-        console.log("Ancho de tabla ajustado: " + anchoTotal + "px");
-    }
-    
-    // Ejecutar cuando el DOM esté listo
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', ajustarAnchoTabla);
-    } else {
-        ajustarAnchoTabla();
-    }
-    
-    // Reajustar después de un breve tiempo
-    setTimeout(ajustarAnchoTabla, 100);
+        function generarPDFConQRs(qrsArray, nombreArchivo) {
+            const { jsPDF } = window.jspdf;
+            
+            // Configuración
+            const A4_WIDTH = 210;   // mm
+            const A4_HEIGHT = 297;  // mm
+            const MARGIN = 10;      // mm
+            const QR_PER_ROW = 3;
+            const QR_PER_PAGE = 9;  // 3x3
+            const QR_SIZE = 50;     // mm
+            const SPACING = 5;      // mm entre QR
+            const LABEL_HEIGHT = 15; // mm para la leyenda
+            const CELL_SIZE = QR_SIZE + SPACING + LABEL_HEIGHT;
+            
+            // Crear documento
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'A4'
+            });
+            
+            // Variables de control
+            let pageQRCount = 0;
+            let startX = MARGIN;
+            let startY = MARGIN + 15; // Espacio para título
+            let currentRow = 0;
+            let currentCol = 0;
+            
+            // Función para agregar encabezado
+            function agregarEncabezado(pageNum) {
+                doc.setFontSize(14);
+                doc.setFont(undefined, 'bold');
+                doc.text('Códigos QR - Inventario de Medicamentos', A4_WIDTH / 2, 8, { align: 'center' });
+                
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'normal');
+                const fecha = new Date().toLocaleDateString('es-MX');
+                doc.text(`Generado: ${fecha} | Total: ${qrsArray.length} unidades | Página ${pageNum}`, A4_WIDTH / 2, 13, { align: 'center' });
+                
+                // Línea separadora
+                doc.setDrawColor(150);
+                doc.line(MARGIN, 14, A4_WIDTH - MARGIN, 14);
+            }
+            
+            // Primera página con encabezado
+            let pageNum = 1;
+            agregarEncabezado(pageNum);
+            
+            // Contador para control asíncrono
+            let qrsGenerados = 0;
+            
+            // Procesar cada QR
+            qrsArray.forEach((qrInfo, index) => {
+                // Si alcanzamos el límite de QR por página, crear nueva página
+                if (pageQRCount >= QR_PER_PAGE && pageQRCount > 0) {
+                    doc.addPage();
+                    pageNum++;
+                    agregarEncabezado(pageNum);
+                    pageQRCount = 0;
+                    currentRow = 0;
+                    currentCol = 0;
+                }
+                
+                // Calcular posición
+                const posX = startX + (currentCol * CELL_SIZE);
+                const posY = startY + (currentRow * CELL_SIZE);
+                
+                // Generar QR en canvas
+                const qrData = `CLAVE:${qrInfo.clave}|LOTE:${qrInfo.lote}|U:${qrInfo.numero}/${qrInfo.totalExistencia}`;
+                
+                const qrCanvas = document.createElement('canvas');
+                
+                QRCode.toCanvas(qrCanvas, qrData, {
+                    width: 200,
+                    height: 200,
+                    margin: 2,
+                    scale: 2
+                }, function(error) {
+                    if (!error) {
+                        // Convertir a imagen
+                        const imgData = qrCanvas.toDataURL('image/png');
+                        
+                        // Agregar QR al PDF
+                        doc.addImage(imgData, 'PNG', posX, posY, QR_SIZE, QR_SIZE);
+                        
+                        // Agregar leyenda debajo del QR
+                        doc.setFontSize(8);
+                        doc.setFont(undefined, 'bold');
+                        doc.text(`${qrInfo.clave}`, posX + QR_SIZE / 2, posY + QR_SIZE + 3, { align: 'center' });
+                        
+                        doc.setFont(undefined, 'normal');
+                        doc.setFontSize(7);
+                        doc.text(`Lote: ${qrInfo.lote}`, posX + QR_SIZE / 2, posY + QR_SIZE + 7, { align: 'center' });
+                        doc.text(`Unidad ${qrInfo.numero}/${qrInfo.totalExistencia}`, posX + QR_SIZE / 2, posY + QR_SIZE + 10, { align: 'center' });
+                        
+                        qrsGenerados++;
+                        
+                        // Si es el último QR, descargar
+                        if (qrsGenerados === qrsArray.length) {
+                            setTimeout(() => {
+                                const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g, '-');
+                                doc.save(`${nombreArchivo}_${fecha}.pdf`);
+                            }, 300);
+                        }
+                    }
+                });
+                
+                // Mover a siguiente posición
+                currentCol++;
+                if (currentCol >= QR_PER_ROW) {
+                    currentCol = 0;
+                    currentRow++;
+                }
+                pageQRCount++;
+            });
+            
+            // Si no hay QR (por si acaso)
+            if (qrsArray.length === 0) {
+                doc.setFontSize(12);
+                doc.text('No hay lotes con existencia para generar QR', A4_WIDTH / 2, A4_HEIGHT / 2, { align: 'center' });
+                doc.save(`${nombreArchivo}.pdf`);
+            }
+        }
+
+        // ===== FUNCIONES AUXILIARES (mantener las que ya tenías) =====
+        function verDetalleLote(loteId) {
+            window.location.href = `/farmacia/lote/${loteId}/`;
+        }
+
+        function editarLote(loteId) {
+            window.location.href = `/farmacia/lote/${loteId}/editar/`;
+        }
     </script>
 </body>
 </html>

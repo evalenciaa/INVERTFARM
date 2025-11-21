@@ -232,41 +232,51 @@ def farmacia_g(request):
         existencia = request.POST.get('existencia')
         presentacion_id = request.POST.get('presentacion')
         nueva_descripcion = request.POST.get('descripcion')
-        
+
         if medicamento_id and nueva_descripcion:
             medicamento = Medicamento.objects.get(id=medicamento_id)
             medicamento.descripcion = nueva_descripcion
             medicamento.save()
             return JsonResponse({'status': 'success'})
-        # Validaciones mínimas
+
         if medicamento_id and lote_codigo and existencia and presentacion_id:
             medicamento = Medicamento.objects.get(id=medicamento_id)
             presentacion = Presentacion.objects.get(id=presentacion_id)
-
-            # Generar id para el lote (puedes ajustarlo según tu lógica)
+            
             import uuid
             lote_id = str(uuid.uuid4())[:15]
-
+            
             Lote.objects.create(
                 id=lote_id,
                 medicamento=medicamento,
                 lote_codigo=lote_codigo,
                 existencia=int(existencia),
                 presentacion=presentacion,
-                fecha_caducidad=date.today() + timedelta(days=365),  # Ajusta esta lógica
-                cpm=0  # O lo que desees por defecto
+                fecha_caducidad=date.today() + timedelta(days=365),
+                cpm=0
             )
+            
             return redirect('farmacia_g')
 
+    # ✅ AGREGAMOS EL CÁLCULO DE DÍAS
     lotes = Lote.objects.select_related('medicamento', 'presentacion').all()
+    
+    # Calcular días para caducidad para cada lote
+    hoy = date.today()
+    lotes_con_dias = []
+    for lote in lotes:
+        lote.dias_para_caducidad = (lote.fecha_caducidad - hoy).days
+        lotes_con_dias.append(lote)
+    
     medicamentos = Medicamento.objects.filter(activo=True)
     presentaciones = Presentacion.objects.all()
 
     context = {
-        'lotes': lotes,
+        'lotes': lotes_con_dias,  # ✅ Enviamos los lotes con días calculados
         'medicamentos': medicamentos,
         'presentaciones': presentaciones,
     }
+
     return render(request, 'farmacia_g.html', context)
 
 
@@ -365,6 +375,60 @@ def editar_cpm_medicamento(request):
             return JsonResponse({'error': str(e)}, status=500)
     
     return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+
+@login_required
+@require_http_methods(["DELETE", "POST"])
+def eliminar_lote(request, lote_id):
+    """
+    Elimina un lote del inventario
+    Solo permite eliminar si existencia = 0
+    """
+    try:
+        lote = get_object_or_404(Lote, id=lote_id)
+        
+        # Información del lote
+        medicamento_clave = lote.medicamento.clave
+        medicamento_descripcion = lote.medicamento.descripcion
+        lote_codigo = lote.lote_codigo
+        existencia = lote.existencia
+        
+        # VALIDACIÓN: Verificar que existencia sea 0
+        if existencia > 0:
+            return JsonResponse({
+                'success': False,
+                'tipo': 'error_existencia',
+                'error': f'No se puede eliminar el lote {lote_codigo}',
+                'detalle': f'El lote tiene {existencia} unidades en existencia.',
+                'solucion': 'Para eliminar este lote, primero debes registrar salidas hasta que la existencia sea 0.',
+                'existencia': existencia
+            }, status=400)
+        
+        # Si llegamos aquí, existencia = 0, proceder a eliminar
+        lote.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'mensaje': f'Lote {lote_codigo} eliminado correctamente',
+            'clave': medicamento_clave,
+            'descripcion': medicamento_descripcion
+        })
+        
+    except Lote.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'tipo': 'error_no_existe',
+            'error': 'El lote no existe',
+            'detalle': 'Es posible que ya haya sido eliminado por otro usuario.'
+        }, status=404)
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'tipo': 'error_sistema',
+            'error': 'Error del sistema',
+            'detalle': str(e)
+        }, status=500)
 
 
 def registro_medicamento(request):
