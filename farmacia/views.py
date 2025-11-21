@@ -30,9 +30,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
+from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepInFrame
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from django.templatetags.static import static
@@ -161,60 +162,63 @@ def alertas(request):
     return render(request, 'alertas.html', context)
 
 
-@csrf_exempt
 @login_required
+@require_http_methods(["POST", "GET"])
 def editar_lote(request, lote_id):
-    print(f"Editando lote: {lote_id}")  # Para debugging
+    lote = get_object_or_404(Lote, id=lote_id)
     
-    if not (request.user.is_superuser or request.user.groups.filter(name='capturista').exists()):
-        return JsonResponse({'error': 'Acceso denegado'}, status=403)
-
-    lote = get_object_or_404(Lote, pk=lote_id)
-    print(f"Lote encontrado: {lote}")
-
     if request.method == 'POST':
-        print("Datos recibidos:", request.POST)
-        
-        # Actualizar campos básicos
-        lote.lote_codigo = request.POST.get('lote_codigo', lote.lote_codigo)
-        
-        # Existencia
-        existencia = request.POST.get('existencia')
-        if existencia:
-            try:
-                lote.existencia = int(existencia)
-            except ValueError:
-                return JsonResponse({'error': 'Existencia inválida'}, status=400)
-
-        # CPM
-        cpm = request.POST.get('cpm')
-        if cpm:
-            try:
+        try:
+            # Campos que todos pueden editar
+            cpm = request.POST.get('cpm')
+            presentacion_id = request.POST.get('presentacion')
+            
+            if cpm:
                 lote.cpm = float(cpm)
-            except ValueError:
-                return JsonResponse({'error': 'CPM inválido'}, status=400)
-
-        # Presentación
-        presentacion_id = request.POST.get('presentacion')
-        if presentacion_id:
-            try:
-                presentacion = Presentacion.objects.get(pk=presentacion_id)
+            
+            if presentacion_id:
+                presentacion = get_object_or_404(Presentacion, id=presentacion_id)
                 lote.presentacion = presentacion
-            except Presentacion.DoesNotExist:
-                return JsonResponse({'error': 'Presentación no válida'}, status=400)
+            
+            # Campos solo para admin
+            if request.user.is_superuser:
+                lote_codigo = request.POST.get('lote_codigo')
+                existencia = request.POST.get('existencia')
+                fecha_caducidad = request.POST.get('fecha_caducidad')
+                
+                if lote_codigo:
+                    lote.lote_codigo = lote_codigo
+                
+                if existencia:
+                    lote.existencia = int(existencia)
+                
+                if fecha_caducidad:
+                    lote.fecha_caducidad = fecha_caducidad
+            
+            lote.save()
+            
+            return JsonResponse({
+                'success': True,
+                'mensaje': 'Lote actualizado correctamente'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=400)
+    
+    # GET: devolver datos del lote en JSON
+    return JsonResponse({
+        'id': lote.id,
+        'medicamento': f"{lote.medicamento.clave} - {lote.medicamento.descripcion}",
+        'cpm': str(lote.cpm),
+        'presentacion_id': lote.presentacion.id if lote.presentacion else '',
+        'lote_codigo': lote.lote_codigo,
+        'existencia': lote.existencia,
+        'fecha_caducidad': lote.fecha_caducidad.strftime('%Y-%m-%d')
+    })
 
-        fecha_caducidad = request.POST.get('fecha_caducidad')
-        if fecha_caducidad:
-            try:
-                lote.fecha_caducidad = fecha_caducidad
-            except ValueError:
-                return JsonResponse({'error': 'Fecha de caducidad inválida'}, status=400)
-        
-        lote.save()
-        print("Lote guardado exitosamente")
-        return JsonResponse({'mensaje': 'Lote actualizado correctamente'})
-
-    return JsonResponse({'error': 'Método no permitido'}, status=405)
 
 def tiene_acceso_farmacia(user):
     return user.groups.filter(name__in=[
@@ -222,6 +226,7 @@ def tiene_acceso_farmacia(user):
         'Capturista_Farmacia',
         'Supervisor_Farmacia'
     ]).exists()
+
 
 @login_required(login_url='login')
 @user_passes_test(tiene_acceso_farmacia)
@@ -1286,3 +1291,287 @@ def procesar_carga_masiva(request):
     status_code = 200 if len(resultado['resultados']['errores']) == 0 else 207  # 207 = Multi-Status
     
     return JsonResponse(response_data, status=status_code)
+
+@login_required
+def exportar_inventario_excel(request):
+    """Exportar inventario a Excel con logo"""
+    try:
+        import xlsxwriter
+        
+        lotes = Lote.objects.select_related('medicamento', 'presentacion').all()
+        
+        # Crear archivo en memoria
+        output = BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet('Inventario')
+        
+        # Definir formatos
+        header_format = workbook.add_format({
+            'bg_color': '#8B0000',
+            'font_color': 'white',
+            'bold': True,
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 11
+        })
+        
+        title_format = workbook.add_format({
+            'bg_color': '#8B0000',
+            'font_color': 'white',
+            'bold': True,
+            'align': 'center',
+            'valign': 'vcenter',
+            'font_size': 14
+        })
+        
+        date_format = workbook.add_format({
+            'italic': True,
+            'align': 'left',
+            'font_size': 10
+        })
+        
+        data_format = workbook.add_format({
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 10
+        })
+        
+        red_format = workbook.add_format({
+            'bg_color': '#FF0000',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'bold': True
+        })
+        
+        orange_format = workbook.add_format({
+            'bg_color': '#FF4444',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        yellow_format = workbook.add_format({
+            'bg_color': '#FFFF00',
+            'font_color': 'black',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        green_format = workbook.add_format({
+            'bg_color': '#00B050',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        # Establecer ancho de columnas
+        worksheet.set_column('A:A', 15)
+        worksheet.set_column('B:B', 25)
+        worksheet.set_column('C:C', 15)
+        worksheet.set_column('D:D', 15)
+        worksheet.set_column('E:E', 15)
+        worksheet.set_column('F:F', 12)
+        worksheet.set_column('G:G', 15)
+        
+        # Agregar logo
+        logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
+        if os.path.exists(logo_path):
+            try:
+                # Insertar logo en A1, redimensionado
+                worksheet.insert_image('A1', logo_path, {
+                    'x_scale': 0.8,
+                    'y_scale': 0.8,
+                    'x_offset': 0,
+                    'y_offset': 0
+                })
+            except Exception as e:
+                print(f"Error insertando logo: {e}")
+        
+        # Título (desplazado después del logo)
+        worksheet.merge_range('A3:G3', 'REPORTE DE INVENTARIO DE MEDICAMENTOS POR LOTE', title_format)
+        worksheet.set_row(2, 25)
+        
+        # Fecha
+        worksheet.merge_range('A4:G4', f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}", date_format)
+        worksheet.set_row(3, 18)
+        
+        # Encabezados
+        headers = ['Clave', 'Descripción', 'Lote', 'Presentación', 'Existencia', 'CPM', 'Caducidad']
+        for col, header in enumerate(headers):
+            worksheet.write(5, col, header, header_format)
+        worksheet.set_row(5, 20)
+        
+        # Datos
+        row = 6
+        for lote in lotes:
+            worksheet.write(row, 0, lote.medicamento.clave, data_format)
+            worksheet.write(row, 1, lote.medicamento.descripcion, data_format)
+            worksheet.write(row, 2, lote.lote_codigo, data_format)
+            worksheet.write(row, 3, lote.presentacion.nombre if lote.presentacion else 'N/A', data_format)
+            worksheet.write(row, 4, lote.existencia, data_format)
+            worksheet.write(row, 5, lote.cpm, data_format)
+            
+            # Determinar color según caducidad
+            dias_restantes = (lote.fecha_caducidad - datetime.now().date()).days
+            fecha_str = lote.fecha_caducidad.strftime('%d/%m/%Y')
+            
+            if dias_restantes <= 0:
+                worksheet.write(row, 6, fecha_str, red_format)
+            elif dias_restantes <= 30:
+                worksheet.write(row, 6, fecha_str, orange_format)
+            elif dias_restantes <= 90:
+                worksheet.write(row, 6, fecha_str, yellow_format)
+            else:
+                worksheet.write(row, 6, fecha_str, green_format)
+            
+            worksheet.set_row(row, 18)
+            row += 1
+        
+        # Pie de página
+        worksheet.merge_range(row + 1, 0, row + 1, 6, 'Documento generado automáticamente por INVENTFARM', date_format)
+        
+        # Finalizar
+        workbook.close()
+        
+        # Preparar respuesta
+        output.seek(0)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Inventario_{datetime.now().strftime("%d%m%Y")}.xlsx"'
+        return response
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'Error: {str(e)}', status=400)
+
+
+
+@login_required
+def exportar_inventario_pdf(request):
+    """Exportar inventario a PDF con logo"""
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        from reportlab.platypus import Table, TableStyle
+        
+        lotes = Lote.objects.select_related('medicamento', 'presentacion').all()
+        
+        # Crear PDF en memoria
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter  # 8.5" x 11"
+        
+        # ✅ RUTA CORRECTA (igual a pdf_utils.py)
+        logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
+        
+        # Configurar logo (dimensiones 1236x175 -> ratio ~7:1)
+        logo_width = 7.0 * inch
+        logo_height = 1.0 * inch
+        
+        # Centrar logo
+        x_logo = (width - logo_width) / 2
+        y_logo = height - (0.75 * inch) - logo_height
+        
+        # Dibujar logo
+        if os.path.exists(logo_path):
+            try:
+                p.drawImage(logo_path, x_logo, y_logo,
+                           width=logo_width, height=logo_height,
+                           preserveAspectRatio=True)
+            except Exception as e:
+                print(f"Error cargando logo: {e}")
+        else:
+            print(f"Logo no encontrado en: {logo_path}")
+        
+        # Posición para el contenido después del logo
+        y_actual = y_logo - (0.25 * inch)
+        
+        # Título
+        p.setFont("Helvetica-Bold", 16)
+        p.drawCentredString(width / 2.0, y_actual, "REPORTE DE INVENTARIO DE MEDICAMENTOS")
+        y_actual -= 20
+        
+        # Fecha
+        p.setFont("Helvetica", 10)
+        p.drawCentredString(width / 2.0, y_actual, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        y_actual -= 20
+        
+        # Línea divisoria
+        p.line(inch, y_actual, width - inch, y_actual)
+        y_actual -= 20
+        
+        # Tabla de datos
+        data_tabla = [['Clave', 'Descripción', 'Lote', 'Pres.', 'Exist.', 'CPM', 'Caducidad']]
+        
+        for lote in lotes:
+            data_tabla.append([
+                lote.medicamento.clave,
+                lote.medicamento.descripcion[:25] + '...' if len(lote.medicamento.descripcion) > 25 else lote.medicamento.descripcion,
+                lote.lote_codigo,
+                lote.presentacion.nombre[:8] if lote.presentacion else 'N/A',
+                str(lote.existencia),
+                str(lote.cpm),
+                lote.fecha_caducidad.strftime('%d/%m/%Y')
+            ])
+        
+        tabla = Table(data_tabla, colWidths=[0.9*inch, 2.2*inch, 0.8*inch, 0.8*inch, 0.6*inch, 0.6*inch, 0.9*inch])
+        
+        # Estilo de tabla
+        tabla.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#8B0000")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        
+        # Obtener altura de la tabla
+        wrap_height = tabla.wrapOn(p, width - 2*inch, height)[1]
+        y_tabla = y_actual - wrap_height - 20
+        
+        # Si no cabe en la página, crear nueva página
+        if y_tabla < (inch * 2.5):
+            p.showPage()
+            y_tabla = height - inch - wrap_height
+        
+        # Dibujar tabla
+        tabla.drawOn(p, inch, y_tabla)
+        
+        # Pie de página
+        p.setFont("Helvetica", 9)
+        p.drawCentredString(width / 2.0, inch * 0.5, "Documento generado por INVENTFARM")
+        
+        # Finalizar PDF
+        p.showPage()
+        p.save()
+        
+        # Retornar como descarga
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Inventario_{datetime.now().strftime("%d%m%Y")}.pdf"'
+        return response
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'Error: {str(e)}', status=400)
+
+

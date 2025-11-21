@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 </head>
@@ -158,8 +158,8 @@
                             <button class="btn btn-secondary" onclick="limpiarFiltros()">
                                 <i class="fas fa-eraser"></i> Limpiar
                             </button>
-                            <button class="btn btn-success" onclick="mostrarMenuExportacion()">
-                                <i class="fas fa-file-excel"></i> Exportar
+                            <button class="btn btn-secondary" onclick="abrirModalExportar()" title="Exportar Inventario">
+                                <i class="fas fa-download"></i> Exportar Inventario
                             </button>
                         </div>
                     </div>
@@ -214,8 +214,10 @@
                                 data-clave="{{ lote.medicamento.clave }}"
                                 data-descripcion="{{ lote.medicamento.descripcion }}"
                                 data-lote="{{ lote.lote_codigo }}"
+                                data-fecha="{{ lote.fecha_caducidad|date:'Y-m-d' }}"
                                 data-existencia="{{ lote.existencia }}"
                                 data-presentacion="{{ lote.presentacion.nombre }}"
+                                data-cpm="{{ lote.cpm }}"
                                 data-dias="{{ dias_caducidad }}">
                                 
                                 <!-- Clave -->
@@ -355,25 +357,35 @@
     <!-- Overlay para modales -->
     <div id="modal-overlay" style="display: none;" onclick="cerrarModalQR()"></div>
 
-    <!-- Menú de Exportación -->
-    <div id="overlay-export" style="display: none;" onclick="cerrarMenuExportacion()"></div>
-    <div id="menu-exportacion" style="display: none;">
-        <h3><i class="fas fa-download"></i> Exportar Inventario</h3>
-        <div class="export-options">
-            <button class="btn-exportar-option" onclick="exportarExcel()">
-                <i class="fas fa-file-excel"></i> Exportar a Excel
-            </button>
-            <button class="btn-exportar-option" onclick="exportarPDF()">
-                <i class="fas fa-file-pdf"></i> Exportar a PDF
-            </button>
-            <button class="btn-exportar-option" onclick="exportarCSV()">
-                <i class="fas fa-file-csv"></i> Exportar a CSV
-            </button>
+    <!-- Modal de Exportación (si no existe, créalo) -->
+    <div id="modal-exportar" class="modal" style="display: none;">
+        <div class="modal-content modal-exportar">
+            <div class="modal-header">
+                <h3><i class="fas fa-download"></i> Exportar Inventario</h3>
+                <button class="btn-close" onclick="cerrarModalExportar()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Selecciona el formato para descargar el inventario completo:</p>
+                <div class="exportar-opciones">
+                    <button class="btn btn-success btn-exportar" onclick="descargarExcel()">
+                        <i class="fas fa-file-excel"></i> Descargar Excel
+                    </button>
+                    <button class="btn btn-danger btn-exportar" onclick="descargarPDF()">
+                        <i class="fas fa-file-pdf"></i> Descargar PDF
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModalExportar()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
         </div>
-        <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="cerrarMenuExportacion()">
-            <i class="fas fa-times"></i> Cancelar
-        </button>
     </div>
+
+    <div id="modal-overlay-exportar" style="display: none;" onclick="cerrarModalExportar()"></div>
 
     <!-- Modal de Confirmación de Eliminación -->
     <div id="modal-eliminar" class="modal" style="display: none;">
@@ -404,6 +416,163 @@
 
     <!-- Overlay para modales -->
     <div id="modal-overlay-eliminar" style="display: none;" onclick="cerrarModalEliminar()"></div>
+
+    <!-- Modal de Edición de Lote -->
+    <div id="modal-editar-lote" class="modal" style="display: none;">
+        <div class="modal-content modal-editar">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Editar Lote</h3>
+                <button class="btn-close" onclick="cerrarModalEditarLote()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-editar-lote">
+                    <input type="hidden" id="edit-lote-id" name="lote_id">
+                    
+                    <!-- Info del medicamento (solo lectura) -->
+                    <div class="form-group">
+                        <label><i class="fas fa-pills"></i> Medicamento</label>
+                        <input type="text" id="edit-medicamento-info" class="form-control" readonly style="background: #f5f5f5;">
+                    </div>
+
+                    <!-- CPM (todos pueden editar) -->
+                    <div class="form-group">
+                        <label><i class="fas fa-chart-line"></i> CPM (Consumo Promedio Mensual)</label>
+                        <input type="number" id="edit-cpm" name="cpm" class="form-control" min="0" step="0.01" required>
+                    </div>
+
+                    <!-- Presentación (todos pueden editar) -->
+                    <div class="form-group">
+                        <label><i class="fas fa-box"></i> Presentación</label>
+                        <select id="edit-presentacion" name="presentacion" class="form-control" required>
+                            <option value="">Seleccione una presentación</option>
+                            {% for pres in presentaciones %}
+                                <option value="{{ pres.id }}">{{ pres.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Campos de admin (solo si es administrador) -->
+                    {% if user.is_superuser %}
+                    <div class="admin-only-fields">
+                        <hr style="margin: 1.5rem 0; border-color: #ffc107;">
+                        <p style="color: #856404; background: #fff3cd; padding: 0.5rem; border-radius: 5px; margin-bottom: 1rem;">
+                            <i class="fas fa-shield-alt"></i> <strong>Campos de Administrador</strong>
+                        </p>
+                        
+                        <div class="form-group">
+                            <label><i class="fas fa-hashtag"></i> Código de Lote</label>
+                            <input type="text" id="edit-lote-codigo" name="lote_codigo" class="form-control">
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-cubes"></i> Existencia</label>
+                            <input type="number" id="edit-existencia" name="existencia" class="form-control" min="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-calendar-alt"></i> Fecha de Caducidad</label>
+                            <input type="date" id="edit-fecha-caducidad" name="fecha_caducidad" class="form-control">
+                        </div>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModalEditarLote()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" onclick="guardarEdicionLote()">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-overlay-editar" style="display: none;" onclick="cerrarModalEditarLote()"></div>
+    
+    <!-- Modal de Detalles del Lote -->
+    <div id="modal-detalles-lote" class="modal" style="display: none;">
+    <div class="modal-content modal-detalles">
+        <div class="modal-header">
+            <h3><i class="fas fa-info-circle"></i> Detalles del Lote</h3>
+            <button class="btn-close" onclick="cerrarModalDetalles()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="detalles-grid">
+                <!-- Información del Medicamento -->
+                <div class="detalle-section">
+                    <h4><i class="fas fa-pills"></i> Medicamento</h4>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Clave:</span>
+                        <span class="detalle-valor" id="detalle-clave"></span>
+                    </div>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Descripción:</span>
+                        <span class="detalle-valor" id="detalle-descripcion"></span>
+                    </div>
+                </div>
+
+                <!-- Información del Lote -->
+                <div class="detalle-section">
+                    <h4><i class="fas fa-barcode"></i> Lote</h4>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Código de Lote:</span>
+                        <span class="detalle-valor" id="detalle-lote"></span>
+                    </div>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Presentación:</span>
+                        <span class="detalle-valor" id="detalle-presentacion"></span>
+                    </div>
+                </div>
+
+                <!-- Existencia -->
+                <div class="detalle-section">
+                    <h4><i class="fas fa-cubes"></i> Existencia</h4>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Cantidad:</span>
+                        <span class="detalle-valor badge-existencia" id="detalle-existencia"></span>
+                    </div>
+                    <div class="detalle-row">
+                        <span class="detalle-label">CPM:</span>
+                        <span class="detalle-valor" id="detalle-cpm"></span>
+                    </div>
+                </div>
+
+                <!-- Caducidad -->
+                <div class="detalle-section">
+                    <h4><i class="fas fa-calendar-times"></i> Caducidad</h4>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Fecha de Caducidad:</span>
+                        <span class="detalle-valor" id="detalle-fecha"></span>
+                    </div>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Estado:</span>
+                        <span class="detalle-valor" id="detalle-estado"></span>
+                    </div>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Días Restantes:</span>
+                        <span class="detalle-valor badge-dias" id="detalle-dias"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="cerrarModalDetalles()">
+                <i class="fas fa-times"></i> Cerrar
+            </button>
+            <button class="btn btn-primary" onclick="imprimirDetalles()">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-overlay-detalles" style="display: none;" onclick="cerrarModalDetalles()"></div>
+
 
     <!-- Scripts -->
     <script src="{% static 'farmacia/js/filtros-autocomplete.js' %}"></script>
@@ -514,31 +683,24 @@
             document.getElementById('menu-exportacion').style.display = 'none';
         }
 
-        // DESPUÉS (temporal hasta implementar)
-        function exportarExcel() {
-            alert('Función de exportación a Excel en desarrollo');
-            cerrarMenuExportacion();
+        function abrirModalExportar() {
+            document.getElementById('modal-overlay-exportar').style.display = 'block';
+            document.getElementById('modal-exportar').style.display = 'flex';
         }
 
-        function exportarPDF() {
-            alert('Función de exportación a PDF en desarrollo');
-            cerrarMenuExportacion();
+        function cerrarModalExportar() {
+            document.getElementById('modal-overlay-exportar').style.display = 'none';
+            document.getElementById('modal-exportar').style.display = 'none';
         }
 
-        function exportarCSV() {
-            alert('Función de exportación a CSV en desarrollo');
-            cerrarMenuExportacion();
+        function descargarExcel() {
+            window.location.href = '/exportar/excel/';
         }
 
-
-        // Funciones de gestión de lotes
-        function verDetalleLote(loteId) {
-            window.location.href = `/farmacia/lote/${loteId}/`;
+        function descargarPDF() {
+            window.location.href = '/exportar/pdf/';
         }
 
-        function editarLote(loteId) {
-            window.location.href = `/farmacia/lote/${loteId}/editar/`;
-        }
 
         let loteAEliminar = null;
 
@@ -749,8 +911,173 @@
             );
         }
 
-        // ===== FUNCIÓN QR INDIVIDUAL (PDF con existencia) =====
+        // Generar QR PDF INDIVIDUAL (solo ese lote, tantas veces como existencia)
         function generarQRIndividual(loteId) {
+            const fila = document.querySelector(`[data-lote-id="${loteId}"]`);
+            if (!fila) return alert('No se encontró el lote');
+            const clave = fila.dataset.clave;
+            const lote = fila.dataset.lote;
+            const caducidad = fila.dataset.fecha;
+            let existencia = parseInt(fila.dataset.existencia);
+            if (isNaN(existencia)) existencia = 0;
+            if (existencia <= 0) return alert('Este lote no tiene existencia.');
+
+            if (confirm(`¿Generar PDF con ${existencia} códigos QR del lote ${lote}?`)) {
+                const qrsArray = [];
+                for (let i = 0; i < existencia; i++) {
+                    qrsArray.push({ clave, lote, caducidad, numero: i + 1, totalExistencia: existencia });
+                }
+                generarPDFConQRs(qrsArray, `QR_${clave}_${lote}`);
+            }
+        }
+
+        // Generar QR PDF MASIVO (todos los lotes en la tabla)
+        function generarQRMasivo() {
+            const filas = document.querySelectorAll('.lote-row:not([style*="display: none"])');
+            const qrsArray = [];
+            filas.forEach(fila => {
+                const clave = fila.dataset.clave;
+                const lote = fila.dataset.lote;
+                const caducidad = fila.dataset.fecha;
+                let existencia = parseInt(fila.dataset.existencia);
+                if (isNaN(existencia) || existencia <= 0) return;
+                for (let i = 0; i < existencia; i++) {
+                    qrsArray.push({ clave, lote, caducidad, numero: i + 1, totalExistencia: existencia });
+                }
+            });
+            if (!qrsArray.length) return alert('No hay lotes con existencia para generar QR');
+            if (confirm(`¿Generar PDF con ${qrsArray.length} códigos QR?`)){
+                generarPDFConQRs(qrsArray, 'QR_Inventario_Completo');
+            }
+        }
+
+        function generarPDFConQRs(qrsArray, nombreArchivo) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'A4' });
+            const A4_WIDTH = 210, MARGIN = 7, QR_CELL = 50, QR_SIZE = 38;
+            let qrCount = 0, pageNum = 1;
+
+            function encabezado() {
+                doc.setFontSize(14); doc.setFont(undefined, 'bold');
+                doc.text('Códigos QR - Inventario', A4_WIDTH / 2, 6, { align:'center' });
+                doc.setFontSize(8); doc.setFont(undefined, 'normal');
+                doc.text(`Fecha: ${new Date().toLocaleDateString()}  |  Total: ${qrsArray.length}  |  Página ${pageNum}`, A4_WIDTH / 2, 11, { align:'center' });
+                doc.setDrawColor(150); doc.line(MARGIN, 12, A4_WIDTH - MARGIN, 12);
+            }
+
+            encabezado();
+
+            // 4 COLS x 4 FILAS = 16 QR por página
+            for (let i = 0; i < qrsArray.length; i++) {
+                const row = Math.floor((qrCount % 16) / 4), col = qrCount % 4;
+                const x = MARGIN + col * QR_CELL, y = 14 + row * QR_CELL;
+                
+                const qrCanvas = document.createElement('canvas');
+                new QRious({
+                    element: qrCanvas,
+                    value: `CLAVE:${qrsArray[i].clave}|LOTE:${qrsArray[i].lote}|U:${qrsArray[i].numero}/${qrsArray[i].totalExistencia}`,
+                    size: 200,
+                    level: 'H'
+                });
+                const imgData = qrCanvas.toDataURL('image/png');
+                doc.addImage(imgData, 'PNG', x, y, QR_SIZE, QR_SIZE);
+
+                doc.setFontSize(6.5); doc.setFont(undefined, 'bold');
+                doc.text(qrsArray[i].clave, x + QR_SIZE/2, y + QR_SIZE + 2, { align:'center' });
+                doc.setFont(undefined, 'normal'); doc.setFontSize(5.5);
+                doc.text(`Lote: ${qrsArray[i].lote}`, x + QR_SIZE/2, y + QR_SIZE + 5, { align:'center' });
+                doc.text(`${qrsArray[i].numero}/${qrsArray[i].totalExistencia}`, x + QR_SIZE/2, y + QR_SIZE + 7.5, { align:'center' });
+
+                qrCount++;
+                if (qrCount % 16 === 0 && i < qrsArray.length - 1) {
+                    doc.addPage(); pageNum++; encabezado();
+                    qrCount = 0;
+                }
+            }
+            doc.save(`${nombreArchivo}_${new Date().toLocaleDateString().replace(/\//g,'-')}.pdf`);
+        }
+
+        // ===== EDITAR LOTE =====
+        function editarLote(loteId) {
+            // Hacer petición para obtener datos del lote
+            fetch(`/editar_lote/${loteId}/`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Rellenar el formulario
+                document.getElementById('edit-lote-id').value = data.id;
+                document.getElementById('edit-medicamento-info').value = data.medicamento;
+                document.getElementById('edit-cpm').value = data.cpm;
+                document.getElementById('edit-presentacion').value = data.presentacion_id;
+                
+                // Rellenar campos de admin si existen
+                const editLoteCodigo = document.getElementById('edit-lote-codigo');
+                if (editLoteCodigo) editLoteCodigo.value = data.lote_codigo;
+                
+                const editExistencia = document.getElementById('edit-existencia');
+                if (editExistencia) editExistencia.value = data.existencia;
+                
+                const editFecha = document.getElementById('edit-fecha-caducidad');
+                if (editFecha) editFecha.value = data.fecha_caducidad;
+                
+                // Mostrar modal
+                document.getElementById('modal-overlay-editar').style.display = 'block';
+                document.getElementById('modal-editar-lote').style.display = 'flex';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al cargar los datos del lote');
+            });
+        }
+
+        function cerrarModalEditarLote() {
+            document.getElementById('modal-overlay-editar').style.display = 'none';
+            document.getElementById('modal-editar-lote').style.display = 'none';
+        }
+
+        function guardarEdicionLote() {
+            const loteId = document.getElementById('edit-lote-id').value;
+            const formData = new FormData(document.getElementById('form-editar-lote'));
+            
+            // Mostrar loading
+            const btnGuardar = event.target;
+            const originalText = btnGuardar.innerHTML;
+            btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            btnGuardar.disabled = true;
+            
+            fetch(`/editar_lote/${loteId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.mensaje);
+                    cerrarModalEditarLote();
+                    location.reload();
+                } else {
+                    alert('❌ Error: ' + (data.error || 'No se pudo actualizar el lote'));
+                    btnGuardar.innerHTML = originalText;
+                    btnGuardar.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error de conexión al guardar');
+                btnGuardar.innerHTML = originalText;
+                btnGuardar.disabled = false;
+            });
+        }
+
+        // ===== VER DETALLES DEL LOTE (CORREGIDO - CPM) =====
+        function verDetalleLote(loteId) {
             // Obtener info del lote desde la fila
             const fila = document.querySelector(`[data-lote-id="${loteId}"]`);
             if (!fila) {
@@ -758,221 +1085,82 @@
                 return;
             }
             
-            const clave = fila.dataset.clave;
-            const lote = fila.dataset.lote;
-            const caducidad = fila.dataset.fecha;
-            const existencia = parseInt(fila.dataset.existencia) || 0;
+            // Extraer datos desde data attributes
+            const clave = fila.dataset.clave || 'N/A';
+            const descripcion = fila.dataset.descripcion || 'Sin descripción';
+            const lote = fila.dataset.lote || 'N/A';
+            const presentacion = fila.dataset.presentacion || 'N/A';
+            const existencia = fila.dataset.existencia || '0';
+            const fecha = fila.dataset.fecha; // Formato: YYYY-MM-DD
+            const dias = parseInt(fila.dataset.dias) || 0;
+            const cpm = fila.dataset.cpm || '0'; // ✅ Obtener CPM desde data-attribute
             
-            if (existencia === 0) {
-                alert('Este lote no tiene existencia. No se pueden generar códigos QR.');
-                return;
+            // Rellenar información básica
+            document.getElementById('detalle-clave').textContent = clave;
+            document.getElementById('detalle-descripcion').textContent = descripcion;
+            document.getElementById('detalle-lote').textContent = lote;
+            document.getElementById('detalle-presentacion').textContent = presentacion;
+            document.getElementById('detalle-existencia').textContent = existencia + ' unidades';
+            
+            // ✅ CPM sin símbolo de $ (es consumo, no precio)
+            document.getElementById('detalle-cpm').textContent = parseFloat(cpm).toFixed(0) + ' unidades/mes';
+            
+            // ✅ Fecha en formato corto DD/MM/YYYY
+            if (fecha) {
+                const [year, month, day] = fecha.split('-');
+                const fechaFormateada = `${day}/${month}/${year}`;
+                document.getElementById('detalle-fecha').textContent = fechaFormateada;
+            } else {
+                document.getElementById('detalle-fecha').textContent = 'No disponible';
             }
             
-            if (confirm(`¿Generar PDF con ${existencia} códigos QR del lote ${lote}?\n\nEstimado: ${Math.ceil(existencia / 9)} páginas`)) {
-                // Crear array con los datos del lote
-                const qrsArray = [];
-                for (let i = 0; i < existencia; i++) {
-                    qrsArray.push({
-                        clave: clave,
-                        lote: lote,
-                        caducidad: caducidad,
-                        numero: i + 1,
-                        totalExistencia: existencia
-                    });
-                }
-                
+            // Estado según días restantes
+            let estado = '';
+            let estadoClase = '';
+            if (dias <= 0) {
+                estado = '❌ Vencido';
+                estadoClase = 'estado-critico';
+            } else if (dias <= 30) {
+                estado = '⚠️ Crítico';
+                estadoClase = 'estado-critico';
+            } else if (dias <= 90) {
+                estado = '⏰ Próximo a Vencer';
+                estadoClase = 'estado-proximo';
+            } else {
+                estado = '✅ Vigente';
+                estadoClase = 'estado-vigente';
             }
+            
+            const estadoElement = document.getElementById('detalle-estado');
+            estadoElement.textContent = estado;
+            estadoElement.className = 'detalle-valor ' + estadoClase;
+            
+            // Días restantes con color
+            const diasElement = document.getElementById('detalle-dias');
+            diasElement.textContent = dias + ' días';
+            if (dias <= 30) {
+                diasElement.style.background = '#dc3545';
+                diasElement.style.color = 'white';
+            } else if (dias <= 90) {
+                diasElement.style.background = '#ffc107';
+                diasElement.style.color = '#000';
+            } else {
+                diasElement.style.background = '#28a745';
+                diasElement.style.color = 'white';
+            }
+            
+            // Mostrar modal
+            document.getElementById('modal-overlay-detalles').style.display = 'block';
+            document.getElementById('modal-detalles-lote').style.display = 'flex';
         }
 
-        // ===== FUNCIÓN QR MASIVO (PDF con todos los lotes) =====
-        function generarQRMasivo() {
-            const filas = document.querySelectorAll('.lote-row:not([style*="display: none"])');
-            const totalLotes = filas.length;
-            
-            if (totalLotes === 0) {
-                alert('No hay lotes visibles para generar QR');
-                return;
-            }
-            
-            // Calcular total de QR (suma de existencias)
-            let totalQR = 0;
-            const qrsArray = [];
-            
-            filas.forEach(fila => {
-                const clave = fila.dataset.clave;
-                const lote = fila.dataset.lote;
-                const caducidad = fila.dataset.fecha;
-                const existencia = parseInt(fila.dataset.existencia) || 0;
-                
-                // Generar N QR según existencia
-                for (let i = 0; i < existencia; i++) {
-                    qrsArray.push({
-                        clave: clave,
-                        lote: lote,
-                        caducidad: caducidad,
-                        numero: i + 1,
-                        totalExistencia: existencia
-                    });
-                    totalQR++;
-                }
-            });
-            
-            if (totalQR === 0) {
-                alert('No hay lotes con existencia para generar QR');
-                return;
-            }
-            
-            if (confirm(`¿Generar PDF con ${totalQR} códigos QR (${totalLotes} lotes)?\n\nEstimado: ${Math.ceil(totalQR / 9)} páginas\n\nEsto puede tardar unos segundos.`)) {
-                const btn = document.getElementById('btn-generar-qr-masivo');
-                if (btn) {
-                    const originalText = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando PDF...';
-                    btn.disabled = true;
-                    
-                    setTimeout(() => {
-                        generarPDFConQRs(qrsArray, 'QR_Inventario_Completo');
-                        btn.innerHTML = originalText;
-                        btn.disabled = false;
-                    }, 100);
-                } else {
-                    generarPDFConQRs(qrsArray, 'QR_Inventario_Completo');
-                }
-            }
+        function cerrarModalDetalles() {
+            document.getElementById('modal-overlay-detalles').style.display = 'none';
+            document.getElementById('modal-detalles-lote').style.display = 'none';
         }
 
-        // ===== FUNCIÓN GENERADORA DE PDF (UNIFICADA) =====
-        
-        function generarPDFConQRs(qrsArray, nombreArchivo) {
-            const { jsPDF } = window.jspdf;
-            
-            // Configuración
-            const A4_WIDTH = 210;   // mm
-            const A4_HEIGHT = 297;  // mm
-            const MARGIN = 10;      // mm
-            const QR_PER_ROW = 3;
-            const QR_PER_PAGE = 9;  // 3x3
-            const QR_SIZE = 50;     // mm
-            const SPACING = 5;      // mm entre QR
-            const LABEL_HEIGHT = 15; // mm para la leyenda
-            const CELL_SIZE = QR_SIZE + SPACING + LABEL_HEIGHT;
-            
-            // Crear documento
-            const doc = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'A4'
-            });
-            
-            // Variables de control
-            let pageQRCount = 0;
-            let startX = MARGIN;
-            let startY = MARGIN + 15; // Espacio para título
-            let currentRow = 0;
-            let currentCol = 0;
-            
-            // Función para agregar encabezado
-            function agregarEncabezado(pageNum) {
-                doc.setFontSize(14);
-                doc.setFont(undefined, 'bold');
-                doc.text('Códigos QR - Inventario de Medicamentos', A4_WIDTH / 2, 8, { align: 'center' });
-                
-                doc.setFontSize(9);
-                doc.setFont(undefined, 'normal');
-                const fecha = new Date().toLocaleDateString('es-MX');
-                doc.text(`Generado: ${fecha} | Total: ${qrsArray.length} unidades | Página ${pageNum}`, A4_WIDTH / 2, 13, { align: 'center' });
-                
-                // Línea separadora
-                doc.setDrawColor(150);
-                doc.line(MARGIN, 14, A4_WIDTH - MARGIN, 14);
-            }
-            
-            // Primera página con encabezado
-            let pageNum = 1;
-            agregarEncabezado(pageNum);
-            
-            // Contador para control asíncrono
-            let qrsGenerados = 0;
-            
-            // Procesar cada QR
-            qrsArray.forEach((qrInfo, index) => {
-                // Si alcanzamos el límite de QR por página, crear nueva página
-                if (pageQRCount >= QR_PER_PAGE && pageQRCount > 0) {
-                    doc.addPage();
-                    pageNum++;
-                    agregarEncabezado(pageNum);
-                    pageQRCount = 0;
-                    currentRow = 0;
-                    currentCol = 0;
-                }
-                
-                // Calcular posición
-                const posX = startX + (currentCol * CELL_SIZE);
-                const posY = startY + (currentRow * CELL_SIZE);
-                
-                // Generar QR en canvas
-                const qrData = `CLAVE:${qrInfo.clave}|LOTE:${qrInfo.lote}|U:${qrInfo.numero}/${qrInfo.totalExistencia}`;
-                
-                const qrCanvas = document.createElement('canvas');
-                
-                QRCode.toCanvas(qrCanvas, qrData, {
-                    width: 200,
-                    height: 200,
-                    margin: 2,
-                    scale: 2
-                }, function(error) {
-                    if (!error) {
-                        // Convertir a imagen
-                        const imgData = qrCanvas.toDataURL('image/png');
-                        
-                        // Agregar QR al PDF
-                        doc.addImage(imgData, 'PNG', posX, posY, QR_SIZE, QR_SIZE);
-                        
-                        // Agregar leyenda debajo del QR
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'bold');
-                        doc.text(`${qrInfo.clave}`, posX + QR_SIZE / 2, posY + QR_SIZE + 3, { align: 'center' });
-                        
-                        doc.setFont(undefined, 'normal');
-                        doc.setFontSize(7);
-                        doc.text(`Lote: ${qrInfo.lote}`, posX + QR_SIZE / 2, posY + QR_SIZE + 7, { align: 'center' });
-                        doc.text(`Unidad ${qrInfo.numero}/${qrInfo.totalExistencia}`, posX + QR_SIZE / 2, posY + QR_SIZE + 10, { align: 'center' });
-                        
-                        qrsGenerados++;
-                        
-                        // Si es el último QR, descargar
-                        if (qrsGenerados === qrsArray.length) {
-                            setTimeout(() => {
-                                const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g, '-');
-                                doc.save(`${nombreArchivo}_${fecha}.pdf`);
-                            }, 300);
-                        }
-                    }
-                });
-                
-                // Mover a siguiente posición
-                currentCol++;
-                if (currentCol >= QR_PER_ROW) {
-                    currentCol = 0;
-                    currentRow++;
-                }
-                pageQRCount++;
-            });
-            
-            // Si no hay QR (por si acaso)
-            if (qrsArray.length === 0) {
-                doc.setFontSize(12);
-                doc.text('No hay lotes con existencia para generar QR', A4_WIDTH / 2, A4_HEIGHT / 2, { align: 'center' });
-                doc.save(`${nombreArchivo}.pdf`);
-            }
-        }
-
-        // ===== FUNCIONES AUXILIARES (mantener las que ya tenías) =====
-        function verDetalleLote(loteId) {
-            window.location.href = `/farmacia/lote/${loteId}/`;
-        }
-
-        function editarLote(loteId) {
-            window.location.href = `/farmacia/lote/${loteId}/editar/`;
+        function imprimirDetalles() {
+            window.print();
         }
     </script>
 </body>
