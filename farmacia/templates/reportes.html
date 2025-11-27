@@ -1,6 +1,4 @@
-{% extends 'base.html' %}
 {% load static %}
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -11,7 +9,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
-    <!-- jsPDF y jsPDF-AutoTable para exportar PDF -->
+    <!-- jsPDF y jsPDF-AutoTable -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
     
@@ -25,15 +23,12 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
-        {% include 'farmacia/sidebar.html' %}
-        
         <!-- Contenido Principal -->
         <main class="main-content">
             <!-- Header -->
             <div class="reports-header">
                 <div class="header-left">
-                    <a href="{% url 'farmacia_menu' %}" class="back-btn">
+                    <a href="{% url 'farmacia' %}" class="back-btn">
                         <i class="fas fa-arrow-left"></i>
                     </a>
                     <div class="header-info">
@@ -174,7 +169,7 @@
                                 </select>
                             </div>
                             <div class="chart-container">
-                                anvas id="chartMedicamentos"></canvas>
+                                <canvas id="chartMedicamentos"></canvas>
                             </div>
                         </div>
 
@@ -197,7 +192,7 @@
                                 <h3><i class="fas fa-users"></i> Pacientes Más Atendidos</h3>
                             </div>
                             <div class="chart-container">
-                                anvas id="chartPacientes"></canvas>
+                                <canvas id="chartPacientes"></canvas>
                             </div>
                         </div>
 
@@ -238,7 +233,7 @@
                             </select>
                         </div>
                         <div class="chart-container-large">
-                            anvas id="chartTendencias"></canvas>
+                            <canvas id="chartTendencias"></canvas>
                         </div>
                     </div>
 
@@ -248,7 +243,7 @@
                                 <h3><i class="fas fa-calendar-day"></i> Distribución por Día de la Semana</h3>
                             </div>
                             <div class="chart-container">
-                                anvas id="chartDiasSemana"></canvas>
+                                <canvas id="chartDiasSemana"></canvas>
                             </div>
                         </div>
 
@@ -257,7 +252,7 @@
                                 <h3><i class="fas fa-clock"></i> Horas Pico de Dispensación</h3>
                             </div>
                             <div class="chart-container">
-                                anvas id="chartHoras"></canvas>
+                                <canvas id="chartHoras"></canvas>
                             </div>
                         </div>
                     </div>

@@ -16,8 +16,8 @@ from django.views.decorators.http import require_http_methods
 from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente
 from datetime import timedelta, date, datetime
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Sum, Q, F, Value, IntegerField
-from django.db.models.functions import Coalesce
+from django.db.models import Sum, Q, F, Value, IntegerField, Count, Max
+from django.db.models.functions import Coalesce, TruncMonth
 from .forms import LoteForm, MedicamentoForm, SalidaForm
 from django.http import HttpResponse, JsonResponse
 from rest_framework.views import APIView
@@ -1952,3 +1952,259 @@ def exportar_inventario_general_pdf(request):
         import traceback
         traceback.print_exc()
         return HttpResponse(f'Error: {str(e)}', status=400)
+    
+# ===== MÓDULO DE REPORTES =====
+
+@login_required
+def reportes_farmacia(request):
+    """Vista principal del módulo de reportes"""
+    return render(request, 'reportes.html', {
+        'user': request.user
+    })
+
+
+@login_required
+def api_reportes_kpis(request):
+    """API para obtener KPIs del dashboard"""
+    try:
+        # Últimos 30 días
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=30)
+        
+        # Total de salidas - CORREGIDO: quitar .date()
+        total_salidas = Receta.objects.filter(
+            fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).count()
+        
+        # Total medicamentos dispensados
+        total_medicamentos = RecetaMedicamento.objects.filter(
+            receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).aggregate(
+            total=Sum('cantidad_surtida')
+        )['total'] or 0
+        
+        # Pacientes atendidos (únicos)
+        total_pacientes = Receta.objects.filter(
+            fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).values('paciente').distinct().count()
+        
+        return JsonResponse({
+            'success': True,
+            'kpis': {
+                'total_salidas': total_salidas,
+                'total_medicamentos': total_medicamentos,
+                'total_pacientes': total_pacientes,
+                'valor_total': 0
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def api_reportes_salidas(request):
+    """API para obtener datos de salidas para reportes"""
+    try:
+        # Obtener rango de fechas (últimos 90 días por defecto)
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+        
+        # Parámetros opcionales
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
+        
+        # Consultar salidas - CORREGIDO: quitar .date()
+        salidas = RecetaMedicamento.objects.filter(
+            receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).select_related(
+            'receta__paciente',
+            'receta__surtido_por',
+            'medicamento',
+            'lote'
+        ).order_by('-receta__fecha_surtido')[:100]
+        
+        # Formatear datos
+        datos_salidas = []
+        for item in salidas:
+            # Manejar fecha_surtido que puede ser DateField o DateTimeField
+            if isinstance(item.receta.fecha_surtido, datetime):
+                fecha_str = item.receta.fecha_surtido.strftime('%Y-%m-%d')
+                hora_str = item.receta.fecha_surtido.strftime('%H:%M')
+            else:
+                fecha_str = item.receta.fecha_surtido.strftime('%Y-%m-%d')
+                hora_str = '--:--'
+            
+            datos_salidas.append({
+                'id': item.receta.id,
+                'fecha': fecha_str,
+                'hora': hora_str,
+                'medicamento': item.medicamento.descripcion,
+                'cantidad': item.cantidad_surtida,
+                'paciente': item.receta.paciente.nombre_completo if item.receta.paciente else 'N/A',
+                'responsable': f"{item.receta.surtido_por.first_name} {item.receta.surtido_por.last_name}" if item.receta.surtido_por else 'N/A',
+                'valor': 0
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': datos_salidas,
+            'total': len(datos_salidas)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def api_reportes_medicamentos_top(request):
+    """API para obtener medicamentos más dispensados"""
+    try:
+        # Obtener rango de fechas
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+        
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
+        
+        # Agrupar y contar - CORREGIDO
+        medicamentos_top = RecetaMedicamento.objects.filter(
+            receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).values(
+            'medicamento__id',
+            'medicamento__descripcion',
+            'medicamento__clave'
+        ).annotate(
+            total_dispensado=Sum('cantidad_surtida')
+        ).order_by('-total_dispensado')[:10]
+        
+        datos = []
+        for med in medicamentos_top:
+            datos.append({
+                'medicamento': med['medicamento__descripcion'],
+                'clave': med['medicamento__clave'],
+                'cantidad': med['total_dispensado']
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': datos
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def api_reportes_pacientes_frecuentes(request):
+    """API para obtener pacientes más atendidos"""
+    try:
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+        
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
+        
+        # Agrupar por paciente - CORREGIDO
+        pacientes_top = Receta.objects.filter(
+            fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).values(
+            'paciente__id',
+            'paciente__nombre_completo'
+        ).annotate(
+            total_visitas=Count('id'),
+            total_medicamentos=Sum('recetamedicamento__cantidad_surtida'),
+            ultima_visita=Max('fecha_surtido')
+        ).order_by('-total_visitas')[:10]
+        
+        datos = []
+        for pac in pacientes_top:
+            # Manejar fecha que puede ser DateField o DateTimeField
+            if pac['ultima_visita']:
+                if isinstance(pac['ultima_visita'], datetime):
+                    ultima_visita_str = pac['ultima_visita'].strftime('%Y-%m-%d')
+                else:
+                    ultima_visita_str = pac['ultima_visita'].strftime('%Y-%m-%d')
+            else:
+                ultima_visita_str = 'N/A'
+            
+            datos.append({
+                'paciente': pac['paciente__nombre_completo'],
+                'visitas': pac['total_visitas'],
+                'medicamentos': pac['total_medicamentos'] or 0,
+                'ultima_visita': ultima_visita_str,
+                'gasto_total': 0
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': datos
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def api_reportes_tendencias(request):
+    """API para obtener tendencias mensuales"""
+    try:
+        # Últimos 12 meses
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=365)
+        
+        # Agrupar por mes - CORREGIDO
+        salidas_por_mes = RecetaMedicamento.objects.filter(
+            receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).annotate(
+            mes=TruncMonth('receta__fecha_surtido')
+        ).values('mes').annotate(
+            total=Count('id')
+        ).order_by('mes')
+        
+        meses = []
+        totales = []
+        
+        for item in salidas_por_mes:
+            meses.append(item['mes'].strftime('%b %Y'))
+            totales.append(item['total'])
+        
+        return JsonResponse({
+            'success': True,
+            'meses': meses,
+            'totales': totales
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
