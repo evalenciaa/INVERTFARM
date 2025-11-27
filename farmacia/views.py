@@ -263,23 +263,45 @@ def farmacia_g(request):
             
             return redirect('farmacia_g')
 
-    # ✅ AGREGAMOS EL CÁLCULO DE DÍAS
-    lotes = Lote.objects.select_related('medicamento', 'presentacion').all()
+    # Obtener todos los lotes
+    lotes = Lote.objects.select_related(
+        'medicamento', 
+        'presentacion'
+    ).all().order_by('fecha_caducidad')
     
-    # Calcular días para caducidad para cada lote
+    presentaciones = Presentacion.objects.all()
+    
+    # Calcular días para caducidad y contadores
     hoy = date.today()
     lotes_con_dias = []
+    
+    # Contadores para estadísticas (basados en meses)
+    vigentes = 0      # > 365 días (más de 1 año)
+    por_vencer = 0    # 180-365 días (6 meses a 1 año)
+    criticos = 0      # < 180 días (menos de 6 meses)
+    
     for lote in lotes:
-        lote.dias_para_caducidad = (lote.fecha_caducidad - hoy).days
+        dias = (lote.fecha_caducidad - hoy).days
+        lote.dias_para_caducidad = dias
         lotes_con_dias.append(lote)
+        
+        # Clasificar para contadores según tus reglas
+        if dias > 365:
+            vigentes += 1
+        elif dias >= 180:
+            por_vencer += 1
+        else:
+            criticos += 1
     
     medicamentos = Medicamento.objects.filter(activo=True)
-    presentaciones = Presentacion.objects.all()
 
     context = {
-        'lotes': lotes_con_dias,  # ✅ Enviamos los lotes con días calculados
+        'lotes': lotes_con_dias,
         'medicamentos': medicamentos,
         'presentaciones': presentaciones,
+        'vigentes': vigentes,
+        'por_vencer': por_vencer,
+        'criticos': criticos,
     }
 
     return render(request, 'farmacia_g.html', context)
@@ -304,26 +326,30 @@ def guardar_descripcion(request):
     return JsonResponse({'status': 'error', 'message': 'Datos inválidos'})
 
 
+@login_required
 def inventario_general(request):
-    # Obtener parámetro de búsqueda si existe
+    """Vista de inventario general - suma de existencias por medicamento"""
+    
+    # Obtener búsqueda si existe
     busqueda = request.GET.get('busqueda', '').strip()
     
-    # Consulta base - Incluir CPM del medicamento
+    # Agrupar por medicamento y sumar existencias
     inventario = Lote.objects.values(
         'medicamento__id',
         'medicamento__clave',
         'medicamento__descripcion',
     ).annotate(
         existencia_total=Sum('existencia'),
-        # Usar Coalesce para mostrar 0 si no hay CPM definido
         cpm_medicamento=Coalesce(
             F('medicamento__cpm_medicamento__valor'),
             Value(0),
             output_field=IntegerField()
         )
+    ).filter(
+        existencia_total__gt=0  # Solo medicamentos con existencia
     ).order_by('medicamento__descripcion')
     
-    # Aplicar filtro si hay búsqueda
+    # Aplicar filtro de búsqueda si existe
     if busqueda:
         inventario = inventario.filter(
             Q(medicamento__descripcion__icontains=busqueda) |
@@ -334,7 +360,9 @@ def inventario_general(request):
         'inventario': inventario,
         'busqueda_actual': busqueda
     }
+    
     return render(request, 'inv_gene_f.html', context)
+
 
 @require_http_methods(["POST"]) 
 @csrf_exempt
@@ -1373,12 +1401,11 @@ def exportar_inventario_excel(request):
         
         # Establecer ancho de columnas
         worksheet.set_column('A:A', 15)
-        worksheet.set_column('B:B', 25)
+        worksheet.set_column('B:B', 40)
         worksheet.set_column('C:C', 15)
-        worksheet.set_column('D:D', 15)
-        worksheet.set_column('E:E', 15)
-        worksheet.set_column('F:F', 12)
-        worksheet.set_column('G:G', 15)
+        worksheet.set_column('D:D', 18)
+        worksheet.set_column('E:E', 12)
+        worksheet.set_column('F:F', 15)
         
         # Agregar logo
         logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
@@ -1403,7 +1430,7 @@ def exportar_inventario_excel(request):
         worksheet.set_row(3, 18)
         
         # Encabezados
-        headers = ['Clave', 'Descripción', 'Lote', 'Presentación', 'Existencia', 'CPM', 'Caducidad']
+        headers = ['Clave', 'Descripción', 'Lote', 'Presentación', 'Existencia', 'Caducidad']
         for col, header in enumerate(headers):
             worksheet.write(5, col, header, header_format)
         worksheet.set_row(5, 20)
@@ -1416,20 +1443,19 @@ def exportar_inventario_excel(request):
             worksheet.write(row, 2, lote.lote_codigo, data_format)
             worksheet.write(row, 3, lote.presentacion.nombre if lote.presentacion else 'N/A', data_format)
             worksheet.write(row, 4, lote.existencia, data_format)
-            worksheet.write(row, 5, lote.cpm, data_format)
             
             # Determinar color según caducidad
             dias_restantes = (lote.fecha_caducidad - datetime.now().date()).days
             fecha_str = lote.fecha_caducidad.strftime('%d/%m/%Y')
             
             if dias_restantes <= 0:
-                worksheet.write(row, 6, fecha_str, red_format)
+                worksheet.write(row, 5, fecha_str, red_format)
             elif dias_restantes <= 30:
-                worksheet.write(row, 6, fecha_str, orange_format)
+                worksheet.write(row, 5, fecha_str, orange_format)
             elif dias_restantes <= 90:
-                worksheet.write(row, 6, fecha_str, yellow_format)
+                worksheet.write(row, 5, fecha_str, yellow_format)
             else:
-                worksheet.write(row, 6, fecha_str, green_format)
+                worksheet.write(row, 5, fecha_str, green_format)
             
             worksheet.set_row(row, 18)
             row += 1
@@ -1513,7 +1539,7 @@ def exportar_inventario_pdf(request):
         y_actual -= 20
         
         # Tabla de datos
-        data_tabla = [['Clave', 'Descripción', 'Lote', 'Pres.', 'Exist.', 'CPM', 'Caducidad']]
+        data_tabla = [['Clave', 'Descripción', 'Lote', 'Pres.', 'Exist.', 'Caducidad']]
         
         for lote in lotes:
             data_tabla.append([
@@ -1522,11 +1548,10 @@ def exportar_inventario_pdf(request):
                 lote.lote_codigo,
                 lote.presentacion.nombre[:8] if lote.presentacion else 'N/A',
                 str(lote.existencia),
-                str(lote.cpm),
                 lote.fecha_caducidad.strftime('%d/%m/%Y')
             ])
         
-        tabla = Table(data_tabla, colWidths=[0.9*inch, 2.2*inch, 0.8*inch, 0.8*inch, 0.6*inch, 0.6*inch, 0.9*inch])
+        tabla = Table(data_tabla, colWidths=[1.0*inch, 2.5*inch, 1.0*inch, 1.0*inch, 0.8*inch, 1.0*inch])
         
         # Estilo de tabla
         tabla.setStyle(TableStyle([
@@ -1575,3 +1600,355 @@ def exportar_inventario_pdf(request):
         return HttpResponse(f'Error: {str(e)}', status=400)
 
 
+@login_required
+@require_http_methods(["POST"])
+def actualizar_cpm(request):
+    """Actualizar el CPM de un medicamento"""
+    try:
+        data = json.loads(request.body)
+        medicamento_id = data.get('medicamento_id')
+        cpm_valor = data.get('cpm')
+        
+        medicamento = Medicamento.objects.get(id=medicamento_id)
+        
+        # Actualizar o crear CPM
+        cpm_obj, created = CPMMedicamento.objects.get_or_create(medicamento=medicamento)
+        cpm_obj.valor = cpm_valor
+        cpm_obj.save()
+        
+        return JsonResponse({'success': True})
+    except Medicamento.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Medicamento no encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+@login_required
+@require_http_methods(["POST"])
+def eliminar_medicamento(request):
+    """Eliminar un medicamento y todos sus lotes"""
+    try:
+        data = json.loads(request.body)
+        medicamento_id = data.get('medicamento_id')
+        
+        medicamento = Medicamento.objects.get(id=medicamento_id)
+        
+        # Eliminar todos los lotes asociados
+        Lote.objects.filter(medicamento=medicamento).delete()
+        
+        # Eliminar el medicamento
+        medicamento.delete()
+        
+        return JsonResponse({'success': True})
+    except Medicamento.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Medicamento no encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def exportar_inventario_general_excel(request):
+    """Exportar inventario general a Excel"""
+    try:
+        import xlsxwriter
+        
+        # Obtener inventario general (agrupado por medicamento)
+        inventario = Lote.objects.values(
+            'medicamento__id',
+            'medicamento__clave',
+            'medicamento__descripcion',
+        ).annotate(
+            existencia_total=Sum('existencia'),
+            cpm_medicamento=Coalesce(
+                F('medicamento__cpm_medicamento__valor'),
+                Value(0),
+                output_field=IntegerField()
+            )
+        ).filter(
+            existencia_total__gt=0
+        ).order_by('medicamento__descripcion')
+        
+        # Crear archivo en memoria
+        output = BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet('Inventario General')
+        
+        # Definir formatos
+        header_format = workbook.add_format({
+            'bg_color': '#8B0000',
+            'font_color': 'white',
+            'bold': True,
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 11
+        })
+        
+        title_format = workbook.add_format({
+            'bg_color': '#8B0000',
+            'font_color': 'white',
+            'bold': True,
+            'align': 'center',
+            'valign': 'vcenter',
+            'font_size': 14
+        })
+        
+        date_format = workbook.add_format({
+            'italic': True,
+            'align': 'left',
+            'font_size': 10
+        })
+        
+        data_format = workbook.add_format({
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 10
+        })
+        
+        critico_format = workbook.add_format({
+            'bg_color': '#FF0000',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'bold': True
+        })
+        
+        bajo_format = workbook.add_format({
+            'bg_color': '#FF4444',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        yellow_format = workbook.add_format({
+            'bg_color': '#FFFF00',
+            'font_color': 'black',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        green_format = workbook.add_format({
+            'bg_color': '#00B050',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        # Establecer ancho de columnas
+        worksheet.set_column('A:A', 18)
+        worksheet.set_column('B:B', 35)
+        worksheet.set_column('C:C', 18)
+        worksheet.set_column('D:D', 15)
+        worksheet.set_column('E:E', 15)
+        
+        # Agregar logo
+        logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
+        if os.path.exists(logo_path):
+            try:
+                worksheet.insert_image('A1', logo_path, {
+                    'x_scale': 0.8,
+                    'y_scale': 0.8,
+                    'x_offset': 0,
+                    'y_offset': 0
+                })
+            except Exception as e:
+                print(f"Error insertando logo: {e}")
+        
+        # Título
+        worksheet.merge_range('A3:E3', 'REPORTE DE INVENTARIO GENERAL', title_format)
+        worksheet.set_row(2, 25)
+        
+        # Fecha
+        worksheet.merge_range('A4:E4', f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}", date_format)
+        worksheet.set_row(3, 18)
+        
+        # Encabezados
+        headers = ['Clave', 'Descripción', 'Existencia Total', 'CPM', 'Estado']
+        for col, header in enumerate(headers):
+            worksheet.write(5, col, header, header_format)
+        worksheet.set_row(5, 20)
+        
+        # Datos
+        row = 6
+        for item in inventario:
+            worksheet.write(row, 0, item['medicamento__clave'], data_format)
+            worksheet.write(row, 1, item['medicamento__descripcion'], data_format)
+            worksheet.write(row, 2, item['existencia_total'], data_format)
+            worksheet.write(row, 3, item['cpm_medicamento'], data_format)
+            
+            # Estado según existencia
+            existencia = item['existencia_total']
+            if existencia <= 10:
+                estado_text = 'Crítico'
+                estado_format = critico_format
+            elif existencia <= 50:
+                estado_text = 'Bajo'
+                estado_format = bajo_format
+            elif existencia <= 100:
+                estado_text = 'Medio'
+                estado_format = yellow_format
+            else:
+                estado_text = 'Adecuado'
+                estado_format = green_format
+            
+            worksheet.write(row, 4, estado_text, estado_format)
+            worksheet.set_row(row, 18)
+            row += 1
+        
+        # Pie de página
+        worksheet.merge_range(row + 1, 0, row + 1, 4, 'Documento generado automáticamente por INVENTFARM', date_format)
+        
+        # Finalizar
+        workbook.close()
+        
+        # Preparar respuesta
+        output.seek(0)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Inventario_General_{datetime.now().strftime("%d%m%Y")}.xlsx"'
+        return response
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'Error: {str(e)}', status=400)
+
+
+@login_required
+def exportar_inventario_general_pdf(request):
+    """Exportar inventario general a PDF"""
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        from reportlab.platypus import Table, TableStyle
+        
+        # Obtener inventario general
+        inventario = Lote.objects.values(
+            'medicamento__id',
+            'medicamento__clave',
+            'medicamento__descripcion',
+        ).annotate(
+            existencia_total=Sum('existencia'),
+            cpm_medicamento=Coalesce(
+                F('medicamento__cpm_medicamento__valor'),
+                Value(0),
+                output_field=IntegerField()
+            )
+        ).filter(
+            existencia_total__gt=0
+        ).order_by('medicamento__descripcion')
+        
+        # Crear PDF en memoria
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        # Logo
+        logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
+        
+        logo_width = 7.0 * inch
+        logo_height = 1.0 * inch
+        
+        x_logo = (width - logo_width) / 2
+        y_logo = height - (0.75 * inch) - logo_height
+        
+        if os.path.exists(logo_path):
+            try:
+                p.drawImage(logo_path, x_logo, y_logo,
+                           width=logo_width, height=logo_height,
+                           preserveAspectRatio=True)
+            except Exception as e:
+                print(f"Error cargando logo: {e}")
+        
+        y_actual = y_logo - (0.25 * inch)
+        
+        # Título
+        p.setFont("Helvetica-Bold", 16)
+        p.drawCentredString(width / 2.0, y_actual, "REPORTE DE INVENTARIO GENERAL DE MEDICAMENTOS")
+        y_actual -= 20
+        
+        # Fecha
+        p.setFont("Helvetica", 10)
+        p.drawCentredString(width / 2.0, y_actual, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        y_actual -= 20
+        
+        # Línea divisoria
+        p.line(inch, y_actual, width - inch, y_actual)
+        y_actual -= 20
+        
+        # Tabla de datos
+        data_tabla = [['Clave', 'Descripción', 'Existencia', 'CPM', 'Estado']]
+        
+        for item in inventario:
+            existencia = item['existencia_total']
+            if existencia <= 10:
+                estado = 'Crítico'
+            elif existencia <= 50:
+                estado = 'Bajo'
+            elif existencia <= 100:
+                estado = 'Medio'
+            else:
+                estado = 'Adecuado'
+            
+            data_tabla.append([
+                item['medicamento__clave'],
+                item['medicamento__descripcion'][:30] + '...' if len(item['medicamento__descripcion']) > 30 else item['medicamento__descripcion'],
+                str(existencia),
+                str(item['cpm_medicamento']),
+                estado
+            ])
+        
+        tabla = Table(data_tabla, colWidths=[1.0*inch, 2.8*inch, 1.0*inch, 0.8*inch, 1.0*inch])
+        
+        # Estilo de tabla
+        tabla.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.darkred),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        
+        # Obtener altura de la tabla
+        wrap_height = tabla.wrapOn(p, width - 2*inch, height)[1]
+        y_tabla = y_actual - wrap_height - 20
+        
+        if y_tabla < (inch * 2.5):
+            p.showPage()
+            y_tabla = height - inch - wrap_height
+        
+        # Dibujar tabla
+        tabla.drawOn(p, inch, y_tabla)
+        
+        # Pie de página
+        p.setFont("Helvetica", 9)
+        p.drawCentredString(width / 2.0, inch * 0.5, "Documento generado por INVENTFARM")
+        
+        # Finalizar PDF
+        p.showPage()
+        p.save()
+        
+        # Retornar como descarga
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Inventario_General_{datetime.now().strftime("%d%m%Y")}.pdf"'
+        return response
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'Error: {str(e)}', status=400)

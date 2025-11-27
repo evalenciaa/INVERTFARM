@@ -370,3 +370,165 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+
+// ===== EDITAR CPM =====
+function editarMedicamento(medicamentoId, clave, descripcion, cpmActual) {
+    document.getElementById('edit-medicamento-id').value = medicamentoId;
+    document.getElementById('edit-medicamento-nombre').textContent = `${clave} - ${descripcion}`;
+    document.getElementById('edit-cpm-input').value = cpmActual;
+    
+    document.getElementById('modal-overlay-editar').style.display = 'block';
+    document.getElementById('modal-editar-cpm').style.display = 'flex';
+}
+
+function cerrarModalEditarCPM() {
+    document.getElementById('modal-overlay-editar').style.display = 'none';
+    document.getElementById('modal-editar-cpm').style.display = 'none';
+}
+
+function guardarCPM() {
+    const medicamentoId = document.getElementById('edit-medicamento-id').value;
+    const cpmValor = document.getElementById('edit-cpm-input').value;
+    
+    if (!cpmValor || cpmValor < 0) {
+        alert('Por favor ingrese un valor válido para el CPM');
+        return;
+    }
+    
+    // Hacer petición AJAX para guardar
+    fetch('/actualizar_cpm/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            medicamento_id: medicamentoId,
+            cpm: cpmValor
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('CPM actualizado correctamente');
+            cerrarModalEditarCPM();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al actualizar el CPM');
+    });
+}
+
+// ===== ELIMINAR MEDICAMENTO =====
+function confirmarEliminacionMedicamento(medicamentoId, descripcion) {
+    document.getElementById('eliminar-medicamento-id').value = medicamentoId;
+    document.getElementById('eliminar-medicamento-nombre').textContent = descripcion;
+    
+    document.getElementById('modal-overlay-eliminar').style.display = 'block';
+    document.getElementById('modal-eliminar').style.display = 'flex';
+}
+
+function cerrarModalEliminar() {
+    document.getElementById('modal-overlay-eliminar').style.display = 'none';
+    document.getElementById('modal-eliminar').style.display = 'none';
+}
+
+function eliminarMedicamento() {
+    const medicamentoId = document.getElementById('eliminar-medicamento-id').value;
+    
+    fetch('/eliminar_medicamento/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            medicamento_id: medicamentoId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Medicamento eliminado correctamente');
+            cerrarModalEliminar();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al eliminar el medicamento');
+    });
+}
+
+// Función auxiliar para obtener CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// ===== EXPORTAR INVENTARIO GENERAL =====
+
+function exportarInventarioGeneral() {
+    // Crear un dropdown con opciones
+    const exportOptions = `
+        <div class="export-menu">
+            <button class="export-option" onclick="exportarExcelGeneral()">
+                <i class="fas fa-file-excel"></i> Exportar a Excel
+            </button>
+            <button class="export-option" onclick="exportarPdfGeneral()">
+                <i class="fas fa-file-pdf"></i> Exportar a PDF
+            </button>
+        </div>
+    `;
+    
+    // O simplemente hacer ambas descargas con un menú
+    const menu = document.createElement('div');
+    menu.className = 'export-dropdown';
+    menu.innerHTML = exportOptions;
+    menu.style.position = 'fixed';
+    menu.style.top = '100px';
+    menu.style.right = '20px';
+    menu.style.zIndex = '1000';
+    menu.style.backgroundColor = 'white';
+    menu.style.border = '1px solid #ddd';
+    menu.style.borderRadius = '8px';
+    menu.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+    menu.style.minWidth = '200px';
+    
+    document.body.appendChild(menu);
+    
+    // Remover menú al hacer clic fuera
+    setTimeout(() => {
+        document.addEventListener('click', function removeMenu(e) {
+            if (!menu.contains(e.target) && e.target.className !== 'btn-success') {
+                menu.remove();
+                document.removeEventListener('click', removeMenu);
+            }
+        });
+    }, 100);
+}
+
+function exportarExcelGeneral() {
+    window.location.href = '/exportar_inventario_general_excel/';
+}
+
+function exportarPdfGeneral() {
+    window.location.href = '/exportar_inventario_general_pdf/';
+}

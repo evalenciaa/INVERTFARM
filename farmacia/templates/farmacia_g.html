@@ -49,8 +49,8 @@
                         <i class="fas fa-calendar-check"></i>
                     </div>
                     <div class="stat-content">
-                        <span class="stat-label">Vigentes (+90 días)</span>
-                        <span class="stat-value" id="lotes-vigentes">0</span>
+                        <span class="stat-label">Vigentes (+1 año)</span>
+                        <span class="stat-value" id="lotes-vigentes">{{ vigentes }}</span>
                     </div>
                 </div>
                 <div class="stat-card stat-warning">
@@ -58,8 +58,8 @@
                         <i class="fas fa-clock"></i>
                     </div>
                     <div class="stat-content">
-                        <span class="stat-label">Por Vencer (30-90 días)</span>
-                        <span class="stat-value" id="lotes-proximos">0</span>
+                        <span class="stat-label">Por Vencer (6m-1año)</span>
+                        <span class="stat-value" id="lotes-proximos">{{ por_vencer }}</span>
                     </div>
                 </div>
                 <div class="stat-card stat-danger">
@@ -67,8 +67,8 @@
                         <i class="fas fa-exclamation-triangle"></i>
                     </div>
                     <div class="stat-content">
-                        <span class="stat-label">Críticos (<30 días)</span>
-                        <span class="stat-value" id="lotes-criticos">0</span>
+                        <span class="stat-label">Críticos (<6 meses)</span>
+                        <span class="stat-value" id="lotes-criticos">{{ criticos }}</span>
                     </div>
                 </div>
             </div>
@@ -137,16 +137,15 @@
                             </select>
                         </div>
 
-                        <!-- Filtro por Caducidad -->
                         <div class="filtro-columna">
                             <label for="filtro-caducidad">
                                 <i class="fas fa-calendar-times"></i> Estado Caducidad
                             </label>
-                            <select id="filtro-caducidad" class="form-control">
+                            <select id="filtro-caducidad" class="form-control" onchange="aplicarFiltros()">
                                 <option value="">Todos</option>
-                                <option value="vigente">Vigente (+90 días)</option>
-                                <option value="proximo">Próximo a vencer (30-90 días)</option>
-                                <option value="critico">Crítico (<30 días)</option>
+                                <option value="vigente">Vigente (+1 año)</option>
+                                <option value="proximo">Próximo a vencer (6m-1año)</option>
+                                <option value="critico">Crítico (<6 meses)</option>
                             </select>
                         </div>
 
@@ -198,17 +197,15 @@
                                 <th><i class="fas fa-barcode"></i> Lote</th>
                                 <th><i class="fas fa-capsules"></i> Presentación</th>
                                 <th><i class="fas fa-cubes"></i> Existencia</th>
-                                <th><i class="fas fa-chart-bar"></i> CPM</th>
                                 <th><i class="fas fa-calendar-alt"></i> Caducidad</th>
                                 <th><i class="fas fa-cogs"></i> Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for lote in lotes %}
-                            {% with dias_caducidad=lote.dias_para_caducidad %}
                             <tr class="lote-row
-                                {% if dias_caducidad <= 30 %}fondo-rojo
-                                {% elif dias_caducidad <= 90 %}fondo-amarillo
+                                {% if lote.dias_para_caducidad < 180 %}fondo-rojo
+                                {% elif lote.dias_para_caducidad <= 365 %}fondo-amarillo
                                 {% else %}fondo-verde{% endif %}"
                                 data-lote-id="{{ lote.id }}"
                                 data-clave="{{ lote.medicamento.clave }}"
@@ -217,96 +214,76 @@
                                 data-fecha="{{ lote.fecha_caducidad|date:'Y-m-d' }}"
                                 data-existencia="{{ lote.existencia }}"
                                 data-presentacion="{{ lote.presentacion.nombre }}"
-                                data-cpm="{{ lote.cpm }}"
-                                data-dias="{{ dias_caducidad }}">
+                                data-dias="{{ lote.dias_para_caducidad }}">
                                 
-                                <!-- Clave -->
+                                <!-- Columna 1: Clave -->
                                 <td class="clave-cell">
                                     <span class="badge badge-clave">
                                         {{ lote.medicamento.clave }}
                                     </span>
                                 </td>
-
-                                <!-- Descripción -->
+                                
+                                <!-- Columna 2: Descripción -->
                                 <td class="descripcion-cell">
                                     <div class="descripcion-content">
-                                        {{ lote.medicamento.descripcion|truncatewords:12 }}
+                                        {{ lote.medicamento.descripcion }}
                                     </div>
                                 </td>
-
-                                <!-- Lote -->
+                                
+                                <!-- Columna 3: Lote -->
                                 <td class="lote-cell">
-                                    <span class="badge badge-lote">
-                                        <i class="fas fa-barcode"></i> {{ lote.lote_codigo|default:"-" }}
+                                    <span class="badge-lote">
+                                        <i class="fas fa-barcode"></i> {{ lote.lote_codigo }}
                                     </span>
                                 </td>
-
-                                <!-- Presentación -->
+                                
+                                <!-- Columna 4: Presentación -->
                                 <td class="presentacion-cell">
-                                    <span class="badge badge-presentacion">
-                                        {{ lote.presentacion.nombre|default:"N/A" }}
-                                    </span>
+                                    <select name="presentacion_{{ lote.id }}" class="presentacion-select">
+                                        {% for pres in presentaciones %}
+                                            <option value="{{ pres.id }}" {% if lote.presentacion.id == pres.id %}selected{% endif %}>
+                                                {{ pres.nombre }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
                                 </td>
-
-                                <!-- Existencia -->
+                                
+                                <!-- Columna 5: Existencia -->
                                 <td class="existencia-cell">
-                                    <span class="badge badge-existencia">
-                                        {{ lote.existencia|default:0 }}
-                                    </span>
+                                    <span class="badge-existencia">{{ lote.existencia }}</span>
                                 </td>
-
-                                <!-- CPM -->
-                                <td class="cpm-cell">
-                                    <span class="cpm-value">
-                                        {{ lote.cpm|default:0 }}
-                                    </span>
-                                </td>
-
-                                <!-- Fecha Caducidad -->
+                                
+                                <!-- Columna 6: Caducidad -->
                                 <td class="caducidad-cell">
-                                    <div class="fecha-wrapper">
-                                        <i class="fas fa-calendar-alt"></i>
-                                        <span>{{ lote.fecha_caducidad|date:"d/m/Y" }}</span>
-                                    </div>
+                                    <span class="fecha-caducidad">{{ lote.fecha_caducidad|date:"d/m/Y" }}</span>
+                                    <br>
+                                    <small class="dias-restantes">({{ lote.dias_para_caducidad }} días)</small>
                                 </td>
-
-                                <!-- Acciones -->
+                                
+                                <!-- Columna 7: Acciones -->
                                 <td class="acciones-cell">
                                     <div class="action-buttons">
-                                        <!-- Generar QR -->
-                                        <button class="btn-action btn-qr" 
-                                                onclick="generarQRIndividual('{{ lote.id }}')"
-                                                title="Generar QR (PDF)">
-                                            <i class="fas fa-qrcode"></i>
-                                        </button>
-                                        
-                                        <!-- Ver Detalles -->
                                         <button class="btn-action btn-view" 
-                                                onclick="verDetalleLote('{{ lote.id }}')"
+                                                onclick="verDetalleLote('{{ lote.id }}')" 
                                                 title="Ver detalles">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        
-                                        <!-- Editar -->
-                                        <button class="btn-action btn-edit" 
-                                                onclick="editarLote('{{ lote.id }}')"
-                                                title="Editar">
-                                            <i class="fas fa-edit"></i>
+                                        <button class="btn-action btn-qr" 
+                                                onclick="generarQR('{{ lote.id }}')" 
+                                                title="Generar QR">
+                                            <i class="fas fa-qrcode"></i>
                                         </button>
-
-                                        <!-- Eliminar -->
                                         <button class="btn-action btn-delete" 
-                                                onclick="eliminarLote('{{ lote.id }}')"
+                                                onclick="confirmarEliminacion('{{ lote.id }}', '{{ lote.medicamento.descripcion }}')" 
                                                 title="Eliminar">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </div>
                                 </td>
                             </tr>
-                            {% endwith %}
                             {% empty %}
                             <tr>
-                                <td colspan="8" class="empty-state">
+                                <td colspan="7" class="empty-state">
                                     <div class="empty-content">
                                         <i class="fas fa-inbox"></i>
                                         <p>No se encontraron lotes en inventario</p>
@@ -536,10 +513,6 @@
                         <span class="detalle-label">Cantidad:</span>
                         <span class="detalle-valor badge-existencia" id="detalle-existencia"></span>
                     </div>
-                    <div class="detalle-row">
-                        <span class="detalle-label">CPM:</span>
-                        <span class="detalle-valor" id="detalle-cpm"></span>
-                    </div>
                 </div>
 
                 <!-- Caducidad -->
@@ -592,13 +565,13 @@
             filas.forEach(fila => {
                 const dias = parseInt(fila.dataset.dias);
                 
-                // Semaforización correcta:
-                // Verde: > 90 días
-                // Amarillo: 31-90 días  
-                // Rojo: ≤ 30 días
-                if (dias > 90) {
+                // ✅ Semaforización correcta (basada en 6 meses y 1 año):
+                // Verde: > 365 días (más de 1 año)
+                // Amarillo: 180-365 días (6 meses a 1 año)
+                // Rojo: < 180 días (menos de 6 meses)
+                if (dias > 365) {
                     vigentes++;
-                } else if (dias > 30) {
+                } else if (dias >= 180) {
                     proximos++;
                 } else {
                     criticos++;
@@ -642,11 +615,15 @@
                 // Filtro por presentación
                 if (filtroPresentacion && presentacion !== filtroPresentacion) mostrar = false;
 
-                // Filtro por caducidad
                 if (filtroCaducidad) {
-                    if (filtroCaducidad === 'vigente' && dias <= 90) mostrar = false;
-                    if (filtroCaducidad === 'proximo' && (dias <= 30 || dias > 90)) mostrar = false;
-                    if (filtroCaducidad === 'critico' && dias > 30) mostrar = false;
+                    // Vigente: > 365 días (más de 1 año)
+                    if (filtroCaducidad === 'vigente' && dias <= 365) mostrar = false;
+                    
+                    // Próximo: 180-365 días (6 meses a 1 año)
+                    if (filtroCaducidad === 'proximo' && (dias < 180 || dias > 365)) mostrar = false;
+                    
+                    // Crítico: < 180 días (menos de 6 meses)
+                    if (filtroCaducidad === 'critico' && dias >= 180) mostrar = false;
                 }
 
                 fila.style.display = mostrar ? '' : 'none';
@@ -1093,7 +1070,6 @@
             const existencia = fila.dataset.existencia || '0';
             const fecha = fila.dataset.fecha; // Formato: YYYY-MM-DD
             const dias = parseInt(fila.dataset.dias) || 0;
-            const cpm = fila.dataset.cpm || '0'; // ✅ Obtener CPM desde data-attribute
             
             // Rellenar información básica
             document.getElementById('detalle-clave').textContent = clave;
@@ -1101,9 +1077,6 @@
             document.getElementById('detalle-lote').textContent = lote;
             document.getElementById('detalle-presentacion').textContent = presentacion;
             document.getElementById('detalle-existencia').textContent = existencia + ' unidades';
-            
-            // ✅ CPM sin símbolo de $ (es consumo, no precio)
-            document.getElementById('detalle-cpm').textContent = parseFloat(cpm).toFixed(0) + ' unidades/mes';
             
             // ✅ Fecha en formato corto DD/MM/YYYY
             if (fecha) {
@@ -1120,28 +1093,28 @@
             if (dias <= 0) {
                 estado = '❌ Vencido';
                 estadoClase = 'estado-critico';
-            } else if (dias <= 30) {
-                estado = '⚠️ Crítico';
+            } else if (dias < 180) {
+                estado = '⚠️ Crítico (<6 meses)';
                 estadoClase = 'estado-critico';
-            } else if (dias <= 90) {
-                estado = '⏰ Próximo a Vencer';
+            } else if (dias <= 365) {
+                estado = '⏰ Por Vencer (6m-1año)';
                 estadoClase = 'estado-proximo';
             } else {
-                estado = '✅ Vigente';
+                estado = '✅ Vigente (+1 año)';
                 estadoClase = 'estado-vigente';
             }
-            
+
             const estadoElement = document.getElementById('detalle-estado');
             estadoElement.textContent = estado;
             estadoElement.className = 'detalle-valor ' + estadoClase;
-            
-            // Días restantes con color
+
+            // Días restantes con color (actualizado)
             const diasElement = document.getElementById('detalle-dias');
             diasElement.textContent = dias + ' días';
-            if (dias <= 30) {
+            if (dias < 180) {
                 diasElement.style.background = '#dc3545';
                 diasElement.style.color = 'white';
-            } else if (dias <= 90) {
+            } else if (dias <= 365) {
                 diasElement.style.background = '#ffc107';
                 diasElement.style.color = '#000';
             } else {

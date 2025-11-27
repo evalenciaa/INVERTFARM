@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes y Estadísticas - INVENTFARM</title>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- jsPDF y jsPDF-AutoTable para exportar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- SheetJS para Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="{% static 'farmacia/css/reportes.css' %}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        {% include 'farmacia/sidebar.html' %}
+        
+        <!-- Contenido Principal -->
+        <main class="main-content">
+            <!-- Header -->
+            <div class="reports-header">
+                <div class="header-left">
+                    <a href="{% url 'farmacia_menu' %}" class="back-btn">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <div class="header-info">
+                        <h1><i class="fas fa-chart-line"></i> Reportes y Estadísticas</h1>
+                        <p class="subtitle">Panel de análisis y visualización de datos</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-export" id="exportPDF">
+                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                    </button>
+                    <button class="btn-export" id="exportExcel">
+                        <i class="fas fa-file-excel"></i> Exportar Excel
+                    </button>
+                    <button class="btn-refresh" id="refreshData">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-container">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <i class="fas fa-arrow-up"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Total Salidas</span>
+                        <h3 class="kpi-value" id="totalSalidas">0</h3>
+                        <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> +12% vs mes anterior</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <i class="fas fa-pills"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Medicamentos Dispensados</span>
+                        <h3 class="kpi-value" id="totalMedicamentos">0</h3>
+                        <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> +8% vs mes anterior</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Pacientes Atendidos</span>
+                        <h3 class="kpi-value" id="totalPacientes">0</h3>
+                        <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> +15% vs mes anterior</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Valor Total Dispensado</span>
+                        <h3 class="kpi-value" id="valorTotal">$0</h3>
+                        <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> +10% vs mes anterior</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs de Navegación -->
+            <div class="tabs-container">
+                <div class="tabs-nav">
+                    <button class="tab-btn active" data-tab="historial">
+                        <i class="fas fa-history"></i> Historial de Salidas
+                    </button>
+                    <button class="tab-btn" data-tab="medicamentos">
+                        <i class="fas fa-chart-bar"></i> Medicamentos Más Dispensados
+                    </button>
+                    <button class="tab-btn" data-tab="pacientes">
+                        <i class="fas fa-user-md"></i> Pacientes Frecuentes
+                    </button>
+                    <button class="tab-btn" data-tab="tendencias">
+                        <i class="fas fa-chart-line"></i> Tendencias Temporales
+                    </button>
+                </div>
+
+                <!-- Tab 1: Historial de Salidas -->
+                <div class="tab-content active" id="tab-historial">
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-list"></i> Historial Completo de Salidas</h3>
+                            <div class="filter-group">
+                                <input type="date" id="fechaInicio" class="date-input">
+                                <input type="date" id="fechaFin" class="date-input">
+                                <button class="btn-filter" id="filtrarFechas">
+                                    <i class="fas fa-filter"></i> Filtrar
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table" id="tableSalidas">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Fecha</th>
+                                        <th>Medicamento</th>
+                                        <th>Cantidad</th>
+                                        <th>Paciente</th>
+                                        <th>Responsable</th>
+                                        <th>Valor</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableSalidasBody">
+                                    <!-- Datos dinámicos -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-footer">
+                            <div class="pagination">
+                                <button class="btn-page" id="prevPage"><i class="fas fa-chevron-left"></i></button>
+                                <span class="page-info">Página <span id="currentPage">1</span> de <span id="totalPages">1</span></span>
+                                <button class="btn-page" id="nextPage"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Medicamentos Más Dispensados -->
+                <div class="tab-content" id="tab-medicamentos">
+                    <div class="charts-grid">
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-chart-bar"></i> Top 10 Medicamentos</h3>
+                                <select id="chartTypeMed" class="chart-selector">
+                                    <option value="bar">Barras</option>
+                                    <option value="horizontalBar">Barras Horizontales</option>
+                                    <option value="pie">Circular</option>
+                                    <option value="doughnut">Dona</option>
+                                </select>
+                            </div>
+                            <div class="chart-container">
+                                anvas id="chartMedicamentos"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-trophy"></i> Ranking de Medicamentos</h3>
+                            </div>
+                            <div class="ranking-list" id="rankingMedicamentos">
+                                <!-- Ranking dinámico -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Pacientes Frecuentes -->
+                <div class="tab-content" id="tab-pacientes">
+                    <div class="charts-grid">
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-users"></i> Pacientes Más Atendidos</h3>
+                            </div>
+                            <div class="chart-container">
+                                anvas id="chartPacientes"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-table"></i> Detalle de Pacientes</h3>
+                            </div>
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Paciente</th>
+                                            <th>Total Visitas</th>
+                                            <th>Medicamentos</th>
+                                            <th>Última Visita</th>
+                                            <th>Gasto Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tablePacientesBody">
+                                        <!-- Datos dinámicos -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Tendencias Temporales -->
+                <div class="tab-content" id="tab-tendencias">
+                    <div class="content-card full-width">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-line"></i> Tendencia de Salidas por Mes</h3>
+                            <select id="yearSelector" class="chart-selector">
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                            </select>
+                        </div>
+                        <div class="chart-container-large">
+                            anvas id="chartTendencias"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-calendar-day"></i> Distribución por Día de la Semana</h3>
+                            </div>
+                            <div class="chart-container">
+                                anvas id="chartDiasSemana"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-clock"></i> Horas Pico de Dispensación</h3>
+                            </div>
+                            <div class="chart-container">
+                                anvas id="chartHoras"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{% static 'farmacia/js/reportes.js' %}"></script>
+</body>
+</html>

@@ -128,8 +128,8 @@
                             <button class="btn btn-secondary" onclick="limpiarFiltros()">
                                 <i class="fas fa-eraser"></i> Limpiar
                             </button>
-                            <button class="btn btn-success" onclick="mostrarMenuExportacion()">
-                                <i class="fas fa-file-excel"></i> Exportar
+                            <button class="btn btn-success" onclick="exportarInventarioGeneral()">
+                                <i class="fas fa-download"></i> Exportar
                             </button>
                         </div>
                     </div>
@@ -146,116 +146,101 @@
                         Mostrando <strong>{{ medicamentos.count }}</strong> medicamentos
                     </span>
                 </div>
+                <!-- Tabla de Medicamentos -->
                 <div class="table-container">
-                    <table class="medicamentos-table" id="tabla-inventario">
+                    <table class="tabla-medicamentos">
                         <thead>
                             <tr>
                                 <th><i class="fas fa-key"></i> Clave</th>
                                 <th><i class="fas fa-file-medical"></i> Descripción</th>
                                 <th><i class="fas fa-cubes"></i> Existencia Total</th>
-                                <th><i class="fas fa-chart-bar"></i> CPM</th>
+                                <th><i class="fas fa-chart-line"></i> CPM</th>
                                 <th><i class="fas fa-percentage"></i> Estado</th>
                                 <th><i class="fas fa-cogs"></i> Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for item in medicamentos %}
-                            <tr class="medicamento-row" 
-                                data-clave="{{ item.medicamento__clave|default:'-' }}"
-                                data-descripcion="{{ item.medicamento__descripcion|default:'Sin descripción' }}">
-                                
-                                <!-- Clave -->
-                                <td class="clave-cell">
-                                    <span class="badge badge-clave">
-                                        {{ item.medicamento__clave|default:"-" }}
-                                    </span>
-                                </td>
-
-                                <!-- Descripción -->
-                                <td class="descripcion-cell">
-                                    <div class="descripcion-content">
-                                        {{ item.medicamento__descripcion|default:"Sin descripción"|truncatewords:15 }}
-                                    </div>
-                                </td>
-
-                                <!-- Existencia Total -->
-                                <td class="existencia-cell" data-existencia="{{ item.existencia_total|default:0 }}">
-                                    <span class="badge badge-existencia">
-                                        {{ item.existencia_total|default:0 }} unidades
-                                    </span>
-                                </td>
-
-                                <!-- CPM -->
-                                <td class="cpm-cell" data-cpm="{{ item.cpm_medicamento|default:0 }}">
-                                    <div class="cpm-wrapper">
-                                        <span class="cpm-value">{{ item.cpm_medicamento|default:0 }}</span>
-                                        <button class="btn-editar-cpm" 
-                                                data-clave="{{ item.medicamento__clave }}"
-                                                title="Editar CPM">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                    </div>
-                                </td>
-
-                                <!-- Estado -->
-                                <td class="estado-cell">
-                                    {% if item.cpm_medicamento and item.existencia_total %}
-                                        {% with existencia=item.existencia_total cpm=item.cpm_medicamento %}
-                                            {% if cpm > 0 %}
-                                                {% widthratio existencia cpm 100 as porcentaje %}
-                                                <div class="estado-badge 
-                                                    {% if porcentaje <= 50 %}estado-bajo
-                                                    {% elif porcentaje <= 100 %}estado-normal
-                                                    {% else %}estado-sobre{% endif %}">
-                                                    
-                                                    <div class="estado-bar">
-                                                        <div class="estado-fill" style="width: {% if porcentaje > 100 %}100{% else %}{{ porcentaje }}{% endif %}%"></div>
-                                                    </div>
-                                                    <span class="estado-text">
-                                                        {% if porcentaje > 100 %}
-                                                            <i class="fas fa-arrow-up"></i> {{ porcentaje }}% Sobreabasto
-                                                        {% elif porcentaje >= 50 %}
-                                                            <i class="fas fa-check"></i> {{ porcentaje }}% Adecuado
-                                                        {% else %}
-                                                            <i class="fas fa-exclamation-triangle"></i> {{ porcentaje }}% Bajo
-                                                        {% endif %}
-                                                    </span>
-                                                </div>
-                                            {% else %}
-                                                <span class="badge badge-secondary">Sin CPM</span>
-                                            {% endif %}
-                                        {% endwith %}
-                                    {% else %}
-                                        <span class="badge badge-secondary">N/A</span>
-                                    {% endif %}
-                                </td>
-
-                                <!-- Acciones -->
-                                <td class="acciones-cell">
-                                    <div class="action-buttons">
-                                        <button class="btn-action btn-view" 
-                                                onclick="verDetalle('{{ item.medicamento__clave }}')"
-                                                title="Ver detalles">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                        <button class="btn-action btn-edit" 
-                                                onclick="editarMedicamento('{{ item.medicamento__clave }}')"
-                                                title="Editar">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="6" class="empty-state">
-                                    <div class="empty-content">
+                            {% if inventario %}
+                                {% for item in inventario %}
+                                <tr data-medicamento-id="{{ item.medicamento__id }}"
+                                    data-clave="{{ item.medicamento__clave }}"
+                                    data-descripcion="{{ item.medicamento__descripcion }}"
+                                    data-existencia="{{ item.existencia_total }}"
+                                    data-cpm="{{ item.cpm_medicamento }}">
+                                    
+                                    <!-- Clave -->
+                                    <td class="clave-cell">{{ item.medicamento__clave }}</td>
+                                    
+                                    <!-- Descripción -->
+                                    <td class="descripcion-cell">{{ item.medicamento__descripcion }}</td>
+                                    
+                                    <!-- Existencia Total -->
+                                    <td class="existencia-cell">
+                                        <span class="badge-existencia 
+                                            {% if item.existencia_total <= 10 %}badge-critico
+                                            {% elif item.existencia_total <= 50 %}badge-bajo
+                                            {% else %}badge-adecuado{% endif %}">
+                                            {{ item.existencia_total }}
+                                        </span>
+                                    </td>
+                                    
+                                    <!-- CPM -->
+                                    <td class="cpm-cell">
+                                        <input type="number" 
+                                            name="cpm_{{ item.medicamento__id }}" 
+                                            value="{{ item.cpm_medicamento }}" 
+                                            class="cpm-input"
+                                            data-medicamento-id="{{ item.medicamento__id }}"
+                                            min="0"
+                                            step="1">
+                                    </td>
+                                    
+                                    <!-- Estado Stock -->
+                                    <td class="estado-cell">
+                                        {% if item.existencia_total <= 10 %}
+                                            <span class="badge badge-critico">
+                                                <i class="fas fa-exclamation-circle"></i> Crítico
+                                            </span>
+                                        {% elif item.existencia_total <= 50 %}
+                                            <span class="badge badge-bajo">
+                                                <i class="fas fa-exclamation-triangle"></i> Bajo
+                                            </span>
+                                        {% else %}
+                                            <span class="badge badge-adecuado">
+                                                <i class="fas fa-check-circle"></i> Adecuado
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    
+                                    <!-- Acciones -->
+                                    <td class="acciones-cell">
+                                        <div class="action-buttons">
+                                            
+                                            <!-- Editar CPM -->
+                                            <button class="btn-action btn-edit" 
+                                                    onclick="editarMedicamento('{{ item.medicamento__id }}', '{{ item.medicamento__clave }}', '{{ item.medicamento__descripcion }}', {{ item.cpm_medicamento }})"
+                                                    title="Editar CPM">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            
+                                            <!-- Eliminar Medicamento -->
+                                            <button class="btn-action btn-delete" 
+                                                    onclick="confirmarEliminacionMedicamento('{{ item.medicamento__id }}', '{{ item.medicamento__descripcion }}')"
+                                                    title="Eliminar medicamento">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="empty-state">
                                         <i class="fas fa-inbox"></i>
                                         <p>No se encontraron medicamentos en inventario</p>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                                    </td>
+                                </tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -282,6 +267,80 @@
             <i class="fas fa-times"></i> Cancelar
         </button>
     </div>
+
+
+<!-- Modal Editar CPM -->
+<div id="modal-editar-cpm" class="modal" style="display: none;">
+    <div class="modal-content modal-editar">
+        <div class="modal-header">
+            <h3><i class="fas fa-edit"></i> Editar CPM</h3>
+            <button class="btn-close" onclick="cerrarModalEditarCPM()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Medicamento:</label>
+                <p id="edit-medicamento-nombre" class="readonly-field"></p>
+            </div>
+            <div class="form-group">
+                <label for="edit-cpm-input">CPM (Consumo Promedio Mensual):</label>
+                <input type="number" 
+                       id="edit-cpm-input" 
+                       class="form-control" 
+                       min="0" 
+                       step="1"
+                       placeholder="Ingrese CPM">
+                <small class="form-text">Cantidad de unidades consumidas por mes</small>
+            </div>
+            <input type="hidden" id="edit-medicamento-id">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="cerrarModalEditarCPM()">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+            <button class="btn btn-primary" onclick="guardarCPM()">
+                <i class="fas fa-save"></i> Guardar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmar Eliminación -->
+<div id="modal-eliminar" class="modal" style="display: none;">
+    <div class="modal-content modal-eliminar">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación</h3>
+            <button class="btn-close" onclick="cerrarModalEliminar()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p class="warning-text">
+                <i class="fas fa-exclamation-circle"></i>
+                ¿Está seguro que desea eliminar el medicamento <strong id="eliminar-medicamento-nombre"></strong>?
+            </p>
+            <p class="warning-subtext">
+                Esta acción eliminará <strong>todos los lotes asociados</strong> a este medicamento y no se puede deshacer.
+            </p>
+            <input type="hidden" id="eliminar-medicamento-id">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="cerrarModalEliminar()">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+            <button class="btn btn-danger" onclick="eliminarMedicamento()">
+                <i class="fas fa-trash-alt"></i> Eliminar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Overlays -->
+<div id="modal-overlay-lotes" style="display: none;" onclick="cerrarModalLotes()"></div>
+<div id="modal-overlay-editar" style="display: none;" onclick="cerrarModalEditarCPM()"></div>
+<div id="modal-overlay-eliminar" style="display: none;" onclick="cerrarModalEliminar()"></div>
+
 
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
