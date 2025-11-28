@@ -60,7 +60,25 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'farmacia.middleware.NoCacheMiddleware',
 ]
+
+# ===== CONFIGURACIÓN DE SESIONES (SEGURIDAD) =====
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Sesiones en base de datos
+SESSION_COOKIE_AGE = 3600  # 1 hora (3600 segundos)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # ✅ Cerrar sesión al cerrar navegador
+SESSION_SAVE_EVERY_REQUEST = True  # ✅ Actualizar sesión en cada request
+SESSION_COOKIE_HTTPONLY = True  # ✅ Evita acceso por JavaScript
+SESSION_COOKIE_SAMESITE = 'Lax'  # Protección CSRF
+SESSION_COOKIE_SECURE = False  # ⚠️ Cambiar a True en producción con HTTPS
+
+# Configuraciones de seguridad adicionales
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Limpiar sesiones expiradas automáticamente
+SESSION_SAVE_EVERY_REQUEST = True
+
 
 ROOT_URLCONF = 'inventfarm.urls'
 

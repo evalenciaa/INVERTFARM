@@ -13,6 +13,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.db import transaction
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.cache import never_cache
 from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente
 from datetime import timedelta, date, datetime
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -47,49 +48,77 @@ logger = logging.getLogger(__name__)
 
 
 # Create your views here.
-
+@never_cache
 def inicio(request):
     return render(request, 'inicio.html')
 
+@never_cache
 def vista_farmacia(request):
     return render(request, 'farmacia.html')
 
+@never_cache
 def vista_farmacia_g(request):
     """Vista para el inventario por lotes"""
     return render(request, 'farmacia_g.html', {
         'user': request.user
     })
 
+@never_cache
+@require_http_methods(["GET", "POST"])
 def login_view(request):
+    """Vista de login con validación estricta"""
+    
+    # Si ya está autenticado, redirigir
     if request.user.is_authenticated:
         return redirect('principal')
-        
+    
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
         
         # Validación básica
         if not username or not password:
             messages.error(request, 'Usuario y contraseña son requeridos')
-            return render(request, 'inicio.html', {'username': username or ''})
+            return render(request, 'inicio.html', {'username': username})
         
+        # ✅ AUTENTICACIÓN ESTRICTA
         user = authenticate(request, username=username, password=password)
-        print(f"Authenticate result: {user}")  # <<<<<
+        
+        # DEBUG: Eliminar en producción
+        print(f"🔍 Usuario: {username}")
+        print(f"🔍 Authenticate result: {user}")
+        print(f"🔍 User is_active: {user.is_active if user else 'N/A'}")
         
         if user is not None:
             if user.is_active:
+                # ✅ Limpiar sesión anterior si existe
+                request.session.flush()
+                
+                # ✅ Crear nueva sesión
                 login(request, user)
-                next_url = request.POST.get('next', 'principal')
+                
+                # ✅ Forzar guardado de sesión
+                request.session.save()
+                
+                # Registrar login (opcional)
+                print(f"✅ Login exitoso: {user.username} - Rol: {user.rol}")
+                
+                # Redirigir
+                next_url = request.POST.get('next') or request.GET.get('next', 'principal')
                 return redirect(next_url)
             else:
-                messages.error(request, 'Cuenta desactivada')
+                messages.error(request, 'Tu cuenta ha sido desactivada. Contacta al administrador.')
         else:
-            messages.error(request, 'Credenciales inválidas')
+            messages.error(request, 'Usuario o contraseña incorrectos')
+            print(f"❌ Login fallido para: {username}")
         
         return render(request, 'inicio.html', {'username': username})
     
+    # GET request
     return render(request, 'inicio.html')
 
+
+@never_cache
 @login_required
 def bienvenida(request):
     def tiene_acceso(user, grupos_requeridos):
@@ -122,10 +151,24 @@ def bienvenida(request):
         'last_login': request.user.last_login
     })
 
+@never_cache  # ✅ Evita que el navegador cachee la página
+@require_http_methods(["GET", "POST"])  # ✅ Solo permite GET/POST
 def logout_view(request):
-    logout(request)
-    messages.success(request, 'Sesión cerrada correctamente')
-    return redirect('login')
+    """Cierra sesión y destruye completamente la sesión del usuario"""
+    if request.user.is_authenticated:
+        # Limpia TODA la información de la sesión
+        request.session.flush()  # ✅ Destruye la sesión en DB y cookie
+        logout(request)  # ✅ Cierra la sesión del usuario
+        
+        messages.success(request, 'Sesión cerrada correctamente')
+    
+    # Respuesta con headers de no-cache
+    response = redirect('login')
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    
+    return response
 
 @login_required
 def alertas(request):
@@ -160,6 +203,7 @@ def alertas(request):
         'es_capturista': es_capturista,
     }
     return render(request, 'alertas.html', context)
+
 
 
 @login_required
@@ -228,6 +272,7 @@ def tiene_acceso_farmacia(user):
     ]).exists()
 
 
+@never_cache
 @login_required(login_url='login')
 @user_passes_test(tiene_acceso_farmacia)
 def farmacia_g(request):
@@ -326,6 +371,7 @@ def guardar_descripcion(request):
     return JsonResponse({'status': 'error', 'message': 'Datos inválidos'})
 
 
+@never_cache
 @login_required
 def inventario_general(request):
     """Vista de inventario general - suma de existencias por medicamento"""
@@ -487,6 +533,7 @@ def registro_medicamento(request):
     })
 
 
+@never_cache
 @login_required
 def entrada_medicamentos(request):
     

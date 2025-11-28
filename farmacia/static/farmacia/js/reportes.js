@@ -718,13 +718,21 @@ async function exportarHistorialPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
+    // Agregar logo (1236x175 = proporción ~7:1)
+    const logoUrl = '/static/farmacia/img/logo.jpg';
+    doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12); // Ancho 80mm, Alto 12mm
+    
     // Título
     doc.setFontSize(18);
-    doc.text('Historial de Salidas', 14, 20);
+    doc.text('Historial de Salidas', 14, 30);
     
     // Fecha de generación
     doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 28);
+    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
+    
+    // Línea divisoria
+    doc.setLineWidth(0.5);
+    doc.line(14, 42, 196, 42);
     
     // Preparar datos de la tabla
     const rows = [];
@@ -735,13 +743,13 @@ async function exportarHistorialPDF() {
             const cells = row.querySelectorAll('td');
             if (cells.length >= 7) {
                 rows.push([
-                    cells[0].textContent.trim(), // ID
-                    cells[1].textContent.trim(), // Fecha
-                    cells[2].textContent.trim(), // Medicamento
-                    cells[3].textContent.trim(), // Cantidad
-                    cells[4].textContent.trim(), // Paciente
-                    cells[5].textContent.trim(), // Responsable
-                    cells[6].textContent.trim()  // Valor
+                    cells[0].textContent.trim(),
+                    cells[1].textContent.trim(),
+                    cells[2].textContent.trim(),
+                    cells[3].textContent.trim(),
+                    cells[4].textContent.trim(),
+                    cells[5].textContent.trim(),
+                    cells[6].textContent.trim()
                 ]);
             }
         });
@@ -749,7 +757,7 @@ async function exportarHistorialPDF() {
     
     // Crear tabla
     doc.autoTable({
-        startY: 35,
+        startY: 46,
         head: [['ID', 'Fecha', 'Medicamento', 'Cant.', 'Paciente', 'Responsable', 'Valor']],
         body: rows,
         theme: 'grid',
@@ -764,12 +772,20 @@ async function exportarMedicamentosPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
+    // Agregar logo
+    const logoUrl = '/static/farmacia/img/logo.jpg';
+    doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
+    
     // Título
     doc.setFontSize(18);
-    doc.text('Top 10 Medicamentos Más Dispensados', 14, 20);
+    doc.text('Top 10 Medicamentos Más Dispensados', 14, 30);
     
     doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 28);
+    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
+    
+    // Línea divisoria
+    doc.setLineWidth(0.5);
+    doc.line(14, 42, 196, 42);
     
     // Obtener datos desde el ranking
     const rows = [];
@@ -785,7 +801,7 @@ async function exportarMedicamentosPDF() {
     
     // Crear tabla
     doc.autoTable({
-        startY: 35,
+        startY: 46,
         head: [['#', 'Medicamento', 'Cantidad Dispensada']],
         body: rows,
         theme: 'grid',
@@ -796,15 +812,24 @@ async function exportarMedicamentosPDF() {
     doc.save('Top_Medicamentos.pdf');
 }
 
+
 async function exportarPacientesPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
+    // Agregar logo
+    const logoUrl = '/static/farmacia/img/logo.jpg';
+    doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
+    
     doc.setFontSize(18);
-    doc.text('Pacientes Frecuentes', 14, 20);
+    doc.text('Pacientes Frecuentes', 14, 30);
     
     doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 28);
+    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
+    
+    // Línea divisoria
+    doc.setLineWidth(0.5);
+    doc.line(14, 42, 196, 42);
     
     // Obtener datos de la tabla
     const rows = [];
@@ -815,19 +840,19 @@ async function exportarPacientesPDF() {
             const cells = row.querySelectorAll('td');
             if (cells.length >= 6) {
                 rows.push([
-                    cells[0].textContent.trim(), // #
-                    cells[1].textContent.trim(), // Paciente
-                    cells[2].textContent.trim(), // Visitas
-                    cells[3].textContent.trim(), // Medicamentos
-                    cells[4].textContent.trim(), // Última Visita
-                    cells[5].textContent.trim()  // Gasto
+                    cells[0].textContent.trim(),
+                    cells[1].textContent.trim(),
+                    cells[2].textContent.trim(),
+                    cells[3].textContent.trim(),
+                    cells[4].textContent.trim(),
+                    cells[5].textContent.trim()
                 ]);
             }
         });
     }
     
     doc.autoTable({
-        startY: 35,
+        startY: 46,
         head: [['#', 'Paciente', 'Visitas', 'Medicamentos', 'Última Visita', 'Gasto']],
         body: rows,
         theme: 'grid',
@@ -838,21 +863,30 @@ async function exportarPacientesPDF() {
     doc.save('Pacientes_Frecuentes.pdf');
 }
 
+
 async function exportarTendenciasPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape'); // Horizontal para gráficas
     
+    // Agregar logo (en landscape)
+    const logoUrl = '/static/farmacia/img/logo.jpg';
+    doc.addImage(logoUrl, 'JPEG', 14, 10, 100, 15); // Más grande en horizontal
+    
     doc.setFontSize(18);
-    doc.text('Tendencias Temporales', 14, 20);
+    doc.text('Tendencias Temporales', 14, 32);
     
     doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 28);
+    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 39);
+    
+    // Línea divisoria
+    doc.setLineWidth(0.5);
+    doc.line(14, 44, 280, 44);
     
     // Capturar gráfica como imagen
     const canvas = document.getElementById('chartTendencias');
     if (canvas) {
         const imgData = canvas.toDataURL('image/png');
-        doc.addImage(imgData, 'PNG', 14, 35, 260, 120);
+        doc.addImage(imgData, 'PNG', 14, 50, 260, 120);
     }
     
     doc.save('Tendencias_Temporales.pdf');
