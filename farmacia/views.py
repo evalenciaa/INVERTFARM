@@ -1316,6 +1316,7 @@ def get_paciente_by_name(request, nombre):
     
     return JsonResponse({'error': 'Método no permitido'}, status=405)
 
+@never_cache
 @login_required
 def carga_masiva(request):
     """Vista para mostrar el formulario de carga masiva"""
@@ -2002,6 +2003,7 @@ def exportar_inventario_general_pdf(request):
     
 # ===== MÓDULO DE REPORTES =====
 
+@never_cache
 @login_required
 def reportes_farmacia(request):
     """Vista principal del módulo de reportes"""
