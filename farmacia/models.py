@@ -555,24 +555,6 @@ def sumar_existencia(sender, instance, created, **kwargs):
             )
 
 
-"""@receiver(post_save, sender=Salida)
-def restar_existencia(sender, instance, created, **kwargs):
-    if created:
-        lote = instance.lote
-        cantidad = instance.cantidad
-
-        if lote.presentacion.nombre.upper() == 'CAJA':
-            cantidad *= lote.presentacion.unidades_por_caja  # convertir a unidades
-
-        lote.existencia -= cantidad
-        lote.save()
-
-@receiver(post_save, sender=UsuarioPersonalizado)
-def crear_perfil_usuario(sender, instance, created, **kwargs):
-    if created:
-        PerfilUsuario.objects.create(user=instance)"""
-
-
 def enviar_alerta_stock(lote, cpm_del_medicamento):
     asunto = f"⚠️ Alerta: {lote.medicamento.descripcion}"
     mensaje = f"""📅 Fecha: {now().strftime('%d/%m/%Y %H:%M')}

@@ -608,9 +608,9 @@ body {
 
 /* ===== BADGES Y ETIQUETAS ===== */
 .badge {
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
+    padding: 2px 12px;
+    border-radius: 16px;
+    font-size: 0.85rem;
     font-weight: 600;
     display: inline-block;
 }
@@ -628,6 +628,18 @@ body {
 .badge-danger {
     background: #fee2e2;
     color: #991b1b;
+}
+
+.badge-receta {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #90caf9;
+}
+
+.badge-colectivo {
+    background: #f3e5f5;
+    color: #7b1fa2;
+    border: 1px solid #ce93d8;
 }
 
 /* ===== LOADING ===== */

@@ -2071,7 +2071,7 @@ def api_reportes_salidas(request):
         if request.GET.get('fecha_fin'):
             fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
         
-        # Consultar salidas - CORREGIDO: quitar .date()
+        # Consultar salidas
         salidas = RecetaMedicamento.objects.filter(
             receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
         ).select_related(
@@ -2092,15 +2092,26 @@ def api_reportes_salidas(request):
                 fecha_str = item.receta.fecha_surtido.strftime('%Y-%m-%d')
                 hora_str = '--:--'
             
+            # Determinar tipo: Colectivo o Receta
+            if item.receta.id_folio.startswith('COL-'):
+                tipo = 'Colectivo'
+                tipo_badge = 'badge-colectivo'
+            else:
+                tipo = 'Receta'
+                tipo_badge = 'badge-receta'
+            
             datos_salidas.append({
                 'id': item.receta.id,
+                'folio': item.receta.id_folio,  # ← Agregar folio
                 'fecha': fecha_str,
                 'hora': hora_str,
                 'medicamento': item.medicamento.descripcion,
                 'cantidad': item.cantidad_surtida,
                 'paciente': item.receta.paciente.nombre_completo if item.receta.paciente else 'N/A',
                 'responsable': f"{item.receta.surtido_por.first_name} {item.receta.surtido_por.last_name}" if item.receta.surtido_por else 'N/A',
-                'valor': 0
+                'valor': 0,
+                'tipo': tipo,  # ← NUEVO
+                'tipo_badge': tipo_badge  # ← Para el CSS
             })
         
         return JsonResponse({
@@ -2409,7 +2420,7 @@ def completar_colectivo(request, colectivo_id):
     
     try:
         with transaction.atomic():
-            # PRIMERO: Validar stock de todos los medicamentos
+            # PRIMERO: Validar stock
             for medicamento in colectivo.medicamentos.all():
                 cantidad_surtida = int(request.POST.get(f'cantidad_surtida_{medicamento.id}', 0))
                 
@@ -2432,18 +2443,51 @@ def completar_colectivo(request, colectivo_id):
                 medicamento.cantidad_surtida = cantidad_surtida
                 medicamento.save()
             
-            # TERCERO: Descontar del inventario (FEFO)
+            # DEBUG - ANTES DE CREAR RECETA
+            print("="*60)
+            print("🔍 INICIANDO CREACIÓN DE RECETA PARA REPORTES")
+            print(f"Colectivo: {colectivo.folio}")
+            print(f"Paciente: {colectivo.paciente}")
+            print(f"Fecha: {timezone.now().date()}")
+            
+            # TERCERO: Crear registro de Receta para reportes
+            try:
+                receta = Receta.objects.create(
+                    id_folio=f"{colectivo.folio}",
+                    paciente=colectivo.paciente,
+                    fecha_emision=colectivo.fecha_solicitud.date() if hasattr(colectivo.fecha_solicitud, 'date') else colectivo.fecha_solicitud,
+                    fecha_surtido=timezone.now().date(),
+                    estado='completa',
+                    origen='hospitalizacion_adultos',
+                    surtido_por=request.user
+                )
+                print(f"✅ RECETA CREADA: {receta.id_folio} (ID: {receta.id})")
+            except Exception as e:
+                print(f"❌ ERROR AL CREAR RECETA: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                raise
+            
+            # CUARTO: Descontar del inventario y crear RecetaMedicamento
+            medicamentos_registrados = 0
             for medicamento in colectivo.medicamentos.all():
                 cantidad_restante = medicamento.cantidad_surtida
+                
+                print(f"\n📦 Procesando: {medicamento.medicamento.descripcion}")
+                print(f"   Cantidad a surtir: {medicamento.cantidad_surtida}")
                 
                 lotes = Lote.objects.filter(
                     medicamento=medicamento.medicamento,
                     existencia__gt=0
                 ).order_by('fecha_caducidad')
                 
+                lote_usado = None
                 for lote in lotes:
                     if cantidad_restante <= 0:
                         break
+                    
+                    if not lote_usado:
+                        lote_usado = lote
                     
                     if lote.existencia >= cantidad_restante:
                         lote.existencia -= cantidad_restante
@@ -2453,30 +2497,44 @@ def completar_colectivo(request, colectivo_id):
                         cantidad_restante -= lote.existencia
                         lote.existencia = 0
                         lote.save()
+                
+                # Crear registro de RecetaMedicamento
+                try:
+                    receta_med = RecetaMedicamento.objects.create(
+                        receta=receta,
+                        medicamento=medicamento.medicamento,
+                        lote=lote_usado,
+                        cantidad_solicitada=medicamento.cantidad_solicitada,
+                        cantidad_surtida=medicamento.cantidad_surtida
+                    )
+                    medicamentos_registrados += 1
+                    print(f"   ✅ RecetaMedicamento creado (ID: {receta_med.id})")
+                except Exception as e:
+                    print(f"   ❌ ERROR al crear RecetaMedicamento: {str(e)}")
+                    raise
             
-            # CUARTO: Cambiar estado a COMPLETADO
+            print(f"\n✅ TOTAL MEDICAMENTOS REGISTRADOS: {medicamentos_registrados}")
+            
+            # QUINTO: Cambiar estado a COMPLETADO
             colectivo.estado = 'COMPLETADO'
             colectivo.fecha_completado = timezone.now()
             colectivo.farmaceutico_asignado = request.user
             colectivo.save()
-            print(f"✓ Colectivo {colectivo.folio} completado en: {colectivo.fecha_completado}")
+            
+            print(f"✅ Colectivo completado: {colectivo.folio}")
+            print("="*60)
         
         messages.success(
             request, 
-            f'Colectivo {colectivo.folio} completado exitosamente. '
-            f'Puedes descargar el PDF desde la lista o el detalle.'
+            f'Colectivo {colectivo.folio} completado exitosamente.'
         )
         
-        # QUINTO: Redirigir a la lista (NO a generar PDF directamente)
         return redirect('lista_colectivos_farmacia')
         
-    except ValueError as e:
-        messages.error(request, f'Error en los datos enviados: {str(e)}')
-        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
     except Exception as e:
         import traceback
-        print(f"Error al completar colectivo: {str(e)}")
-        print(traceback.format_exc())
+        print(f"\n❌ ERROR GENERAL: {str(e)}")
+        traceback.print_exc()
         messages.error(request, f'Error al completar colectivo: {str(e)}')
         return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
 

@@ -184,6 +184,7 @@ function loadHistorialTable(filteredData = null) {
             <td><span class="badge badge-success">${item.cantidad} unidades</span></td>
             <td>${item.paciente}</td>
             <td>${item.responsable}</td>
+            <td><span class="badge ${item.tipo_badge}">${item.tipo}</span></td>
             <td><strong>$${item.valor.toLocaleString()}</strong></td>
             <td>
                 <button class="btn-action" onclick="verDetalle(${item.id})" title="Ver detalle">
