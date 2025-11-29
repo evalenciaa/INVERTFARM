@@ -60,6 +60,13 @@ urlpatterns = [
     path('api/get_paciente_info/<str:curp>/', views.get_paciente_info_json, name='get_paciente_info_json'),
     path('carga-masiva/', views.carga_masiva, name='carga_masiva'),
     path('api/carga-masiva/procesar/', views.procesar_carga_masiva, name='procesar_carga_masiva'),
+    
+    # Rutas de Colectivos - Enfermeria
+    path('colectivos-farmacia/', views.lista_colectivos_farmacia, name='lista_colectivos_farmacia'),
+    path('colectivos-farmacia/<int:colectivo_id>/', views.detalle_colectivo_farmacia, name='detalle_colectivo_farmacia'),
+    path('colectivos-farmacia/<int:colectivo_id>/responder/', views.responder_colectivo, name='responder_colectivo'),
+    path('colectivos-farmacia/<int:colectivo_id>/completar/', views.completar_colectivo, name='completar_colectivo'),
+    path('colectivos-farmacia/<int:colectivo_id>/pdf/', views.generar_pdf_colectivo, name='generar_pdf_colectivo'),
 ]
 
 

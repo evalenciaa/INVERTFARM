@@ -4,74 +4,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>INVENTFARM - Sistema de Inventarios</title>
-    <link rel="stylesheet" href="{% static 'farmacia/css/principal.css' %}">
+    <title>INVENTFARM - Sistema de Gestión</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/sidebar.css' %}">
-    <script src="{% static 'farmacia/js/principal.js' %}" defer></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'farmacia/css/principal.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-
-    <header class="page-header">
-    <div class="logo-header">
-        <img src="{% static 'farmacia/img/logo_reducido.jpg' %}" alt="INVENTFARM Logo">
-    </div>
-    </header>
-
-    <div class="app-container">
-        <!-- Barra Lateral Simplificada (sin info de usuario) -->
-        <aside class="sidebar collapsed">
-    <!-- Encabezado superior -->
-    <div class="sidebar-top">
-        <div class="logo-placeholder">
-            <i class="fas fa-hospital-alt"></i>
+    <!-- Header con logos -->
+    <div class="page-header">
+        <div class="logo-header">
+            <img src="{% static 'farmacia/img/logo.jpg' %}" alt="Logo Hospital">
         </div>
     </div>
-    
-    <!-- Menú de navegación -->
-    <nav class="sidebar-nav"> 
-            <li class="nav-item active">
-                <a href="{% url 'principal' %}">
-                    <i class="fas fa-home"></i>
-                    <span>Inicio</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="{% url 'farmacia' %}">
-                    <i class="fas fa-pills"></i>
-                    <span>Farmacia</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#">
-                    <i class="fas fa-warehouse"></i>
-                    <span>Almacén</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#">
-                    <i class="fas fa-tshirt"></i>
-                    <span>Ropería</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#">
-                    <i class="fas fa-user-nurse"></i>
-                    <span>Enfermería</span>
-                </a>
-            </li>
-    </nav>
-    
-    <!-- Botón inferior -->
-    <div class="sidebar-bottom">
-        <a href="{% url 'logout' %}" class="logout-btn">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Cerrar Sesión</span>
-        </a>
-    </div>
-</aside>
 
-        <!-- Área Principal con Bienvenida -->
+    <!-- Contenedor principal -->
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li class="nav-item active">
+                        <a href="{% url 'principal' %}">
+                            <i class="fas fa-home"></i>
+                            <span>Inicio</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'farmacia' %}">
+                            <i class="fas fa-pills"></i>
+                            <span>Farmacia</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'enfermeria_principal' %}">
+                            <i class="fas fa-user-nurse"></i>
+                            <span>Enfermería</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#">
+                            <i class="fas fa-hospital"></i>
+                            <span>Hospitalización</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#">
+                            <i class="fas fa-user-md"></i>
+                            <span>Consulta Externa</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Contenido principal -->
         <main class="main-content">
             <div class="welcome-container">
                 <div class="welcome-message">
@@ -80,18 +66,62 @@
                         Sistema integral de gestión de inventarios para el Hospital Materno Infantil IMSS Bienestar
                     </p>
                     <div class="user-welcome">
-                        <p>Has iniciado sesión como: <strong>{{ request.user.username }}</strong></p>
+                        <p><strong>Has iniciado sesión como:</strong> {{ request.user.get_full_name|default:request.user.username }}</p>
                         {% if request.user.is_superuser %}
-                        <p class="admin-notice">(Cuenta con privilegios de administrador)</p>
+                            <p class="admin-notice">(Cuenta con privilegios de administrador)</p>
+                        {% else %}
+                            <p class="admin-notice">Rol: {{ request.user.get_rol_display }}</p>
                         {% endif %}
                     </div>
                 </div>
                 
                 <div class="welcome-image">
-                    <img src="{% static 'farmacia/img/nacimiento.jpg' %}" alt="Hospital IMSS Bienestar">
+                    <img src="{% static 'farmacia/img/nacimiento.jpg' %}" alt="Hospital">
                 </div>
             </div>
         </main>
     </div>
+
+    <!-- Footer horizontal con usuario (DISEÑO EN L) -->
+    <div class="sidebar-footer-horizontal">
+        <div class="footer-user-info">
+            <i class="fas fa-user-circle"></i>
+            <div class="footer-user-details">
+                <span class="footer-username">{{ request.user.get_full_name|default:request.user.username }}</span>
+                <span class="footer-user-role">
+                    {% if request.user.is_superuser %}
+                        Administrador
+                    {% else %}
+                        {{ request.user.get_rol_display }}
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+        <a href="{% url 'logout' %}" class="footer-logout-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Cerrar Sesión</span>
+        </a>
+    </div>
+
+    <script>
+        // Toggle sidebar collapse
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            
+            // Detectar clic en cualquier parte para colapsar/expandir
+            sidebar.addEventListener('mouseenter', function() {
+                this.classList.remove('collapsed');
+            });
+            
+            sidebar.addEventListener('mouseleave', function() {
+                this.classList.add('collapsed');
+            });
+            
+            // Iniciar colapsado en pantallas pequeñas
+            if (window.innerWidth <= 768) {
+                sidebar.classList.add('collapsed');
+            }
+        });
+    </script>
 </body>
 </html>

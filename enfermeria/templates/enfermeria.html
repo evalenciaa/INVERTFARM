@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Módulo de Enfermería - INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'enfermeria/css/enfermeria.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo-section">
+            <i class="fas fa-hospital"></i>
+            <h2>INVENTFARM</h2>
+        </div>
+        
+        <nav class="nav-menu">
+            <a href="{% url 'principal' %}" class="nav-item">
+                <i class="fas fa-home"></i>
+                <span>Inicio</span>
+            </a>
+            <a href="{% url 'farmacia' %}" class="nav-item">
+                <i class="fas fa-pills"></i>
+                <span>Farmacia</span>
+            </a>
+            <a href="{% url 'enfermeria_principal' %}" class="nav-item active">
+                <i class="fas fa-user-nurse"></i>
+                <span>Enfermería</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Footer con usuario -->
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <div>
+                <p class="user-name">{{ user.get_full_name|default:user.username }}</p>
+                <p class="user-role">{{ user.get_rol_display }}</p>
+            </div>
+        </div>
+        <a href="{% url 'logout' %}" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Cerrar Sesión</span>
+        </a>
+    </div>
+
+    <!-- Contenido Principal -->
+    <div class="main-content">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb-nav">
+            <a href="{% url 'principal' %}">
+                <i class="fas fa-home"></i>
+                Inicio
+            </a>
+            <span class="separator">›</span>
+            <a href="{% url 'enfermeria_principal' %}" class="active">
+                <i class="fas fa-user-nurse"></i>
+                Enfermería
+            </a>
+        </div>
+
+        <!-- Header -->
+        <div class="header">
+            <h1><i class="fas fa-user-nurse"></i> Módulo de Enfermería</h1>
+            <p>Gestión de colectivos y solicitudes a farmacia</p>
+        </div>
+
+        <!-- Grid de Módulos -->
+        <div class="modules-grid">
+            <!-- Colectivos -->
+            <div class="module-card" onclick="location.href='{% url 'lista_colectivos_enfermeria' %}';">
+                <div class="card-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h3>Solicitar Colectivo a Farmacia</h3>
+                <p>Crear y gestionar solicitudes de medicamentos para grupos de pacientes</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
+</body>
+</html>

@@ -430,3 +430,99 @@
     }
 }
 
+/* ===== FOOTER HORIZONTAL (DISEÑO EN L) ===== */
+.sidebar-footer-horizontal {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #750000 0%, #550000 100%);
+    padding: 12px 30px 12px 250px; /* Espacio para el sidebar */
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    z-index: 999;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: padding-left 0.3s ease;
+}
+
+.sidebar.collapsed ~ * .sidebar-footer-horizontal,
+.sidebar-footer-horizontal.collapsed-mode {
+    padding-left: 100px; /* Ajuste cuando sidebar está colapsado */
+}
+
+.footer-user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.footer-user-info i {
+    font-size: 2rem;
+    color: white;
+}
+
+.footer-user-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.footer-username {
+    font-weight: 600;
+    color: white;
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+}
+
+.footer-user-role {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.footer-logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 25px;
+    color: white;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.footer-logout-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+.footer-logout-btn i {
+    font-size: 1rem;
+}
+
+/* Ajustar main-content para el footer horizontal */
+.main-content {
+    padding-bottom: 80px !important; /* Espacio para footer horizontal */
+}
+
+/* Ocultar sidebar-bottom del sidebar */
+.sidebar .sidebar-bottom {
+    display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar-footer-horizontal {
+        padding-left: 80px;
+        flex-direction: column;
+        gap: 10px;
+        padding-top: 15px;
+        padding-bottom: 15px;
+    }
+    
+    .main-content {
+        padding-bottom: 120px !important;
+    }
+}

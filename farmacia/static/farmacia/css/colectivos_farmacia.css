@@ -1,0 +1,447 @@
+/* ===== ESTILOS PARA COLECTIVOS EN FARMACIA ===== */
+
+/* Reutiliza estilos de enfermería pero con ajustes específicos */
+.farmacia-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.farmacia-stat-card {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+    border-left: 4px solid #750000;
+    transition: transform 0.3s ease;
+}
+
+.farmacia-stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.farmacia-stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #750000;
+    margin-bottom: 5px;
+}
+
+.farmacia-stat-label {
+    color: #666;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Stock disponible en tabla */
+.stock-badge {
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.stock-suficiente {
+    background: #d4edda;
+    color: #155724;
+}
+
+.stock-insuficiente {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.stock-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+/* Formulario de respuesta */
+.respuesta-form {
+    background: #f8f9fa;
+    padding: 25px;
+    border-radius: 10px;
+    margin: 20px 0;
+    border: 2px dashed #750000;
+}
+
+.respuesta-form h4 {
+    color: #750000;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.medicamento-row {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    transition: all 0.3s ease;
+}
+
+.medicamento-row:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-color: #750000;
+}
+
+.medicamento-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.medicamento-info {
+    flex: 1;
+}
+
+.medicamento-info strong {
+    color: #750000;
+    font-size: 1.1rem;
+}
+
+.medicamento-info p {
+    color: #666;
+    margin: 5px 0 0 0;
+}
+
+.medicamento-cantidad {
+    text-align: center;
+    padding: 10px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.medicamento-cantidad strong {
+    font-size: 1.5rem;
+    color: #750000;
+}
+
+.medicamento-cantidad small {
+    display: block;
+    color: #999;
+    margin-top: 5px;
+}
+
+.medicamento-controls {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.checkbox-disponibilidad {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.checkbox-disponibilidad input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.checkbox-disponibilidad label {
+    cursor: pointer;
+    font-weight: 500;
+    color: #333;
+}
+
+.input-comentario {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.input-comentario:focus {
+    outline: none;
+    border-color: #750000;
+    box-shadow: 0 0 0 3px rgba(117, 0, 0, 0.1);
+}
+
+/* Formulario de completar */
+.completar-form {
+    background: #e8f5e9;
+    padding: 25px;
+    border-radius: 10px;
+    margin: 20px 0;
+    border: 2px solid #28A745;
+}
+
+.completar-form h4 {
+    color: #155724;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cantidad-surtir-input {
+    width: 100%;
+    max-width: 150px;
+    padding: 10px;
+    border: 2px solid #28A745;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: center;
+}
+
+.cantidad-surtir-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+}
+
+/* Alertas específicas de farmacia */
+.alerta-stock {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.alerta-stock i {
+    font-size: 1.5rem;
+    color: #856404;
+}
+
+.alerta-stock p {
+    margin: 0;
+    color: #856404;
+}
+
+/* Botones específicos */
+.btn-completar {
+    background: linear-gradient(135deg, #28A745 0%, #20c997 100%);
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-completar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+}
+
+.btn-responder {
+    background: linear-gradient(135deg, #1E90FF 0%, #4169E1 100%);
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-responder:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+}
+
+/* Filtro rápido */
+.filtro-rapido {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.filtro-rapido button {
+    padding: 8px 20px;
+    border: 2px solid #ddd;
+    background: white;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.filtro-rapido button:hover {
+    border-color: #750000;
+    background: #750000;
+    color: white;
+}
+
+.filtro-rapido button.active {
+    border-color: #750000;
+    background: #750000;
+    color: white;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .medicamento-controls {
+        grid-template-columns: 1fr;
+    }
+    
+    .medicamento-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .farmacia-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ===== MODAL DE SURTIDO ===== */
+.medicamentos-surtir-list {
+    margin: 20px 0;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.medicamento-surtir-item {
+    padding: 15px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.3s ease;
+}
+
+.medicamento-surtir-item:last-child {
+    border-bottom: none;
+}
+
+.medicamento-surtir-item:hover {
+    background: #f8f9fa;
+}
+
+.medicamento-surtir-item.stock-insuficiente {
+    background: #fff5f5;
+    border-left: 4px solid #DC3545;
+}
+
+.med-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.med-info strong {
+    color: #750000;
+}
+
+.med-info span {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.stock-info {
+    font-size: 0.85rem;
+    margin-top: 5px;
+    font-weight: 500;
+}
+
+.stock-info.suficiente {
+    color: #28A745;
+}
+
+.stock-info.insuficiente {
+    color: #DC3545;
+}
+
+.med-cantidad {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+}
+
+.cantidad-surtir-input {
+    width: 100px;
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.cantidad-surtir-input:focus {
+    outline: none;
+    border-color: #750000;
+}
+
+.cantidad-solicitada {
+    font-size: 0.85rem;
+    color: #999;
+}
+
+/* ===== RESUMEN DE SURTIDO ===== */
+.resumen-surtido {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #2196F3;
+}
+
+.resumen-surtido h4 {
+    color: #750000;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.resumen-surtido ul {
+    list-style: none;
+    padding: 0;
+}
+
+.resumen-surtido li {
+    padding: 8px 0;
+    padding-left: 25px;
+    position: relative;
+}
+
+.resumen-surtido li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #28A745;
+    font-weight: bold;
+}
+
+/* ===== ALERT ===== */
+.alert-warning {
+    background: #fff3cd;
+    border-left: 4px solid #FFC107;
+    color: #856404;
+}

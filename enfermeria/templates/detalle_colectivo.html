@@ -1,0 +1,375 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Colectivo {{ colectivo.folio }} - Enfermería</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/detalle.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+        <div class="main-content-full">
+            <!-- Breadcrumb -->
+            <div class="breadcrumb-nav">
+                <a href="{% url 'principal' %}">
+                    <i class="fas fa-home"></i>
+                    Inicio
+                </a>
+                <span class="separator">›</span>
+                <a href="{% url 'enfermeria_principal' %}">
+                    <i class="fas fa-user-nurse"></i>
+                    Enfermería
+                </a>
+                <span class="separator">›</span>
+                <a href="{% url 'lista_colectivos_enfermeria' %}">
+                    <i class="fas fa-users"></i>
+                    Colectivos
+                </a>
+                <span class="separator">›</span>
+                <a href="#" class="active">
+                    <i class="fas fa-file-medical"></i>
+                    {{ colectivo.folio }}
+                </a>
+            </div>
+
+    <!-- Contenido Principal -->
+    <div class="main-content">
+        <div class="header">
+            <div>
+                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo</h1>
+                <p>Información completa de la solicitud</p>
+            </div>
+        </div>
+
+        <!-- Mensajes -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    <i class="fas fa-info-circle"></i>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Detalle del Colectivo -->
+        <div class="detalle-container">
+            
+            <!-- Header -->
+            <div class="colectivo-header">
+                <div class="colectivo-titulo">
+                    <h2>{{ colectivo.folio }}</h2>
+                    <span class="estado-badge estado-{{ colectivo.estado }} estado-grande">
+                        {{ colectivo.get_estado_display }}
+                    </span>
+                </div>
+                <div>
+                    <small style="color: #999;">
+                        <i class="far fa-clock"></i> 
+                        Creado: {{ colectivo.fecha_solicitud|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+
+            <!-- Información en Grid -->
+            <div class="info-grid">
+                <!-- Información del Paciente -->
+                <div class="info-card">
+                    <h4><i class="fas fa-user"></i> Paciente</h4>
+                    <div class="info-item">
+                        <strong>Nombre:</strong>
+                        <span>{{ colectivo.paciente.nombre_completo }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>CURP:</strong>
+                        <span>{{ colectivo.paciente.curp|default:"No registrado" }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Fecha Nac.:</strong>
+                        <span>{{ colectivo.paciente.fecha_nacimiento|date:"d/m/Y" }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Cama:</strong>
+                        <span>{{ colectivo.numero_cama }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Servicio:</strong>
+                        <span>{{ colectivo.servicio }}</span>
+                    </div>
+                </div>
+
+                <!-- Información del Personal -->
+                <div class="info-card">
+                    <h4><i class="fas fa-user-nurse"></i> Personal</h4>
+                    <div class="info-item">
+                        <strong>Solicitante:</strong>
+                        <span>{{ colectivo.enfermero_solicitante.get_full_name|default:colectivo.enfermero_solicitante.username }}</span>
+                    </div>
+                    {% if colectivo.farmaceutico_asignado %}
+                    <div class="info-item">
+                        <strong>Farmacéutico:</strong>
+                        <span>{{ colectivo.farmaceutico_asignado.get_full_name|default:colectivo.farmaceutico_asignado.username }}</span>
+                    </div>
+                    {% endif %}
+                    {% if colectivo.fecha_respuesta_farmacia %}
+                    <div class="info-item">
+                        <strong>Fecha Respuesta:</strong>
+                        <span>{{ colectivo.fecha_respuesta_farmacia|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if colectivo.fecha_completado %}
+                    <div class="info-item">
+                        <strong>Fecha Completado:</strong>
+                        <span>{{ colectivo.fecha_completado|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Observaciones de Enfermería -->
+            {% if colectivo.observaciones_enfermeria %}
+            <div class="observaciones-box">
+                <h4><i class="fas fa-comment-medical"></i> Observaciones de Enfermería</h4>
+                <p>{{ colectivo.observaciones_enfermeria }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Respuesta de Farmacia -->
+            {% if colectivo.respuesta_farmacia %}
+            <div class="respuesta-farmacia">
+                <h4><i class="fas fa-reply"></i> Respuesta de Farmacia</h4>
+                <p>{{ colectivo.respuesta_farmacia }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Medicamentos -->
+            <div class="medicamentos-detalle">
+                <h3><i class="fas fa-pills"></i> Medicamentos Solicitados</h3>
+                
+                <table class="med-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Clave</th>
+                            <th>Descripción</th>
+                            <th style="width: 120px; text-align: center;">Solicitado</th>
+                            {% if colectivo.estado == 'COMPLETADO' %}
+                            <th style="width: 120px; text-align: center;">Surtido</th>
+                            {% endif %}
+                            {% if colectivo.estado == 'RESPONDIDO' %}
+                            <th style="width: 150px; text-align: center;">Disponibilidad</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in medicamentos %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td><strong>{{ item.medicamento.clave }}</strong></td>
+                            <td>{{ item.medicamento.descripcion }}</td>
+                            <td style="text-align: center;">{{ item.cantidad_solicitada }}</td>
+                            
+                            {% if colectivo.estado == 'COMPLETADO' %}
+                            <td style="text-align: center;">
+                                <strong style="color: #28A745;">{{ item.cantidad_surtida }}</strong>
+                            </td>
+                            {% endif %}
+                            
+                            {% if colectivo.estado == 'RESPONDIDO' %}
+                            <td style="text-align: center;">
+                                {% if item.disponible %}
+                                    <span class="badge-disponible">
+                                        <i class="fas fa-check"></i> Disponible
+                                    </span>
+                                {% else %}
+                                    <span class="badge-no-disponible">
+                                        <i class="fas fa-times"></i> No disponible
+                                    </span>
+                                {% endif %}
+                                {% if item.comentario_farmacia %}
+                                <br><small style="color: #666;">{{ item.comentario_farmacia }}</small>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Timeline de Estados -->
+            <div class="timeline">
+                <div class="timeline-item {% if colectivo.estado != 'CANCELADO' %}active{% endif %}">
+                    <div class="timeline-content">
+                        <strong>Solicitud Creada</strong>
+                        <small>{{ colectivo.fecha_solicitud|date:"d/m/Y H:i" }}</small>
+                    </div>
+                </div>
+                
+                {% if colectivo.fecha_respuesta_farmacia %}
+                <div class="timeline-item active">
+                    <div class="timeline-content">
+                        <strong>Respuesta de Farmacia</strong>
+                        <small>{{ colectivo.fecha_respuesta_farmacia|date:"d/m/Y H:i" }}</small>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if colectivo.fecha_completado %}
+                <div class="timeline-item active">
+                    <div class="timeline-content">
+                        <strong>Colectivo Completado</strong>
+                        <small>{{ colectivo.fecha_completado|date:"d/m/Y H:i" }}</small>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if colectivo.estado == 'CANCELADO' %}
+                <div class="timeline-item active">
+                    <div class="timeline-content" style="background: #f8d7da;">
+                        <strong style="color: #DC3545;">Colectivo Cancelado</strong>
+                        <small>{{ colectivo.updated_at|date:"d/m/Y H:i" }}</small>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="acciones-detalle">
+                <a href="{% url 'lista_colectivos_enfermeria' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver a Lista
+                </a>
+                
+                {% if colectivo.estado == 'COMPLETADO' %}
+                <a href="{% url 'generar_pdf_colectivo' colectivo.id %}" class="btn btn-primary" target="_blank">
+                    <i class="fas fa-file-pdf"></i> Descargar PDF
+                </a>
+                {% endif %}
+                
+                {% if colectivo.estado == 'RESPONDIDO' %}
+                <button type="button" class="btn btn-success" id="btn-editar-colectivo">
+                    <i class="fas fa-edit"></i> Editar y Reenviar
+                </button>
+                {% endif %}
+                
+                {% if colectivo.estado in 'PENDIENTE,RESPONDIDO' %}
+                <button 
+                    type="button" 
+                    class="btn btn-danger" 
+                    id="btn-cancelar-colectivo"
+                    data-folio="{{ colectivo.folio }}"
+                    data-colectivo-id="{{ colectivo.id }}"
+                >
+                    <i class="fas fa-ban"></i> Cancelar Colectivo
+                </button>
+                {% csrf_token %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+        <!-- MODAL DE EDICIÓN Y REENVÍO -->
+    <div id="modal-edicion" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-edit"></i> Editar y Reenviar Colectivo</h2>
+                <button class="modal-close" onclick="cerrarModalEdicion()">&times;</button>
+            </div>
+            
+            <form id="form-editar-colectivo" method="POST" action="{% url 'editar_reenviar_colectivo' colectivo.id %}">
+                {% csrf_token %}
+                
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Instrucciones:</strong> Modifica las cantidades de los medicamentos que necesites ajustar y agrega un comentario explicando los cambios. El colectivo volverá a estado PENDIENTE para que farmacia lo revise nuevamente.
+                    </div>
+
+                    <!-- Lista de Medicamentos Editables -->
+                    <h3><i class="fas fa-pills"></i> Medicamentos</h3>
+                    <div class="medicamentos-edit-list">
+                        {% for item in colectivo.medicamentos.all %}
+                        <div class="medicamento-edit-item">
+                            <div class="med-info">
+                                <strong>{{ item.medicamento.clave }}</strong>
+                                <span>{{ item.medicamento.descripcion }}</span>
+                            </div>
+                            <div class="med-cantidad">
+                                <label>Cantidad:</label>
+                                <input 
+                                    type="number" 
+                                    name="cantidad_{{ item.id }}" 
+                                    value="{{ item.cantidad_solicitada }}" 
+                                    min="1" 
+                                    max="9999"
+                                    required
+                                    class="cantidad-input"
+                                >
+                                <span class="cantidad-original">Original: {{ item.cantidad_solicitada }}</span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div style="padding: 40px; text-align: center; color: #999;">
+                            <i class="fas fa-exclamation-circle" style="font-size: 3rem; margin-bottom: 15px; display: block;"></i>
+                            <p>No hay medicamentos en este colectivo</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Comentario Adicional -->
+                    <div class="form-group">
+                        <label for="comentario-reenvio">
+                            <i class="fas fa-comment"></i> 
+                            <strong>Comentario Adicional para Farmacia:</strong>
+                            <span class="campo-requerido">*</span>
+                        </label>
+                        <textarea 
+                            id="comentario-reenvio" 
+                            name="comentario_reenvio" 
+                            rows="4" 
+                            placeholder="Explica por qué estás reenviando el colectivo y qué cambios realizaste..."
+                            required
+                            maxlength="500"
+                        ></textarea>
+                        <small class="char-counter">0 / 500 caracteres</small>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cerrarModalEdicion()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Reenviar a Farmacia
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
+    <script src="{% static 'enfermeria/js/detalle_colectivo.js' %}"></script>
+
+    <div class="page-footer">
+        <div class="footer-user-info">
+            <i class="fas fa-user-circle"></i>
+            <div class="footer-user-details">
+                <span class="footer-username">{{ user.get_full_name|default:user.username }}</span>
+                <span class="footer-user-role">
+                    {% if user.is_superuser %}
+                        Administrador
+                    {% else %}
+                        {{ user.get_rol_display }}
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+        <a href="{% url 'logout' %}" class="footer-logout-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Cerrar Sesión</span>
+        </a>
+    </div>
+</body>
+</html>

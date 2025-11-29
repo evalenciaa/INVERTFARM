@@ -1,0 +1,233 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Crear Colectivo - Enfermería</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/formularios.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="logo-section">
+            <i class="fas fa-hospital"></i>
+            <h2>INVENTFARM</h2>
+        </div>
+        
+        <nav class="nav-menu">
+            <a href="{% url 'principal' %}" class="nav-item">
+                <i class="fas fa-home"></i>
+                <span>Inicio</span>
+            </a>
+            <a href="{% url 'enfermeria_principal' %}" class="nav-item">
+                <i class="fas fa-user-nurse"></i>
+                <span>Enfermería</span>
+            </a>
+            <a href="{% url 'lista_colectivos_enfermeria' %}" class="nav-item active">
+                <i class="fas fa-users"></i>
+                <span>Colectivos</span>
+            </a>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <i class="fas fa-user-circle"></i>
+                <div>
+                    <p class="user-name">{{ user.get_full_name|default:user.username }}</p>
+                    <p class="user-role">{{ user.get_rol_display }}</p>
+                </div>
+            </div>
+            <a href="{% url 'logout' %}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Cerrar Sesión</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <div class="main-content">
+        <div class="header">
+            <div>
+                <h1><i class="fas fa-plus-circle"></i> Crear Nuevo Colectivo</h1>
+                <p>Solicitud de medicamentos a farmacia</p>
+            </div>
+        </div>
+
+        <!-- Mensajes -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    <i class="fas fa-info-circle"></i>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Formulario -->
+        <div class="form-container">
+            <form method="POST" id="form-colectivo">
+                {% csrf_token %}
+                
+                <!-- Sección 1: Información del Paciente -->
+                <div class="form-section">
+                    <h3><i class="fas fa-user"></i> Información del Paciente</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group autocomplete-container">
+                            <label for="paciente-input" class="required">Paciente</label>
+                            <input 
+                                type="text" 
+                                id="paciente-input" 
+                                class="form-control" 
+                                placeholder="Buscar por nombre o CURP..."
+                                autocomplete="off"
+                                required
+                            >
+                            <input type="hidden" id="paciente_id" name="paciente_id">
+                            <div id="resultados-paciente" class="autocomplete-results"></div>
+                            <div class="form-help">
+                                <i class="fas fa-info-circle"></i>
+                                Escribe al menos 2 caracteres para buscar
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="numero_cama" class="required">Número de Cama</label>
+                            <input 
+                                type="text" 
+                                id="numero_cama" 
+                                name="numero_cama" 
+                                class="form-control" 
+                                placeholder="Ej: C-101"
+                                required
+                            >
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="servicio" class="required">Servicio</label>
+                        <select id="servicio" name="servicio" class="form-control" required>
+                            <option value="">Seleccione un servicio...</option>
+                            <option value="Urgencias">Urgencias</option>
+                            <option value="Hospitalización Adultos">Hospitalización Adultos</option>
+                            <option value="Hospitalización Pediatría">Hospitalización Pediatría</option>
+                            <option value="UCI Adultos">UCI Adultos</option>
+                            <option value="UCI Neonatal">UCI Neonatal</option>
+                            <option value="UCI Pediátrica">UCI Pediátrica</option>
+                            <option value="Quirófano">Quirófano</option>
+                            <option value="Sala de Choque">Sala de Choque</option>
+                            <option value="Labor">Labor</option>
+                            <option value="Expulsión">Expulsión</option>
+                            <option value="Tococirugía">Tococirugía</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Sección 2: Medicamentos -->
+                <div class="form-section">
+                    <h3><i class="fas fa-pills"></i> Medicamentos Solicitados</h3>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-lightbulb"></i>
+                        Agrega los medicamentos que necesitas para este colectivo. Puedes agregar varios medicamentos.
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group autocomplete-container">
+                            <label for="medicamento-input">Medicamento</label>
+                            <input 
+                                type="text" 
+                                id="medicamento-input" 
+                                class="form-control" 
+                                placeholder="Buscar medicamento..."
+                                autocomplete="off"
+                            >
+                            <div id="resultados-medicamento" class="autocomplete-results"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cantidad-input">Cantidad</label>
+                            <input 
+                                type="number" 
+                                id="cantidad-input" 
+                                class="form-control" 
+                                placeholder="0"
+                                min="1"
+                            >
+                        </div>
+                        
+                        <div class="form-group" style="display: flex; align-items: flex-end;">
+                            <button type="button" id="btn-agregar-medicamento" class="btn btn-success">
+                                <i class="fas fa-plus"></i> Agregar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Contador -->
+                    <div class="contador-medicamentos" id="contador-medicamentos">
+                        0 medicamento(s) agregado(s)
+                    </div>
+                    
+                    <!-- Tabla de medicamentos -->
+                    <div class="medicamentos-table-container">
+                        <table class="medicamentos-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th>Medicamento</th>
+                                    <th style="width: 100px;">Cantidad</th>
+                                    <th style="width: 100px; text-align: center;">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="medicamentos-tbody">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: #999;">
+                                        No hay medicamentos agregados
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sección 3: Observaciones -->
+                <div class="form-section">
+                    <h3><i class="fas fa-comment-medical"></i> Observaciones (Opcional)</h3>
+                    
+                    <div class="form-group">
+                        <label for="observaciones">Indicaciones especiales</label>
+                        <textarea 
+                            id="observaciones" 
+                            name="observaciones" 
+                            class="form-control" 
+                            rows="4"
+                            placeholder="Ej: Paciente alérgico a penicilina, administrar con alimentos, etc."
+                        ></textarea>
+                        <div class="form-help">
+                            <i class="fas fa-info-circle"></i>
+                            Incluye cualquier información relevante para farmacia
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones de acción -->
+                <div class="form-actions">
+                    <a href="{% url 'lista_colectivos_enfermeria' %}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Enviar Solicitud
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
+    <script src="{% static 'enfermeria/js/crear_colectivo.js' %}"></script>
+</body>
+</html>

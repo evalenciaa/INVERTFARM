@@ -1,0 +1,166 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Colectivos - Enfermería</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
+    <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/colectivos.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="logo-section">
+            <i class="fas fa-hospital"></i>
+            <h2>INVENTFARM</h2>
+        </div>
+        
+        <div class="breadcrumb-nav">
+            <a href="/principal/">
+                <i class="fas fa-home"></i>
+                Inicio
+            </a>
+            <span class="separator">›</span>
+            <a href="/enfermeria/">
+                <i class="fas fa-user-nurse"></i>
+                Enfermería
+            </a>
+            <span class="separator">›</span>
+            <a href="/enfermeria/colectivos/" class="active">
+                <i class="fas fa-users"></i>
+                Colectivos
+            </a>
+        </div>
+        
+
+    <!-- Contenido Principal -->
+    <div class="main-content">
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1><i class="fas fa-users"></i> Mis Colectivos</h1>
+                <p>Gestiona tus solicitudes de medicamentos a farmacia</p>
+            </div>
+            <a href="{% url 'crear_colectivo' %}" class="btn-nuevo">
+                <i class="fas fa-plus"></i>
+                Nuevo Colectivo
+            </a>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total }}</div>
+                <div class="stat-label">Total</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #FFA500;">{{ stats.pendientes }}</div>
+                <div class="stat-label">Pendientes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #FFD700;">{{ stats.respondidos }}</div>
+                <div class="stat-label">Respondidos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color: #28A745;">{{ stats.completados }}</div>
+                <div class="stat-label">Completados</div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filtros-container">
+            <form method="GET" style="display: flex; gap: 15px; flex-wrap: wrap; width: 100%;">
+                <div class="filtro-item">
+                    <label>Estado:</label>
+                    <select name="estado" onchange="this.form.submit()">
+                        <option value="">Todos</option>
+                        <option value="PENDIENTE" {% if estado_filtro == 'PENDIENTE' %}selected{% endif %}>Pendiente</option>
+                        <option value="EN_REVISION" {% if estado_filtro == 'EN_REVISION' %}selected{% endif %}>En Revisión</option>
+                        <option value="RESPONDIDO" {% if estado_filtro == 'RESPONDIDO' %}selected{% endif %}>Respondido</option>
+                        <option value="COMPLETADO" {% if estado_filtro == 'COMPLETADO' %}selected{% endif %}>Completado</option>
+                        <option value="CANCELADO" {% if estado_filtro == 'CANCELADO' %}selected{% endif %}>Cancelado</option>
+                    </select>
+                </div>
+                <div class="filtro-item">
+                    <label>Buscar:</label>
+                    <input type="text" name="q" placeholder="Folio, paciente, cama..." value="{{ busqueda }}">
+                </div>
+                <div class="filtro-item" style="display: flex; align-items: flex-end;">
+                    <button type="submit" class="btn-nuevo" style="padding: 10px 20px;">
+                        <i class="fas fa-search"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Grid de Colectivos -->
+        <div class="colectivos-grid">
+            {% for colectivo in colectivos %}
+            <div class="colectivo-card" onclick="location.href='{% url 'detalle_colectivo_enfermeria' colectivo.id %}';">
+                <span class="estado-badge estado-{{ colectivo.estado }}">
+                    {{ colectivo.get_estado_display }}
+                </span>
+                
+                <div class="colectivo-folio">{{ colectivo.folio }}</div>
+                
+                <div class="colectivo-info">
+                    <i class="fas fa-user"></i> {{ colectivo.paciente.nombre_completo }}
+                </div>
+                
+                <div class="colectivo-info">
+                    <i class="fas fa-bed"></i> Cama: {{ colectivo.numero_cama }} | {{ colectivo.servicio }}
+                </div>
+                
+                <div class="colectivo-info">
+                    <i class="fas fa-pills"></i> {{ colectivo.total_medicamentos }} medicamento(s)
+                </div>
+                
+                <div class="colectivo-footer">
+                    <small style="color: #999;">
+                        <i class="far fa-clock"></i> {{ colectivo.fecha_solicitud|date:"d/m/Y H:i" }}
+                    </small>
+                    
+                    {% if colectivo.estado == 'RESPONDIDO' %}
+                        <span style="color: #FFD700; font-size: 0.9rem;">
+                            <i class="fas fa-reply"></i> Respuesta recibida
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <p>No hay colectivos para mostrar</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
+
+            <div class="page-footer">
+                <div class="footer-user-info">
+                    <i class="fas fa-user-circle"></i>
+                    <div class="footer-user-details">
+                        <span class="footer-username">{{ user.get_full_name|default:user.username }}</span>
+                        <span class="footer-user-role">
+                            {% if user.is_superuser %}
+                                Administrador
+                            {% else %}
+                                {{ user.get_rol_display }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                <a href="{% url 'logout' %}" class="footer-logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Cerrar Sesión</span>
+                </a>
+            </div>
+        </a>
+    </div>
+</body>
+</html>

@@ -1,0 +1,450 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Colectivo {{ colectivo.folio }} - Farmacia</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/detalle.css' %}">
+    <link rel="stylesheet" href="{% static 'farmacia/css/colectivos_farmacia.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="main-content-full">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb-nav">
+            <a href="{% url 'principal' %}">
+                <i class="fas fa-home"></i>
+                Inicio
+            </a>
+            <span class="separator">›</span>
+            <a href="{% url 'farmacia' %}">
+                <i class="fas fa-pills"></i>
+                Farmacia
+            </a>
+            <span class="separator">›</span>
+            <a href="{% url 'lista_colectivos_farmacia' %}">
+                <i class="fas fa-users"></i>
+                Colectivos
+            </a>
+            <span class="separator">›</span>
+            <a href="#" class="active">
+                <i class="fas fa-file-medical"></i>
+                {{ colectivo.folio }}
+            </a>
+        </div>
+
+    <!-- Contenido Principal -->
+    <div class="main-content">
+        <div class="header">
+            <div>
+                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo</h1>
+                <p>Revisión y surtido de medicamentos</p>
+            </div>
+        </div>
+
+        <!-- Mensajes -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    <i class="fas fa-info-circle"></i>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Detalle del Colectivo -->
+        <div class="detalle-container">
+            
+            <!-- Header -->
+            <div class="colectivo-header">
+                <div class="colectivo-titulo">
+                    <h2>{{ colectivo.folio }}</h2>
+                    <span class="estado-badge estado-{{ colectivo.estado }} estado-grande">
+                        {{ colectivo.get_estado_display }}
+                    </span>
+                </div>
+                <div>
+                    <small style="color: #999;">
+                        <i class="far fa-clock"></i> 
+                        Solicitud: {{ colectivo.fecha_solicitud|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+
+            <!-- Información en Grid -->
+            <div class="info-grid">
+                <!-- Información del Paciente -->
+                <div class="info-card">
+                    <h4><i class="fas fa-user"></i> Paciente</h4>
+                    <div class="info-item">
+                        <strong>Nombre:</strong>
+                        <span>{{ colectivo.paciente.nombre_completo }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>CURP:</strong>
+                        <span>{{ colectivo.paciente.curp|default:"No registrado" }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Cama:</strong>
+                        <span>{{ colectivo.numero_cama }}</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Servicio:</strong>
+                        <span>{{ colectivo.servicio }}</span>
+                    </div>
+                </div>
+
+                <!-- Información del Personal -->
+                <div class="info-card">
+                    <h4><i class="fas fa-user-nurse"></i> Personal</h4>
+                    <div class="info-item">
+                        <strong>Enfermero(a):</strong>
+                        <span>{{ colectivo.enfermero_solicitante.get_full_name|default:colectivo.enfermero_solicitante.username }}</span>
+                    </div>
+                    {% if colectivo.farmaceutico_asignado %}
+                    <div class="info-item">
+                        <strong>Farmacéutico:</strong>
+                        <span>{{ colectivo.farmaceutico_asignado.get_full_name|default:colectivo.farmaceutico_asignado.username }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="info-item">
+                        <strong>Contacto:</strong>
+                        <span>{{ colectivo.enfermero_solicitante.email|default:"No disponible" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Observaciones de Enfermería -->
+            {% if colectivo.observaciones_enfermeria %}
+            <div class="observaciones-box">
+                <h4><i class="fas fa-comment-medical"></i> Observaciones de Enfermería</h4>
+                <p>{{ colectivo.observaciones_enfermeria }}</p>
+            </div>
+            {% endif %}
+
+            <!-- FORMULARIO DE RESPUESTA (PENDIENTE/EN_REVISION) -->
+            {% if colectivo.estado in 'PENDIENTE,EN_REVISION' %}
+            <div class="respuesta-form">
+                <h4><i class="fas fa-clipboard-check"></i> Revisar Disponibilidad de Medicamentos</h4>
+                
+                <form method="POST" action="{% url 'responder_colectivo' colectivo.id %}" id="form-responder">
+                    {% csrf_token %}
+                    
+                    <!-- Medicamentos -->
+                    {% for item in medicamentos_con_stock %}
+                    <div class="medicamento-row" 
+                         data-medicamento-id="{{ item.item.medicamento.id }}"
+                         data-cantidad-solicitada="{{ item.item.cantidad_solicitada }}"
+                         data-stock-disponible="{{ item.stock_disponible }}">
+                        
+                        <div class="medicamento-header">
+                            <div class="medicamento-info">
+                                <strong>{{ item.item.medicamento.clave }}</strong>
+                                <p>{{ item.item.medicamento.descripcion }}</p>
+                            </div>
+                            <div class="medicamento-cantidad">
+                                <strong>{{ item.item.cantidad_solicitada }}</strong>
+                                <small>Solicitado</small>
+                            </div>
+                            <div class="medicamento-cantidad" style="background: {% if item.suficiente %}#d4edda{% else %}#f8d7da{% endif %};">
+                                <strong style="color: {% if item.suficiente %}#155724{% else %}#721c24{% endif %};">{{ item.stock_disponible }}</strong>
+                                <small>En Stock</small>
+                            </div>
+                        </div>
+                        
+                        <div class="medicamento-controls">
+                            <div class="checkbox-disponibilidad">
+                                <input 
+                                    type="checkbox" 
+                                    name="disponible_{{ item.item.id }}" 
+                                    id="disponible_{{ item.item.id }}"
+                                    {% if item.suficiente %}checked{% endif %}
+                                >
+                                <label for="disponible_{{ item.item.id }}">
+                                    <i class="fas fa-check-circle"></i> Disponible
+                                </label>
+                            </div>
+                            
+                            <textarea 
+                                name="comentario_{{ item.item.id }}"
+                                class="input-comentario"
+                                rows="2"
+                                placeholder="{% if not item.suficiente %}Indica stock disponible o alternativa...{% else %}Comentarios adicionales (opcional){% endif %}"
+                            ></textarea>
+                        </div>
+                        
+                        {% if not item.suficiente %}
+                        <div class="alerta-stock">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p><strong>Stock insuficiente.</strong> Solo hay {{ item.stock_disponible }} unidades disponibles de {{ item.item.cantidad_solicitada }} solicitadas.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Respuesta general -->
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label for="respuesta_farmacia"><strong>Comentarios Generales de Farmacia:</strong></label>
+                        <textarea 
+                            name="respuesta_farmacia" 
+                            id="respuesta_farmacia"
+                            class="form-control"
+                            rows="3"
+                            placeholder="Comentarios adicionales sobre el colectivo..."
+                        ></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <a href="{% url 'lista_colectivos_farmacia' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-responder">
+                            <i class="fas fa-reply"></i> Enviar Respuesta a Enfermería
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- FORMULARIO DE COMPLETAR (EN_REVISION - segunda revisión) -->
+            {% if colectivo.estado == 'EN_REVISION' and colectivo.respuesta_farmacia %}
+            <div class="completar-form">
+                <h4><i class="fas fa-check-double"></i> Confirmar Surtido del Colectivo</h4>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    Al completar, se descontará automáticamente del inventario usando el método FEFO (primero lo que caduca primero).
+                </div>
+                
+                <form method="POST" action="{% url 'completar_colectivo' colectivo.id %}" id="form-completar">
+                    {% csrf_token %}
+                    
+                    <table class="med-table">
+                        <thead>
+                            <tr>
+                                <th>Medicamento</th>
+                                <th style="width: 120px; text-align: center;">Solicitado</th>
+                                <th style="width: 120px; text-align: center;">Stock</th>
+                                <th style="width: 150px; text-align: center;">Cantidad a Surtir</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in medicamentos_con_stock %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.item.medicamento.clave }}</strong><br>
+                                    <small>{{ item.item.medicamento.descripcion }}</small>
+                                </td>
+                                <td style="text-align: center;">{{ item.item.cantidad_solicitada }}</td>
+                                <td style="text-align: center;">
+                                    <span class="{% if item.suficiente %}stock-suficiente{% else %}stock-insuficiente{% endif %}" style="padding: 5px 10px; border-radius: 5px;">
+                                        {{ item.stock_disponible }}
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <input 
+                                        type="number" 
+                                        name="cantidad_surtida_{{ item.item.id }}"
+                                        class="cantidad-surtir-input"
+                                        value="{{ item.item.cantidad_solicitada }}"
+                                        min="0"
+                                        max="{{ item.stock_disponible }}"
+                                        data-stock="{{ item.stock_disponible }}"
+                                        data-medicamento="{{ item.item.medicamento.descripcion }}"
+                                        required
+                                    >
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    <div class="form-actions" style="margin-top: 20px;">
+                        <a href="{% url 'lista_colectivos_farmacia' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-completar">
+                            <i class="fas fa-check-circle"></i> Completar Surtido
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- VISTA DE COLECTIVO COMPLETADO -->
+            {% if colectivo.estado == 'COMPLETADO' %}
+            <div class="medicamentos-detalle">
+                <h3><i class="fas fa-check-circle" style="color: #28A745;"></i> Colectivo Surtido Exitosamente</h3>
+                
+                <table class="med-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Medicamento</th>
+                            <th style="width: 120px; text-align: center;">Solicitado</th>
+                            <th style="width: 120px; text-align: center;">Surtido</th>
+                            <th style="width: 100px; text-align: center;">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in medicamentos_con_stock %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>
+                                <strong>{{ item.item.medicamento.clave }}</strong><br>
+                                <small>{{ item.item.medicamento.descripcion }}</small>
+                            </td>
+                            <td style="text-align: center;">{{ item.item.cantidad_solicitada }}</td>
+                            <td style="text-align: center;">
+                                <strong style="color: #28A745;">{{ item.item.cantidad_surtida }}</strong>
+                            </td>
+                            <td style="text-align: center;">
+                                {% if item.item.cantidad_surtida == item.item.cantidad_solicitada %}
+                                    <span class="badge-disponible">
+                                        <i class="fas fa-check"></i> Completo
+                                    </span>
+                                {% else %}
+                                    <span class="badge-no-disponible">
+                                        <i class="fas fa-exclamation"></i> Parcial
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Botones de acción -->
+            <div class="acciones-detalle">
+                <a href="{% url 'lista_colectivos_farmacia' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver a Lista
+                </a>
+                
+                {% if colectivo.estado == 'COMPLETADO' %}
+                <a href="{% url 'generar_pdf_colectivo' colectivo.id %}" class="btn btn-primary" target="_blank">
+                    <i class="fas fa-file-pdf"></i> Descargar PDF
+                </a>
+                {% endif %}
+                
+                {% if colectivo.estado == 'EN_REVISION' %}
+                <button type="button" class="btn btn-success" id="btn-confirmar-surtido">
+                    <i class="fas fa-check-circle"></i> Confirmar Surtido y Generar PDF
+                </button>
+                {% endif %}
+                
+                {% if colectivo.estado in 'PENDIENTE,EN_REVISION' %}
+                <button type="button" class="btn btn-primary" id="btn-enviar-respuesta">
+                    <i class="fas fa-paper-plane"></i> Enviar Respuesta a Enfermería
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+        <!-- MODAL DE CONFIRMACIÓN DE SURTIDO -->
+    <div id="modal-confirmar-surtido" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-check-circle"></i> Confirmar Surtido del Colectivo</h2>
+                <button class="modal-close" onclick="cerrarModalSurtido()">&times;</button>
+            </div>
+            
+            <form id="form-confirmar-surtido" method="POST" action="{% url 'completar_colectivo' colectivo.id %}">
+                {% csrf_token %}
+                
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>¡Atención!</strong> Al confirmar, se descontará automáticamente del inventario (FEFO - primero en caducar, primero en salir) y se generará el PDF. Esta acción no se puede deshacer.
+                    </div>
+
+                    <!-- Lista de Medicamentos para Surtir -->
+                    <h3><i class="fas fa-pills"></i> Medicamentos a Surtir</h3>
+                    <div class="medicamentos-surtir-list">
+                        {% for item in medicamentos_con_stock %}
+                        <div class="medicamento-surtir-item {% if not item.suficiente %}stock-insuficiente{% endif %}">
+                            <div class="med-info">
+                                <strong>{{ item.item.medicamento.clave }}</strong>
+                                <span>{{ item.item.medicamento.descripcion }}</span>
+                                <small class="stock-info {% if item.suficiente %}suficiente{% else %}insuficiente{% endif %}">
+                                    Stock disponible: {{ item.stock_disponible }} 
+                                    {% if not item.suficiente %}
+                                        <i class="fas fa-exclamation-circle"></i> Insuficiente
+                                    {% else %}
+                                        <i class="fas fa-check-circle"></i>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <div class="med-cantidad">
+                                <label>Cantidad a Surtir:</label>
+                                <input 
+                                    type="number" 
+                                    name="cantidad_surtida_{{ item.item.id }}" 
+                                    value="{{ item.item.cantidad_solicitada }}" 
+                                    min="0" 
+                                    max="{{ item.stock_disponible }}"
+                                    required
+                                    class="cantidad-surtir-input"
+                                    data-solicitado="{{ item.item.cantidad_solicitada }}"
+                                    data-disponible="{{ item.stock_disponible }}"
+                                >
+                                <span class="cantidad-solicitada">Solicitado: {{ item.item.cantidad_solicitada }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Resumen de Surtido -->
+                    <div class="resumen-surtido">
+                        <h4><i class="fas fa-info-circle"></i> Información Importante</h4>
+                        <ul>
+                            <li>Se aplicará método <strong>FEFO</strong> (First Expired, First Out)</li>
+                            <li>Se descontará automáticamente de los lotes con fecha de caducidad más próxima</li>
+                            <li>El inventario general se actualizará inmediatamente</li>
+                            <li>Se generará un PDF con la información del surtido</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cerrarModalSurtido()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-success" id="btn-confirmar-final">
+                        <i class="fas fa-check-double"></i> Confirmar y Generar PDF
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
+    <script src="{% static 'farmacia/js/colectivos_farmacia.js' %}"></script>
+
+    <div class="page-footer">
+        <div class="footer-user-info">
+            <i class="fas fa-user-circle"></i>
+            <div class="footer-user-details">
+                <span class="footer-username">{{ user.get_full_name|default:user.username }}</span>
+                <span class="footer-user-role">
+                    {% if user.is_superuser %}
+                        Administrador
+                    {% else %}
+                        {{ user.get_rol_display }}
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+        <a href="{% url 'logout' %}" class="footer-logout-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Cerrar Sesión</span>
+        </a>
+    </div>
+</body>
+</html>

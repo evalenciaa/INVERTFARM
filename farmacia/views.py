@@ -14,6 +14,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
+from enfermeria.models import Colectivo, ColectivoMedicamento
 from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente
 from datetime import timedelta, date, datetime
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -2257,3 +2258,399 @@ def api_reportes_tendencias(request):
             'success': False,
             'error': str(e)
         }, status=500)
+        
+
+# ===== COLECTIVOS - FARMACIA (AGREGAR AL FINAL) =====
+
+def farmacia_requerida(user):
+    """Verifica que el usuario sea de farmacia"""
+    return user.is_authenticated and (user.rol == 'FARMACIA' or user.is_superuser)
+
+
+@never_cache
+@login_required(login_url='login')
+@user_passes_test(farmacia_requerida, login_url='principal')
+def lista_colectivos_farmacia(request):
+    """Vista de lista de colectivos para farmacia"""
+    # Obtener todos los colectivos
+    colectivos = Colectivo.objects.select_related(
+        'paciente', 
+        'enfermero_solicitante',
+        'farmaceutico_asignado'
+    ).order_by('-fecha_solicitud')
+    
+    # Filtros
+    estado_filtro = request.GET.get('estado', '')
+    busqueda = request.GET.get('q', '')
+    
+    if estado_filtro:
+        colectivos = colectivos.filter(estado=estado_filtro)
+    
+    if busqueda:
+        colectivos = colectivos.filter(
+            Q(folio__icontains=busqueda) |
+            Q(paciente__nombre__icontains=busqueda) |
+            Q(paciente__apellido_paterno__icontains=busqueda) |
+            Q(paciente__apellido_materno__icontains=busqueda) |
+            Q(numero_cama__icontains=busqueda) |
+            Q(servicio__icontains=busqueda) |
+            Q(enfermero_solicitante__username__icontains=busqueda)
+        )
+    
+    # Estadísticas - SOLUCIÓN CON RANGO DE FECHAS
+    now_local = timezone.localtime(timezone.now())
+    hoy_inicio = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    hoy_fin = now_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    stats = {
+        'total': Colectivo.objects.count(),
+        'pendientes': Colectivo.objects.filter(estado='PENDIENTE').count(),
+        'en_revision': Colectivo.objects.filter(estado='EN_REVISION').count(),
+        'respondidos': Colectivo.objects.filter(estado='RESPONDIDO').count(),
+        'completados_hoy': Colectivo.objects.filter(
+            estado='COMPLETADO',
+            fecha_completado__gte=hoy_inicio,  # Mayor o igual a 00:00:00 de hoy
+            fecha_completado__lte=hoy_fin      # Menor o igual a 23:59:59 de hoy
+        ).count(),
+    }
+    
+    return render(request, 'lista_colectivos_farmacia.html', {
+        'colectivos': colectivos,
+        'stats': stats,
+        'estado_filtro': estado_filtro,
+        'busqueda': busqueda,
+    })
+    
+
+@never_cache
+@login_required(login_url='login')
+@user_passes_test(farmacia_requerida, login_url='principal')
+def detalle_colectivo_farmacia(request, colectivo_id):
+    """Vista de detalle de un colectivo para farmacia"""
+    colectivo = get_object_or_404(
+        Colectivo.objects.select_related('paciente', 'enfermero_solicitante'),
+        id=colectivo_id
+    )
+    
+    if colectivo.estado == 'PENDIENTE':
+        colectivo.estado = 'EN_REVISION'
+        colectivo.farmaceutico_asignado = request.user
+        colectivo.save()
+    
+    medicamentos = colectivo.medicamentos.select_related('medicamento').all()
+    
+    medicamentos_con_stock = []
+    for item in medicamentos:
+        stock_total = Lote.objects.filter(
+            medicamento=item.medicamento,
+            existencia__gt=0
+        ).aggregate(total=Sum('existencia'))['total'] or 0
+        
+        medicamentos_con_stock.append({
+            'item': item,
+            'stock_disponible': stock_total,
+            'suficiente': stock_total >= item.cantidad_solicitada
+        })
+    
+    return render(request, 'detalle_colectivo_farmacia.html', {
+        'colectivo': colectivo,
+        'medicamentos_con_stock': medicamentos_con_stock,
+        'user': request.user
+    })
+
+
+@never_cache
+@login_required(login_url='login')
+@user_passes_test(farmacia_requerida, login_url='principal')
+@require_http_methods(["POST"])
+def responder_colectivo(request, colectivo_id):
+    """Farmacia responde al colectivo indicando disponibilidad"""
+    colectivo = get_object_or_404(Colectivo, id=colectivo_id)
+    
+    if colectivo.estado not in ['PENDIENTE', 'EN_REVISION']:
+        messages.error(request, 'Este colectivo ya fue respondido o completado')
+        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+    
+    try:
+        colectivo.respuesta_farmacia = request.POST.get('respuesta_farmacia', '')
+        
+        for medicamento in colectivo.medicamentos.all():
+            disponible = request.POST.get(f'disponible_{medicamento.id}') == 'on'
+            comentario = request.POST.get(f'comentario_{medicamento.id}', '')
+            
+            medicamento.disponible = disponible
+            medicamento.comentario_farmacia = comentario
+            medicamento.save()
+        
+        colectivo.estado = 'RESPONDIDO'
+        colectivo.fecha_respuesta_farmacia = timezone.now()
+        colectivo.farmaceutico_asignado = request.user
+        colectivo.save()
+        
+        messages.success(request, f'Respuesta enviada a enfermería para colectivo {colectivo.folio}')
+        return redirect('lista_colectivos_farmacia')
+        
+    except Exception as e:
+        messages.error(request, f'Error al responder colectivo: {str(e)}')
+        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+
+
+@never_cache
+@login_required(login_url='login')
+@user_passes_test(farmacia_requerida, login_url='principal')
+@require_http_methods(["POST"])
+def completar_colectivo(request, colectivo_id):
+    """Marca el colectivo como completado y descuenta del inventario"""
+    colectivo = get_object_or_404(Colectivo, id=colectivo_id)
+    
+    if colectivo.estado != 'EN_REVISION':
+        messages.error(request, 'Solo se pueden completar colectivos en revisión')
+        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+    
+    try:
+        with transaction.atomic():
+            # PRIMERO: Validar stock de todos los medicamentos
+            for medicamento in colectivo.medicamentos.all():
+                cantidad_surtida = int(request.POST.get(f'cantidad_surtida_{medicamento.id}', 0))
+                
+                stock_total = Lote.objects.filter(
+                    medicamento=medicamento.medicamento,
+                    existencia__gt=0
+                ).aggregate(total=Sum('existencia'))['total'] or 0
+                
+                if cantidad_surtida > stock_total:
+                    messages.error(
+                        request, 
+                        f'Stock insuficiente para {medicamento.medicamento.descripcion}. '
+                        f'Disponible: {stock_total}, Solicitado: {cantidad_surtida}'
+                    )
+                    return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+            
+            # SEGUNDO: Actualizar cantidades surtidas
+            for medicamento in colectivo.medicamentos.all():
+                cantidad_surtida = int(request.POST.get(f'cantidad_surtida_{medicamento.id}', 0))
+                medicamento.cantidad_surtida = cantidad_surtida
+                medicamento.save()
+            
+            # TERCERO: Descontar del inventario (FEFO)
+            for medicamento in colectivo.medicamentos.all():
+                cantidad_restante = medicamento.cantidad_surtida
+                
+                lotes = Lote.objects.filter(
+                    medicamento=medicamento.medicamento,
+                    existencia__gt=0
+                ).order_by('fecha_caducidad')
+                
+                for lote in lotes:
+                    if cantidad_restante <= 0:
+                        break
+                    
+                    if lote.existencia >= cantidad_restante:
+                        lote.existencia -= cantidad_restante
+                        lote.save()
+                        cantidad_restante = 0
+                    else:
+                        cantidad_restante -= lote.existencia
+                        lote.existencia = 0
+                        lote.save()
+            
+            # CUARTO: Cambiar estado a COMPLETADO
+            colectivo.estado = 'COMPLETADO'
+            colectivo.fecha_completado = timezone.now()
+            colectivo.farmaceutico_asignado = request.user
+            colectivo.save()
+            print(f"✓ Colectivo {colectivo.folio} completado en: {colectivo.fecha_completado}")
+        
+        messages.success(
+            request, 
+            f'Colectivo {colectivo.folio} completado exitosamente. '
+            f'Puedes descargar el PDF desde la lista o el detalle.'
+        )
+        
+        # QUINTO: Redirigir a la lista (NO a generar PDF directamente)
+        return redirect('lista_colectivos_farmacia')
+        
+    except ValueError as e:
+        messages.error(request, f'Error en los datos enviados: {str(e)}')
+        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+    except Exception as e:
+        import traceback
+        print(f"Error al completar colectivo: {str(e)}")
+        print(traceback.format_exc())
+        messages.error(request, f'Error al completar colectivo: {str(e)}')
+        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+
+
+
+
+@never_cache
+@login_required(login_url='login')
+def generar_pdf_colectivo(request, colectivo_id):
+    """Genera PDF con la información del colectivo completado"""
+    colectivo = get_object_or_404(
+        Colectivo.objects.select_related('paciente', 'enfermero_solicitante', 'farmaceutico_asignado'),
+        id=colectivo_id
+    )
+    
+    if colectivo.estado != 'COMPLETADO':
+        messages.error(request, 'Solo se puede generar PDF de colectivos completados')
+        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+    
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+        from io import BytesIO
+        import os
+        
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Logo
+        logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
+        if os.path.exists(logo_path):
+            try:
+                logo = Image(logo_path, width=3.5*inch, height=0.5*inch)
+                elements.append(logo)
+                elements.append(Spacer(1, 0.2*inch))
+            except:
+                pass
+        
+        # Título
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor=colors.HexColor('#750000'),
+            spaceAfter=20,
+            alignment=TA_CENTER
+        )
+        title = Paragraph(f"COLECTIVO DE MEDICAMENTOS<br/>{colectivo.folio}", title_style)
+        elements.append(title)
+        elements.append(Spacer(1, 0.15*inch))
+        
+        # Información del paciente
+        info_data = [
+            ['INFORMACIÓN DEL PACIENTE', ''],
+            ['Nombre:', colectivo.paciente.nombre_completo],
+            ['CURP:', colectivo.paciente.curp or 'N/A'],
+            ['Fecha de Nacimiento:', colectivo.paciente.fecha_nacimiento.strftime('%d/%m/%Y') if colectivo.paciente.fecha_nacimiento else 'N/A'],
+            ['Número de Cama:', colectivo.numero_cama],
+            ['Servicio:', colectivo.servicio],
+            ['', ''],
+            ['INFORMACIÓN DEL COLECTIVO', ''],
+            ['Fecha de Solicitud:', colectivo.fecha_solicitud.strftime('%d/%m/%Y %H:%M')],
+            ['Fecha de Surtido:', colectivo.fecha_completado.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
+            ['Enfermero(a):', colectivo.enfermero_solicitante.get_full_name() or colectivo.enfermero_solicitante.username],
+            ['Farmacéutico(a):', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
+        ]
+        
+        info_table = Table(info_data, colWidths=[2*inch, 4.5*inch])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#750000')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 7), (-1, 7), colors.HexColor('#750000')),
+            ('TEXTCOLOR', (0, 7), (-1, 7), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 7), (-1, 7), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # ESTILO PARA TEXTO EN CELDAS (con word wrap)
+        cell_style = ParagraphStyle(
+            'CellStyle',
+            parent=styles['Normal'],
+            fontSize=8,
+            leading=10,
+            alignment=TA_LEFT
+        )
+        
+        # Estilo centrado para números
+        center_style = ParagraphStyle(
+            'CenterStyle',
+            parent=styles['Normal'],
+            fontSize=8,
+            leading=10,
+            alignment=TA_CENTER
+        )
+        
+        # Tabla de medicamentos - CON PARAGRAPH PARA WORD WRAP
+        medicamentos_data = [['#', 'CLAVE', 'DESCRIPCIÓN', 'SOLICITADO', 'SURTIDO']]
+        
+        for idx, item in enumerate(colectivo.medicamentos.all(), 1):
+            # Usar Paragraph para todos los campos
+            numero_paragraph = Paragraph(str(idx), center_style)
+            clave_paragraph = Paragraph(item.medicamento.clave, cell_style)
+            descripcion_paragraph = Paragraph(item.medicamento.descripcion, cell_style)
+            solicitado_paragraph = Paragraph(str(item.cantidad_solicitada), center_style)
+            surtido_paragraph = Paragraph(str(item.cantidad_surtida), center_style)
+            
+            medicamentos_data.append([
+                numero_paragraph,      # ← Ahora con Paragraph centrado
+                clave_paragraph,
+                descripcion_paragraph,
+                solicitado_paragraph,  # ← Ahora con Paragraph centrado
+                surtido_paragraph      # ← Ahora con Paragraph centrado
+            ])
+        
+        # Tabla con anchos ajustados
+        medicamentos_table = Table(
+            medicamentos_data, 
+            colWidths=[0.3*inch, 1.2*inch, 3.8*inch, 0.9*inch, 0.9*inch],
+            repeatRows=1
+        )
+        medicamentos_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#750000')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),  # Encabezados centrados
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f0f0')]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(medicamentos_table)
+        
+        # Observaciones
+        if colectivo.observaciones_enfermeria:
+            elements.append(Spacer(1, 0.15*inch))
+            obs_style = ParagraphStyle('Observaciones', parent=styles['Normal'], fontSize=8)
+            elements.append(Paragraph(f"<b>Observaciones de Enfermería:</b> {colectivo.observaciones_enfermeria}", obs_style))
+        
+        # Construir PDF
+        doc.build(elements)
+        pdf = buffer.getvalue()
+        buffer.close()
+        
+        # Enviar respuesta
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Colectivo_{colectivo.folio}.pdf"'
+        response.write(pdf)
+        
+        return response
+        
+    except Exception as e:
+        import traceback
+        print(f"Error al generar PDF: {str(e)}")
+        print(traceback.format_exc())
+        messages.error(request, f'Error al generar PDF: {str(e)}')
+        return redirect('lista_colectivos_farmacia')
+
