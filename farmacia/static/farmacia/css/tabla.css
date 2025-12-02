@@ -1760,3 +1760,17 @@ tr.fondo-rojo:hover {
     color: #6c757d;
     font-size: 0.85rem;
 }
+
+/* Badges con porcentaje */
+.badge small {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-top: 2px;
+}
+
+.badge-warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}

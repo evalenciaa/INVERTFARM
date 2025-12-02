@@ -15,7 +15,7 @@ from django.db import transaction
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
 from enfermeria.models import Colectivo, ColectivoMedicamento
-from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente
+from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente, MedicamentoNoSurtido
 from datetime import timedelta, date, datetime
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Q, F, Value, IntegerField, Count, Max
@@ -372,15 +372,12 @@ def guardar_descripcion(request):
     return JsonResponse({'status': 'error', 'message': 'Datos inválidos'})
 
 
-@never_cache
 @login_required
 def inventario_general(request):
     """Vista de inventario general - suma de existencias por medicamento"""
-    
-    # Obtener búsqueda si existe
     busqueda = request.GET.get('busqueda', '').strip()
     
-    # Agrupar por medicamento y sumar existencias
+    # Obtener inventario agrupado por medicamento
     inventario = Lote.objects.values(
         'medicamento__id',
         'medicamento__clave',
@@ -393,7 +390,7 @@ def inventario_general(request):
             output_field=IntegerField()
         )
     ).filter(
-        existencia_total__gt=0  # Solo medicamentos con existencia
+        existencia_total__gt=0
     ).order_by('medicamento__descripcion')
     
     # Aplicar filtro de búsqueda si existe
@@ -403,12 +400,53 @@ def inventario_general(request):
             Q(medicamento__clave__icontains=busqueda)
         )
     
+    # ✅ CALCULAR ESTADÍSTICAS DE STOCK
+    stock_adecuado = 0  # >= 100% CPM
+    stock_bajo = 0      # 50-99% CPM
+    desabasto = 0       # < 50% CPM
+    
+    # Agregar porcentaje a cada item
+    inventario_con_porcentaje = []
+    for item in inventario:
+        existencia = item['existencia_total']
+        cpm = item['cpm_medicamento']
+        
+        # Calcular porcentaje
+        if cpm > 0:
+            porcentaje = round((existencia / cpm) * 100, 1)
+        else:
+            porcentaje = 0  # Sin CPM definido
+        
+        # Clasificar estado
+        if cpm > 0:  # Solo clasificar si tiene CPM
+            if porcentaje >= 100:
+                stock_adecuado += 1
+                estado = 'adecuado'
+            elif porcentaje >= 50:
+                stock_bajo += 1
+                estado = 'bajo'
+            else:
+                desabasto += 1
+                estado = 'critico'
+        else:
+            estado = 'sin-cpm'
+        
+        # Agregar datos calculados
+        item['porcentaje'] = porcentaje
+        item['estado'] = estado
+        inventario_con_porcentaje.append(item)
+    
     context = {
-        'inventario': inventario,
-        'busqueda_actual': busqueda
+        'inventario': inventario_con_porcentaje,
+        'busqueda_actual': busqueda,
+        'total_medicamentos': len(inventario_con_porcentaje),
+        'stock_adecuado': stock_adecuado,
+        'stock_bajo': stock_bajo,
+        'desabasto': desabasto,
     }
     
     return render(request, 'inv_gene_f.html', context)
+
 
 
 @require_http_methods(["POST"]) 
@@ -511,27 +549,49 @@ def eliminar_lote(request, lote_id):
         }, status=500)
 
 
+@login_required
+@require_http_methods(["GET", "POST"])
 def registro_medicamento(request):
+    """Vista para registrar un nuevo medicamento - Solo clave y descripción"""
     if request.method == 'POST':
         form = MedicamentoForm(request.POST)
         if form.is_valid():
-            # Generar ID automático si no se provee
-            medicamento = form.save(commit=False)
-            if not medicamento.id:
-                medicamento.id = f"MED-{Medicamento.objects.count() + 1:04d}"
-            medicamento.save()
-            
-            messages.success(request, 'Medicamento registrado correctamente')
-            return redirect('farmacia_g')
+            try:
+                # Guardar medicamento sin commitir aún
+                medicamento = form.save(commit=False)
+                
+                # Generar ID automático
+                if not medicamento.id:
+                    medicamento.id = f"MED-{Medicamento.objects.count() + 1:04d}"
+                
+                # Establecer valores por defecto para campos no requeridos
+                medicamento.activo = True
+                medicamento.costo = 0.00
+                medicamento.codigo_barras = None
+                medicamento.proveedor = None
+                medicamento.presentacion = None
+                
+                # Guardar el medicamento
+                medicamento.save()
+                
+                messages.success(
+                    request, 
+                    f'✓ Medicamento "{medicamento.clave}" registrado correctamente. '
+                    f'Ahora puedes agregar lotes desde el módulo de Entradas.'
+                )
+                
+                # Redirigir al inventario general (ajusta el nombre según tu urls.py)
+                return redirect('farmacia_g')  # ← CORREGIDO
+                
+            except Exception as e:
+                messages.error(request, f'Error al registrar medicamento: {str(e)}')
         else:
             messages.error(request, 'Error en el formulario. Verifica los datos.')
     else:
         form = MedicamentoForm()
     
-    return render(request, 'registro_medicamento.html', {
-        'form': form,
-        'proveedores': Proveedor.objects.filter(activo=True)
-    })
+    return render(request, 'registro_medicamento.html', {'form': form})
+
 
 
 @never_cache
@@ -1031,48 +1091,80 @@ class LoginAPIView(APIView):
 def registrar_salida(request):
     if request.method == 'POST':
         
-        # 1. Extraer datos (sin cambios)
+        # 1. Extraer datos del paciente
         curp = request.POST.get('paciente_curp', '').strip().upper()
         nombre = request.POST.get('paciente_nombre')
         nacimiento_str = request.POST.get('paciente_nacimiento')
         origen = request.POST.get('receta_origen')
         folio = request.POST.get('receta_folio')
-        surtido_por = f"{request.user.first_name} {request.user.last_name}"
-
-        # 2. Extraer items (sin cambios)
+        
+        # 2. Extraer items surtidos
         items_para_guardar = []
         index = 0
         while True:
             lote_id = request.POST.get(f'item_lote_{index}')
             cantidad_str = request.POST.get(f'item_cantidad_{index}')
-            if not lote_id or not cantidad_str: break
+            if not lote_id or not cantidad_str: 
+                break
             try:
                 lote = Lote.objects.get(id=lote_id)
                 cantidad = int(cantidad_str)
-                if cantidad <= 0: raise Exception(f"Cantidad inválida para {lote.lote_codigo}")
-                if cantidad > lote.existencia: raise Exception(f"Stock insuficiente para {lote.lote_codigo}")
+                if cantidad <= 0: 
+                    raise Exception(f"Cantidad inválida para {lote.lote_codigo}")
+                if cantidad > lote.existencia: 
+                    raise Exception(f"Stock insuficiente para {lote.lote_codigo}")
                 items_para_guardar.append({'lote': lote, 'cantidad': cantidad})
                 index += 1
             except (Lote.DoesNotExist, ValueError, Exception) as e:
                 return JsonResponse({"success": False, "error": str(e)}, status=400)
-
-        if not items_para_guardar:
-            return JsonResponse({"success": False, "error": "No hay medicamentos en la lista."}, status=400)
-
-        # 3. Guardar todo
+        
+        # 3. ✅ EXTRAER MEDICAMENTOS FALTANTES (NUEVO)
+        medicamentos_faltantes = []
+        index = 0
+        while True:
+            faltante_desc = request.POST.get(f'faltante_desc_{index}')
+            faltante_cant_str = request.POST.get(f'faltante_cant_{index}')
+            faltante_motivo = request.POST.get(f'faltante_motivo_{index}')
+            
+            if not faltante_desc or not faltante_cant_str or not faltante_motivo:
+                break
+            
+            try:
+                medicamentos_faltantes.append({
+                    'descripcion': faltante_desc,
+                    'cantidad': int(faltante_cant_str),
+                    'motivo': faltante_motivo
+                })
+                index += 1
+            except ValueError as e:
+                return JsonResponse({
+                    "success": False, 
+                    "error": f"Cantidad inválida para medicamento faltante: {str(e)}"
+                }, status=400)
+        
+        # 4. Validar que haya al menos algo que registrar
+        if not items_para_guardar and not medicamentos_faltantes:
+            return JsonResponse({
+                "success": False, 
+                "error": "No hay medicamentos en la lista ni medicamentos faltantes registrados."
+            }, status=400)
+        
+        # 5. Guardar todo
         try:
             with transaction.atomic():
                 
-                # --- ¡AQUÍ ESTÁ LA NUEVA LÓGICA DE GUARDADO! ---
+                # 5.1. Validar fecha de nacimiento
                 try:
                     nacimiento_obj = datetime.strptime(nacimiento_str, '%Y-%m-%d').date()
                 except (ValueError, TypeError):
-                    messages.error(request, "La fecha de nacimiento es inválida.")
-                    return JsonResponse({"success": False, "error": "Fecha de nacimiento inválida."}, status=400)
-
-                # 3.1. Buscar o Crear Paciente
+                    return JsonResponse({
+                        "success": False, 
+                        "error": "Fecha de nacimiento inválida."
+                    }, status=400)
+                
+                # 5.2. Buscar o Crear Paciente
                 if curp:
-                    # Si SÍ hay CURP, lo usamos como llave (como antes)
+                    # Si SÍ hay CURP, lo usamos como llave
                     paciente, _ = Paciente.objects.update_or_create(
                         curp=curp,
                         defaults={
@@ -1082,32 +1174,49 @@ def registrar_salida(request):
                     )
                 else:
                     # Si NO hay CURP, usamos Nombre + Fecha Nacimiento como llave
-                    # (get_or_create es más seguro para no sobreescribir datos)
                     paciente, _ = Paciente.objects.get_or_create(
                         nombre_completo=nombre,
                         fecha_nacimiento=nacimiento_obj,
-                        defaults={'curp': None} # Le ponemos None al CURP
+                        defaults={'curp': None}
                     )
-                # --- FIN DE LA NUEVA LÓGICA DE GUARDADO ---
-
-                # 3.2. Crear UNA Receta (sin cambios)
+                
+                # 5.3. ✅ DETERMINAR ESTADO DE LA RECETA (NUEVO)
+                if medicamentos_faltantes and items_para_guardar:
+                    estado_receta = 'parcial'  # Algunos surtidos, algunos no
+                elif medicamentos_faltantes and not items_para_guardar:
+                    estado_receta = 'no_surtida'  # Ninguno disponible
+                else:
+                    estado_receta = 'completa'  # Todos surtidos
+                
+                # 5.4. Crear Receta
                 if not folio:
-                    folio = f"SAL-MULTI-{paciente.id}-{int(timezone.now().timestamp())}"
+                    # Generar folio automático con formato mejorado
+                    fecha_str = timezone.now().strftime('%Y%m%d')
+                    ultimo = Receta.objects.filter(
+                        id_folio__startswith=f'REC-{fecha_str}'
+                    ).order_by('-id_folio').first()
+                    
+                    if ultimo:
+                        ultimo_num = int(ultimo.id_folio.split('-')[-1])
+                        folio = f"REC-{fecha_str}-{ultimo_num + 1:04d}"
+                    else:
+                        folio = f"REC-{fecha_str}-0001"
                 
                 receta_salida = Receta.objects.create(
                     id_folio=folio,
                     paciente=paciente, 
                     fecha_emision=timezone.now().date(),
                     fecha_surtido=timezone.now().date(), 
-                    estado='completa',
+                    estado=estado_receta,  # ✅ Estado dinámico
                     origen=origen,
                     surtido_por=request.user 
                 )
-
-                # 3.3. Guardar CADA item y restar stock (sin cambios)
+                
+                # 5.5. Guardar items surtidos y restar stock
                 for item in items_para_guardar:
                     lote = item['lote']
                     cantidad = item['cantidad']
+                    
                     RecetaMedicamento.objects.create(
                         receta=receta_salida,
                         medicamento=lote.medicamento, 
@@ -1115,28 +1224,56 @@ def registrar_salida(request):
                         cantidad_solicitada=cantidad,
                         cantidad_surtida=cantidad
                     )
+                    
+                    # Restar del stock
                     lote.existencia -= cantidad
                     lote.save(update_fields=['existencia'])
+                
+                # 5.6. ✅ GUARDAR MEDICAMENTOS NO SURTIDOS (NUEVO)
+                for faltante in medicamentos_faltantes:
+                    MedicamentoNoSurtido.objects.create(
+                        receta=receta_salida,
+                        medicamento_descripcion=faltante['descripcion'],
+                        cantidad_solicitada=faltante['cantidad'],
+                        motivo=faltante['motivo'],
+                        registrado_por=request.user
+                    )
             
-            # 4. Éxito: Devolver JSON (sin cambios)
+            # 6. Éxito: Devolver JSON con información adicional
             pdf_url = reverse('descargar_comprobante', args=[receta_salida.pk])
+            
+            mensaje_estado = {
+                'completa': '✓ Todos los medicamentos fueron surtidos.',
+                'parcial': '⚠ Surtido parcial. Algunos medicamentos no estaban disponibles.',
+                'no_surtida': '✗ Ningún medicamento pudo ser surtido.'
+            }
+            
             return JsonResponse({
                 "success": True, 
-                "message": "Salida registrada exitosamente.",
-                "pdf_url": pdf_url 
+                "message": f"Salida registrada: {folio}",
+                "pdf_url": pdf_url,
+                "estado": estado_receta,
+                "mensaje_estado": mensaje_estado.get(estado_receta, ''),
+                "items_surtidos": len(items_para_guardar),
+                "items_faltantes": len(medicamentos_faltantes)
             })
         
         except Exception as e:
+            import traceback
             traceback.print_exc() 
-            return JsonResponse({"success": False, "error": str(e)}, status=500)
-            
-    # --- LÓGICA GET (sin cambios) ---
+            return JsonResponse({
+                "success": False, 
+                "error": str(e)
+            }, status=500)
+    
+    # --- LÓGICA GET ---
     form = SalidaForm() 
     context = {
         'form': form,
         'titulo_pagina': 'Registro de Salidas'
     }
     return render(request, 'salida_medicamentos.html', context)
+
 
 
 # ==================================================

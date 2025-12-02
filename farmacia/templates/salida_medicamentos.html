@@ -115,6 +115,107 @@
             </div>
         </div>
 
+
+        <!-- PASO 2.5: MEDICAMENTOS NO DISPONIBLES -->
+        <div class="card shadow mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5>
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    2.5 Medicamentos No Disponibles (Opcional)
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    <i class="fas fa-info-circle"></i>
+                    Si algún medicamento de la receta no está disponible en stock, regístralo aquí.
+                </p>
+                
+                <div class="row g-3 align-items-end">
+                    <!-- Descripción del medicamento faltante -->
+                    <div class="col-md-5">
+                        <div class="form-group">
+                            <label for="medicamento-faltante-desc">Medicamento No Disponible</label>
+                            <input 
+                                type="text" 
+                                class="form-control" 
+                                id="medicamento-faltante-desc"
+                                placeholder="Ej: Paracetamol 500mg tabletas">
+                        </div>
+                    </div>
+                    
+                    <!-- Cantidad solicitada -->
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label for="medicamento-faltante-cant">Cantidad</label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="medicamento-faltante-cant"
+                                min="1"
+                                placeholder="Ej: 10">
+                        </div>
+                    </div>
+                    
+                    <!-- Motivo -->
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="medicamento-faltante-motivo">Motivo</label>
+                            <select class="form-control" id="medicamento-faltante-motivo">
+                                <option value="">Seleccione...</option>
+                                <option value="Sin stock disponible">Sin stock disponible</option>
+                                <option value="Medicamento no existe en inventario">Medicamento no existe en inventario</option>
+                                <option value="Stock insuficiente">Stock insuficiente para cubrir cantidad</option>
+                                <option value="Medicamento caducado">Medicamento caducado</option>
+                                <option value="Otro">Otro motivo</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Botón agregar -->
+                    <div class="col-md-1">
+                        <div class="form-group">
+                            <button 
+                                type="button" 
+                                class="btn btn-warning w-100" 
+                                id="btn-agregar-faltante"
+                                title="Agregar medicamento faltante">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Motivo personalizado (se muestra solo si selecciona "Otro") -->
+                <div class="row mt-2" id="motivo-otro-container" style="display: none;">
+                    <div class="col-md-12">
+                        <textarea 
+                            class="form-control" 
+                            id="medicamento-faltante-motivo-otro"
+                            rows="2"
+                            placeholder="Especifique el motivo..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- Tabla de medicamentos faltantes -->
+                <div class="table-responsive mt-3" id="tabla-faltantes-container" style="display: none;">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-warning">
+                            <tr>
+                                <th>Medicamento</th>
+                                <th width="100">Cantidad</th>
+                                <th>Motivo</th>
+                                <th width="80" class="text-center">Quitar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-faltantes-body">
+                            <!-- Se llenará con JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+
         <!-- ============================================= -->
         <!-- PASO 3: LISTA DE SALIDA Y FINALIZAR -->
         <!-- ============================================= -->

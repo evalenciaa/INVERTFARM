@@ -278,6 +278,12 @@ class Receta(models.Model):
         null=True, blank=True,
         related_name="recetas_surtidas"
     )
+    observaciones_faltantes = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Medicamentos No Surtidos',
+        help_text='Registro de medicamentos que no pudieron ser surtidos y el motivo'
+    )
 
     def __str__(self):
         return f"Receta {self.id_folio} - {self.paciente.nombre_completo}"
@@ -298,6 +304,40 @@ class RecetaMedicamento(models.Model):
     def __str__(self):
         return f"{self.medicamento.descripcion} - Receta {self.receta.id_folio}"
     
+    
+class MedicamentoNoSurtido(models.Model):
+    """Registro de medicamentos que no pudieron ser surtidos"""
+    receta = models.ForeignKey(
+        Receta,
+        on_delete=models.CASCADE,
+        related_name='medicamentos_no_surtidos'
+    )
+    medicamento_descripcion = models.CharField(
+        max_length=200,
+        verbose_name='Descripción del Medicamento'
+    )
+    cantidad_solicitada = models.IntegerField(
+        verbose_name='Cantidad Solicitada'
+    )
+    motivo = models.TextField(
+        verbose_name='Motivo de No Surtido'
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'Medicamento No Surtido'
+        verbose_name_plural = 'Medicamentos No Surtidos'
+        ordering = ['-fecha_registro']
+    
+    def __str__(self):
+        return f"{self.medicamento_descripcion} - Receta {self.receta.id_folio}"
+
 
 class Almacen(models.Model):
     codigo = models.CharField(max_length=20, unique=True, verbose_name="Código")

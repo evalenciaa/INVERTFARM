@@ -37,34 +37,37 @@
                     </div>
                     <div class="stat-content">
                         <span class="stat-label">Total Medicamentos</span>
-                        <span class="stat-value" id="total-medicamentos">{{ medicamentos.count }}</span>
+                        <span class="stat-value">{{ total_medicamentos }}</span>
                     </div>
                 </div>
+
                 <div class="stat-card stat-success">
                     <div class="stat-icon">
                         <i class="fas fa-check-circle"></i>
                     </div>
                     <div class="stat-content">
                         <span class="stat-label">Stock Adecuado</span>
-                        <span class="stat-value" id="stock-adecuado">0</span>
+                        <span class="stat-value">{{ stock_adecuado }}</span>
                     </div>
                 </div>
+
                 <div class="stat-card stat-warning">
                     <div class="stat-icon">
                         <i class="fas fa-exclamation-triangle"></i>
                     </div>
                     <div class="stat-content">
                         <span class="stat-label">Stock Bajo</span>
-                        <span class="stat-value" id="stock-bajo">0</span>
+                        <span class="stat-value">{{ stock_bajo }}</span>
                     </div>
                 </div>
+
                 <div class="stat-card stat-danger">
                     <div class="stat-icon">
                         <i class="fas fa-times-circle"></i>
                     </div>
                     <div class="stat-content">
                         <span class="stat-label">Desabasto</span>
-                        <span class="stat-value" id="desabasto">0</span>
+                        <span class="stat-value">{{ desabasto }}</span>
                     </div>
                 </div>
             </div>
@@ -166,7 +169,8 @@
                                     data-clave="{{ item.medicamento__clave }}"
                                     data-descripcion="{{ item.medicamento__descripcion }}"
                                     data-existencia="{{ item.existencia_total }}"
-                                    data-cpm="{{ item.cpm_medicamento }}">
+                                    data-cpm="{{ item.cpm_medicamento }}"
+                                    data-estado="{{ item.estado }}">
                                     
                                     <!-- Clave -->
                                     <td class="clave-cell">{{ item.medicamento__clave }}</td>
@@ -177,9 +181,10 @@
                                     <!-- Existencia Total -->
                                     <td class="existencia-cell">
                                         <span class="badge-existencia 
-                                            {% if item.existencia_total <= 10 %}badge-critico
-                                            {% elif item.existencia_total <= 50 %}badge-bajo
-                                            {% else %}badge-adecuado{% endif %}">
+                                            {% if item.estado == 'critico' %}badge-critico
+                                            {% elif item.estado == 'bajo' %}badge-bajo
+                                            {% else %}badge-adecuado
+                                            {% endif %}">
                                             {{ item.existencia_total }}
                                         </span>
                                     </td>
@@ -187,27 +192,36 @@
                                     <!-- CPM -->
                                     <td class="cpm-cell">
                                         <input type="number" 
-                                            name="cpm_{{ item.medicamento__id }}" 
-                                            value="{{ item.cpm_medicamento }}" 
+                                            name="cpm_{{ item.medicamento__id }}"
+                                            value="{{ item.cpm_medicamento }}"
                                             class="cpm-input"
                                             data-medicamento-id="{{ item.medicamento__id }}"
                                             min="0"
                                             step="1">
                                     </td>
                                     
-                                    <!-- Estado Stock -->
+                                    <!-- Estado Stock con Porcentaje -->
                                     <td class="estado-cell">
-                                        {% if item.existencia_total <= 10 %}
-                                            <span class="badge badge-critico">
-                                                <i class="fas fa-exclamation-circle"></i> Crítico
-                                            </span>
-                                        {% elif item.existencia_total <= 50 %}
-                                            <span class="badge badge-bajo">
-                                                <i class="fas fa-exclamation-triangle"></i> Bajo
-                                            </span>
+                                        {% if item.cpm_medicamento > 0 %}
+                                            {% if item.estado == 'critico' %}
+                                                <span class="badge badge-critico">
+                                                    <i class="fas fa-exclamation-circle"></i> Desabasto
+                                                    <br><small>{{ item.porcentaje }}%</small>
+                                                </span>
+                                            {% elif item.estado == 'bajo' %}
+                                                <span class="badge badge-bajo">
+                                                    <i class="fas fa-exclamation-triangle"></i> Bajo
+                                                    <br><small>{{ item.porcentaje }}%</small>
+                                                </span>
+                                            {% else %}
+                                                <span class="badge badge-adecuado">
+                                                    <i class="fas fa-check-circle"></i> Adecuado
+                                                    <br><small>{{ item.porcentaje }}%</small>
+                                                </span>
+                                            {% endif %}
                                         {% else %}
-                                            <span class="badge badge-adecuado">
-                                                <i class="fas fa-check-circle"></i> Adecuado
+                                            <span class="badge badge-warning">
+                                                <i class="fas fa-question-circle"></i> Sin CPM
                                             </span>
                                         {% endif %}
                                     </td>
@@ -215,16 +229,12 @@
                                     <!-- Acciones -->
                                     <td class="acciones-cell">
                                         <div class="action-buttons">
-                                            
-                                            <!-- Editar CPM -->
-                                            <button class="btn-action btn-edit" 
+                                            <button class="btn-action btn-edit"
                                                     onclick="editarMedicamento('{{ item.medicamento__id }}', '{{ item.medicamento__clave }}', '{{ item.medicamento__descripcion }}', {{ item.cpm_medicamento }})"
                                                     title="Editar CPM">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            
-                                            <!-- Eliminar Medicamento -->
-                                            <button class="btn-action btn-delete" 
+                                            <button class="btn-action btn-delete"
                                                     onclick="confirmarEliminacionMedicamento('{{ item.medicamento__id }}', '{{ item.medicamento__descripcion }}')"
                                                     title="Eliminar medicamento">
                                                 <i class="fas fa-trash-alt"></i>

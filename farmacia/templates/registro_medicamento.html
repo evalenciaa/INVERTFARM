@@ -4,55 +4,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Medicamento - INVENTFARM</title>
+    <title>Registro de Nuevo Medicamento</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/r_medic_farm.css' %}">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="contenedor-principal">
-        <!-- Botón de regreso -->
-        <a href="{% url 'farmacia_g' %}" class="btn-regresar">
+    <div class="container">
+        <!-- Botón Volver -->
+        <a href="{% url 'farmacia_g' %}" class="btn-back">
             <i class="fas fa-arrow-left"></i> Volver al Inventario
         </a>
 
-        <div class="contenedor-formulario">
-            <h1><i class="fas fa-pills"></i> Registro de Nuevo Medicamento</h1>
-            
-            <form method="post" class="formulario-medicamento">
+        <!-- Card Principal -->
+        <div class="form-card">
+            <!-- Header -->
+            <div class="form-header">
+                <i class="fas fa-pills"></i>
+                <h1>Registro de Nuevo Medicamento</h1>
+            </div>
+
+            <!-- Mensajes de Error/Éxito -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        <i class="fas fa-{% if message.tags == 'success' %}check-circle{% else %}exclamation-circle{% endif %}"></i>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Formulario -->
+            <form method="POST" id="form-medicamento">
                 {% csrf_token %}
                 
-                <!-- Mensajes de error/success -->
-                {% if messages %}
-                <div class="mensajes">
-                    {% for message in messages %}
-                    <div class="mensaje {{ message.tags }}">{{ message }}</div>
-                    {% endfor %}
+                <!-- Campo: Clave -->
+                <div class="form-group">
+                    <label for="id_clave">
+                        <i class="fas fa-key"></i> Clave del Medicamento
+                    </label>
+                    {{ form.clave }}
+                    {% if form.clave.errors %}
+                        <div class="error-message">
+                            {{ form.clave.errors }}
+                        </div>
+                    {% endif %}
+                    <small class="form-help">Identificador único del medicamento (ej: PAR-500)</small>
                 </div>
-                {% endif %}
 
-                <!-- Campo Clave -->
-                {% for field in form %}
-            <div class="grupo-formulario">
-                {{ field.label_tag }}
-                {{ field }}
-                {% if field.help_text %}
-                <small class="texto-ayuda">{{ field.help_text }}</small>
-                {% endif %}
-                {% for error in field.errors %}
-                <div class="error">{{ error }}</div>
-                {% endfor %}
-            </div>
-            {% endfor %}
+                <!-- Campo: Descripción -->
+                <div class="form-group">
+                    <label for="id_descripcion">
+                        <i class="fas fa-file-medical"></i> Descripción
+                    </label>
+                    {{ form.descripcion }}
+                    {% if form.descripcion.errors %}
+                        <div class="error-message">
+                            {{ form.descripcion.errors }}
+                        </div>
+                    {% endif %}
+                    <small class="form-help">Descripción completa del medicamento (concentración, presentación, etc.)</small>
+                </div>
 
-            <div class="acciones-formulario">
-                <button type="reset" class="btn btn-secundario">
-                    <i class="fas fa-eraser"></i> Limpiar
-                </button>
-                <button type="submit" class="btn btn-primario">
-                    <i class="fas fa-save"></i> Registrar Medicamento
-                </button>
-            </div>
+                <!-- Botones -->
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="limpiarFormulario()">
+                        <i class="fas fa-eraser"></i> Limpiar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Registrar Medicamento
+                    </button>
+                </div>
             </form>
+        </div>
+
+        <!-- Nota Informativa -->
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            <p><strong>Nota:</strong> Una vez registrado el medicamento, podrás agregar lotes y stock desde el módulo de Entradas.</p>
         </div>
     </div>
 

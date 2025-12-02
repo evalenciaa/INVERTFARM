@@ -46,60 +46,48 @@ class LoteForm(forms.ModelForm):
 
 
 class MedicamentoForm(forms.ModelForm):
+    """Formulario para registrar medicamentos - Solo clave y descripción"""
+    
     class Meta:
         model = Medicamento
-        fields = ['clave', 'descripcion', 'codigo_barras', 'costo', 'proveedor']
+        fields = ['clave', 'descripcion']  # Solo estos dos campos
+        
         widgets = {
             'clave': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Ej: PAR-500',
-                'pattern': '[A-Za-z0-9-]+',
-                'title': 'Solo letras, números y guiones'
+                'required': True
             }),
-            'descripcion': forms.TextInput(attrs={
+            'descripcion': forms.Textarea(attrs={
                 'class': 'form-control',
-                'placeholder': 'Ej: Paracetamol 500mg tabletas'
+                'placeholder': 'Ej: Paracetamol 500mg tabletas',
+                'rows': 3,
+                'required': True
             }),
-            'codigo_barras': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Ej: 750123456789',
-                'pattern': '[0-9]+',
-                'title': 'Solo números'
-            }),
-            'costo': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Ej: 25.50',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'proveedor': forms.Select(attrs={
-                'class': 'form-control'
-            })
         }
+        
         labels = {
             'clave': 'Clave del Medicamento',
             'descripcion': 'Descripción',
-            'codigo_barras': 'Código de Barras',
-            'costo': 'Costo Unitario',
-            'proveedor': 'Proveedor'
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['proveedor'].queryset = Proveedor.objects.filter(activo=True)
-        self.fields['proveedor'].empty_label = "Seleccione un proveedor..."
-        
+    
     def clean_clave(self):
-        clave = self.cleaned_data['clave']
-        if Medicamento.objects.filter(clave=clave).exists():
-            raise forms.ValidationError("Esta clave ya está registrada")
+        """Validar que la clave no esté duplicada"""
+        clave = self.cleaned_data.get('clave')
+        if clave:
+            clave = clave.strip().upper()
+            if Medicamento.objects.filter(clave=clave).exists():
+                raise forms.ValidationError('Ya existe un medicamento con esta clave.')
         return clave
-        
-    def clean_codigo_barras(self):
-        codigo = self.cleaned_data['codigo_barras']
-        if codigo and Medicamento.objects.filter(codigo_barras=codigo).exists():
-            raise forms.ValidationError("Este código de barras ya está registrado")
-        return codigo
+    
+    def clean_descripcion(self):
+        """Validar descripción"""
+        descripcion = self.cleaned_data.get('descripcion')
+        if descripcion:
+            descripcion = descripcion.strip()
+            if len(descripcion) < 5:
+                raise forms.ValidationError('La descripción debe tener al menos 5 caracteres.')
+        return descripcion
 
 
 class SalidaForm(forms.Form):
