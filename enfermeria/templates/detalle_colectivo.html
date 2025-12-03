@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/detalle.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
 <body>
         <div class="main-content-full">
             <!-- Breadcrumb -->
@@ -271,84 +270,108 @@
     </div>
 
         <!-- MODAL DE EDICIÓN Y REENVÍO -->
-    <div id="modal-edicion" class="modal">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h2><i class="fas fa-edit"></i> Editar y Reenviar Colectivo</h2>
-                <button class="modal-close" onclick="cerrarModalEdicion()">&times;</button>
+        <div id="modal-edicion" class="modal">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2><i class="fas fa-edit"></i> Editar y Reenviar Colectivo</h2>
+                    <button class="modal-close" onclick="cerrarModalEdicion()">&times;</button>
+                </div>
+                
+                <form id="form-editar-colectivo" method="POST" action="{% url 'editar_colectivo' colectivo.id %}">
+                    {% csrf_token %}
+                    
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Instrucciones:</strong> 
+                            Modifica cantidades, elimina medicamentos que no necesites o agrega nuevos. El colectivo volverá a estado PENDIENTE para revisión de farmacia.
+                        </div>
+
+                        <!-- ✅ Lista de Medicamentos ACTUALES -->
+                        <h3><i class="fas fa-pills"></i> Medicamentos Actuales</h3>
+                        <div class="medicamentos-edit-list" id="medicamentos-actuales">
+                            {% for item in colectivo.medicamentos.all %}
+                            <div class="medicamento-edit-item" id="med-item-{{ forloop.counter }}">
+                                <input type="hidden" name="medicamento_id[]" value="{{ item.medicamento.id }}">
+                                
+                                <div class="med-info">
+                                    <strong>{{ item.medicamento.clave }}</strong>
+                                    <span>{{ item.medicamento.descripcion }}</span>
+                                </div>
+                                
+                                <div class="med-cantidad">
+                                    <label>Cantidad</label>
+                                    <input type="number" 
+                                        name="cantidad[]" 
+                                        value="{{ item.cantidadsolicitada }}" 
+                                        min="1" max="9999" 
+                                        class="cantidad-input">
+                                    <span class="cantidad-original">(Original: {{ item.cantidadsolicitada }})</span>
+                                </div>
+                                
+                                <!-- ✅ BOTÓN ELIMINAR -->
+                                <button type="button" 
+                                        class="btn-eliminar-med" 
+                                        onclick="eliminarMedicamento('med-item-{{ forloop.counter }}')"
+                                        title="Eliminar medicamento">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                            {% empty %}
+                            <div style="padding: 20px; text-align: center; color: #999;">
+                                <p>No hay medicamentos en este colectivo</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- ✅ Sección para AGREGAR NUEVOS -->
+                        <div id="medicamentos-agregados-lista" style="margin-top: 20px;">
+                            <!-- Aquí se agregarán los medicamentos nuevos confirmados -->
+                        </div>
+
+                        <!-- ✅ Sección para AGREGAR NUEVOS (temporales) -->
+                        <div style="margin-top: 30px; border-top: 2px solid #ddd; padding-top: 20px;">
+                            <h3><i class="fas fa-plus-circle"></i> Agregar Medicamentos</h3>
+                            <div id="nuevos-medicamentos-container">
+                                <!-- Se llenarán dinámicamente los formularios temporales -->
+                            </div>
+                            <button type="button" class="btn btn-secondary" onclick="agregarNuevoMedicamento()">
+                                <i class="fas fa-plus"></i> Buscar Medicamento
+                            </button>
+                        </div>
+
+                        <!-- Observaciones -->
+                        <div class="form-group" style="margin-top: 30px;">
+                            <label for="observaciones-edit">
+                                <i class="fas fa-comment"></i> 
+                                <strong>Observaciones Adicionales</strong>
+                            </label>
+                            <textarea id="observaciones-edit" 
+                                    name="observaciones" 
+                                    rows="4" 
+                                    placeholder="Explica los cambios realizados..."
+                                    maxlength="500">{{ colectivo.observaciones_enfermeria }}</textarea>
+                            <small class="char-counter">0 / 500 caracteres</small>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="cerrarModalEdicion()">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Reenviar a Farmacia
+                        </button>
+                    </div>
+                </form>
             </div>
-            
-            <form id="form-editar-colectivo" method="POST" action="{% url 'editar_reenviar_colectivo' colectivo.id %}">
-                {% csrf_token %}
-                
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <strong>Instrucciones:</strong> Modifica las cantidades de los medicamentos que necesites ajustar y agrega un comentario explicando los cambios. El colectivo volverá a estado PENDIENTE para que farmacia lo revise nuevamente.
-                    </div>
-
-                    <!-- Lista de Medicamentos Editables -->
-                    <h3><i class="fas fa-pills"></i> Medicamentos</h3>
-                    <div class="medicamentos-edit-list">
-                        {% for item in colectivo.medicamentos.all %}
-                        <div class="medicamento-edit-item">
-                            <div class="med-info">
-                                <strong>{{ item.medicamento.clave }}</strong>
-                                <span>{{ item.medicamento.descripcion }}</span>
-                            </div>
-                            <div class="med-cantidad">
-                                <label>Cantidad:</label>
-                                <input 
-                                    type="number" 
-                                    name="cantidad_{{ item.id }}" 
-                                    value="{{ item.cantidad_solicitada }}" 
-                                    min="1" 
-                                    max="9999"
-                                    required
-                                    class="cantidad-input"
-                                >
-                                <span class="cantidad-original">Original: {{ item.cantidad_solicitada }}</span>
-                            </div>
-                        </div>
-                        {% empty %}
-                        <div style="padding: 40px; text-align: center; color: #999;">
-                            <i class="fas fa-exclamation-circle" style="font-size: 3rem; margin-bottom: 15px; display: block;"></i>
-                            <p>No hay medicamentos en este colectivo</p>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <!-- Comentario Adicional -->
-                    <div class="form-group">
-                        <label for="comentario-reenvio">
-                            <i class="fas fa-comment"></i> 
-                            <strong>Comentario Adicional para Farmacia:</strong>
-                            <span class="campo-requerido">*</span>
-                        </label>
-                        <textarea 
-                            id="comentario-reenvio" 
-                            name="comentario_reenvio" 
-                            rows="4" 
-                            placeholder="Explica por qué estás reenviando el colectivo y qué cambios realizaste..."
-                            required
-                            maxlength="500"
-                        ></textarea>
-                        <small class="char-counter">0 / 500 caracteres</small>
-                    </div>
-                </div>
-                
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="cerrarModalEdicion()">
-                        <i class="fas fa-times"></i> Cancelar
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-paper-plane"></i> Reenviar a Farmacia
-                    </button>
-                </div>
-            </form>
         </div>
-    </div>
 
+
+    <script>
+    // Configuración de URLs para JavaScript
+    window.APP_URLS = { buscarMedicamentos: "{% url 'api_buscar_medicamentos' %}" };
+    </script>
     <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
     <script src="{% static 'enfermeria/js/detalle_colectivo.js' %}"></script>
 

@@ -798,3 +798,317 @@ body {
         justify-content: space-between;
     }
 }
+
+/* Botones de eliminar medicamento */
+.btn-eliminar-med {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 14px;
+    min-width: 100px;
+}
+
+.btn-eliminar-med:hover:not(:disabled) {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+.btn-eliminar-med:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Items de medicamentos */
+.medicamento-edit-item {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    transition: all 0.3s;
+    border-left: 4px solid #007bff;
+}
+
+.medicamento-edit-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Nuevo medicamento */
+.nuevo-medicamento {
+    background: #e7f5e7 !important;
+    border-left-color: #28a745 !important;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Campos del formulario */
+.med-info {
+    flex: 2;
+}
+
+.med-cantidad {
+    flex: 1;
+    min-width: 150px;
+}
+
+.cantidad-input,
+.select-medicamento {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.cantidad-input:focus,
+.select-medicamento:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+}
+
+.cantidad-original {
+    display: block;
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+/* Lista de medicamentos */
+.medicamentos-edit-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+/* Scrollbar personalizado */
+.medicamentos-edit-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.medicamentos-edit-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.medicamentos-edit-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.medicamentos-edit-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Estilos para Select2 */
+.select2-container--default .select2-selection--single {
+    height: 42px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    padding: 6px 12px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 28px;
+    color: #333;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 40px;
+}
+
+.select2-container--default.select2-container--focus .select2-selection--single {
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.select2-dropdown {
+    border: 2px solid #007bff;
+    border-radius: 6px;
+    margin-top: 4px;
+}
+
+.select2-results__option--highlighted {
+    background-color: #007bff !important;
+}
+
+/* Ajustar el contenedor */
+.select-medicamento-autocomplete {
+    width: 100%;
+}
+
+/* Autocompletado de medicamentos */
+.input-medicamento-autocomplete {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.input-medicamento-autocomplete:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.input-medicamento-autocomplete::placeholder {
+    color: #999;
+    font-style: italic;
+}
+
+/* Dropdown de sugerencias */
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 2px solid #007bff;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    margin-top: -2px;
+}
+
+.suggestion-item {
+    padding: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #f0f8ff;
+}
+
+.suggestion-item strong {
+    color: #007bff;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.suggestion-item span {
+    color: #333;
+    font-size: 12px;
+}
+
+.suggestion-item.no-results,
+.suggestion-item.error {
+    color: #999;
+    font-style: italic;
+    cursor: default;
+    text-align: center;
+}
+
+.suggestion-item.error {
+    color: #dc3545;
+}
+
+/* Scroll personalizado */
+.autocomplete-suggestions::-webkit-scrollbar {
+    width: 8px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 0 0 6px 0;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb {
+    background: #007bff;
+    border-radius: 4px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb:hover {
+    background: #0056b3;
+}
+
+/* Botón agregar medicamento */
+.btn-agregar-med {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 14px;
+    min-width: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-agregar-med:not(:disabled) {
+    background: #28a745;
+}
+
+.btn-agregar-med:not(:disabled):hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.btn-agregar-med:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Medicamentos agregados permanentemente */
+.medicamento-agregado {
+    background: #e7f5e9;
+    border-left: 4px solid #28a745;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Medicamento temporal (en proceso de agregar) */
+.medicamento-temporal {
+    background: #fff9e6;
+    border-left: 4px solid #ffc107;
+}

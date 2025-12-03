@@ -219,6 +219,9 @@ def editar_colectivo(request, colectivo_id):
     """
     Editar un colectivo respondido y reenviarlo a farmacia
     """
+    # Importar el modelo de farmacia
+    from farmacia.models import Medicamento
+    
     colectivo = get_object_or_404(
         Colectivo,
         id=colectivo_id,
@@ -230,46 +233,98 @@ def editar_colectivo(request, colectivo_id):
         return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
     
     try:
-        # Actualizar observaciones
-        colectivo.observaciones_enfermeria = request.POST.get('observaciones', '')
-        
-        # Actualizar medicamentos
-        medicamentos_ids = request.POST.getlist('medicamento_id[]')
-        cantidades = request.POST.getlist('cantidad[]')
-        
-        # Eliminar medicamentos actuales
-        colectivo.medicamentos.all().delete()
-        
-        # Agregar nuevos medicamentos
-        for med_id, cantidad in zip(medicamentos_ids, cantidades):
-            if med_id and cantidad:
-                medicamento = get_object_or_404(Medicamento, id=med_id)
-                ColectivoMedicamento.objects.create(
-                    colectivo=colectivo,
-                    medicamento=medicamento,
-                    cantidad_solicitada=int(cantidad)
-                )
-        
-        # Cambiar estado a PENDIENTE nuevamente
-        colectivo.estado = 'PENDIENTE'
-        colectivo.fecha_respuesta_farmacia = None
-        colectivo.respuesta_farmacia = ''
-        colectivo.save()
-        
-        messages.success(request, f'Colectivo {colectivo.folio} actualizado y reenviado a farmacia')
-        return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
-        
+        with transaction.atomic():
+            # ✅ Actualizar observaciones
+            observaciones = request.POST.get('observaciones', '').strip()
+            if observaciones:
+                colectivo.observaciones_enfermeria = observaciones
+            
+            # ✅ Obtener TODOS los medicamento_id[] y cantidad[]
+            medicamentos_ids = request.POST.getlist('medicamento_id[]')
+            cantidades = request.POST.getlist('cantidad[]')
+            
+            print(f"📥 Datos recibidos del formulario:")
+            print(f"   medicamentos_ids: {medicamentos_ids}")
+            print(f"   cantidades: {cantidades}")
+            
+            # ✅ Filtrar y validar datos
+            medicamentos_validos = []
+            
+            for med_id, cantidad in zip(medicamentos_ids, cantidades):
+                # Verificar que ambos valores existan y no estén vacíos
+                if med_id and cantidad and str(med_id).strip() and str(cantidad).strip():
+                    try:
+                        # ✅ med_id es un string como "MED-0007", NO convertir a int
+                        med_id_str = str(med_id).strip()
+                        cantidad_int = int(cantidad)
+                        
+                        # Verificar que la cantidad sea positiva
+                        if cantidad_int > 0:
+                            medicamentos_validos.append({
+                                'id': med_id_str,  # ✅ Guardar como string
+                                'cantidad': cantidad_int
+                            })
+                            print(f"   ✅ Medicamento válido: ID={med_id_str}, Cantidad={cantidad_int}")
+                        else:
+                            print(f"   ⚠️ Cantidad inválida: {cantidad_int}")
+                    except (ValueError, TypeError) as e:
+                        print(f"   ❌ Error al procesar: med_id={med_id}, cantidad={cantidad}, error={e}")
+                        continue
+                else:
+                    print(f"   ⏭️ Par ignorado (vacío o deshabilitado): med_id={med_id}, cantidad={cantidad}")
+            
+            print(f"📊 Total medicamentos válidos: {len(medicamentos_validos)}")
+            
+            # ✅ Validar que haya al menos un medicamento
+            if not medicamentos_validos:
+                messages.error(request, 'Debe haber al menos un medicamento en el colectivo')
+                return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
+            
+            # ✅ Eliminar todos los medicamentos actuales
+            colectivo.medicamentos.all().delete()
+            print(f"🗑️ Medicamentos anteriores eliminados")
+            
+            # ✅ Agregar medicamentos válidos
+            for item in medicamentos_validos:
+                try:
+                    # ✅ Buscar medicamento por ID string
+                    medicamento = Medicamento.objects.get(id=item['id'])
+                    ColectivoMedicamento.objects.create(
+                        colectivo=colectivo,
+                        medicamento=medicamento,
+                        cantidad_solicitada=item['cantidad']
+                    )
+                    print(f"   ➕ Agregado: {medicamento.clave} - Cantidad: {item['cantidad']}")
+                except Medicamento.DoesNotExist:
+                    print(f"   ❌ Medicamento no encontrado: ID={item['id']}")
+                    messages.error(request, f'Medicamento con ID {item["id"]} no encontrado')
+                    return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
+            
+            # ✅ Cambiar estado a PENDIENTE nuevamente
+            colectivo.estado = 'PENDIENTE'
+            colectivo.fecha_respuesta_farmacia = None
+            colectivo.respuesta_farmacia = ''
+            colectivo.save()
+            
+            print(f"✅ Colectivo {colectivo.folio} actualizado correctamente")
+            messages.success(request, f'Colectivo {colectivo.folio} actualizado y reenviado a farmacia')
+            return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
+            
     except Exception as e:
+        print(f"❌ ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         messages.error(request, f'Error al editar colectivo: {str(e)}')
         return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
 
 
-# ===== API: BUSCAR MEDICAMENTOS =====
+
+
 @login_required
 def api_buscar_medicamentos(request):
-    """
-    API para autocompletado de medicamentos
-    """
+    """API para autocompletado de medicamentos"""
+    from farmacia.models import Medicamento
+    
     query = request.GET.get('q', '')
     
     if len(query) < 2:
@@ -278,16 +333,22 @@ def api_buscar_medicamentos(request):
     medicamentos = Medicamento.objects.filter(
         Q(clave__icontains=query) | Q(descripcion__icontains=query),
         activo=True
-    )[:10]
+    ).order_by('descripcion')[:50]
     
     results = [{
-        'id': med.id,
+        'id': med.id,  # ✅ Esto devolverá "MED-0007" (string)
         'clave': med.clave,
         'descripcion': med.descripcion,
         'text': f"{med.clave} - {med.descripcion}"
     } for med in medicamentos]
     
+    print(f"🔍 Búsqueda: '{query}' → {len(results)} resultados")
+    if results:
+        print(f"   Ejemplo: ID={results[0]['id']} (tipo: {type(results[0]['id'])})")
+    
     return JsonResponse({'results': results})
+
+
 
 
 # ===== API: BUSCAR PACIENTES =====
