@@ -1,0 +1,24 @@
+# --- Entorno Virtual y Python (VITAL) ---
+venv/
+env/
+__pycache__/
+*.pyc
+
+# --- Variables de Entorno (IMPORTANTE: Aquí van tus claves) ---
+.env
+
+# --- Archivos Media (Imágenes subidas por usuarios) ---
+media/
+
+# --- Archivos de Sistema Operativo (Basura de Mac/Windows) ---
+.DS_Store
+Thumbs.db
+
+# --- Archivos específicos de tu proyecto (MySQL) ---
+# Ignorar backups de tu base de datos MySQL
+backup_farmacia*
+*.sql
+*.log
+
+# --- Archivos de IDE (Opcional, por si usas VS Code) ---
+.vscode/

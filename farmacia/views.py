@@ -2580,32 +2580,41 @@ def completar_colectivo(request, colectivo_id):
                 medicamento.cantidad_surtida = cantidad_surtida
                 medicamento.save()
             
-            # DEBUG - ANTES DE CREAR RECETA
+            # DEBUG
             print("="*60)
-            print("🔍 INICIANDO CREACIÓN DE RECETA PARA REPORTES")
-            print(f"Colectivo: {colectivo.folio}")
-            print(f"Paciente: {colectivo.paciente}")
-            print(f"Fecha: {timezone.now().date()}")
+            print("🔍 COMPLETANDO COLECTIVO")
+            print(f"   Folio: {colectivo.folio}")
+            print(f"   Tipo: {colectivo.tipo_colectivo}")
+            print(f"   Paciente: {colectivo.paciente}")
             
-            # TERCERO: Crear registro de Receta para reportes
-            try:
-                receta = Receta.objects.create(
-                    id_folio=f"{colectivo.folio}",
-                    paciente=colectivo.paciente,
-                    fecha_emision=colectivo.fecha_solicitud.date() if hasattr(colectivo.fecha_solicitud, 'date') else colectivo.fecha_solicitud,
-                    fecha_surtido=timezone.now().date(),
-                    estado='completa',
-                    origen='hospitalizacion_adultos',
-                    surtido_por=request.user
-                )
-                print(f"✅ RECETA CREADA: {receta.id_folio} (ID: {receta.id})")
-            except Exception as e:
-                print(f"❌ ERROR AL CREAR RECETA: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                raise
+            # TERCERO: ✅ Crear Receta SOLO si es tipo PACIENTE
+            receta = None
+            if colectivo.tipo_colectivo == 'PACIENTE':
+                if not colectivo.paciente:
+                    raise ValueError('Colectivo de tipo PACIENTE debe tener un paciente asignado')
+                
+                print("   📝 Creando receta para paciente...")
+                
+                try:
+                    receta = Receta.objects.create(
+                        id_folio=f"{colectivo.folio}",
+                        paciente=colectivo.paciente,
+                        fecha_emision=colectivo.fecha_solicitud.date() if hasattr(colectivo.fecha_solicitud, 'date') else colectivo.fecha_solicitud,
+                        fecha_surtido=timezone.now().date(),
+                        estado='completa',
+                        origen='hospitalizacion_adultos',
+                        surtido_por=request.user
+                    )
+                    print(f"   ✅ Receta creada: {receta.id_folio} (ID: {receta.id})")
+                except Exception as e:
+                    print(f"   ❌ ERROR al crear receta: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    raise
+            else:
+                print("   ℹ️  Colectivo de tipo STOCK - No se genera receta")
             
-            # CUARTO: Descontar del inventario y crear RecetaMedicamento
+            # CUARTO: Descontar del inventario
             medicamentos_registrados = 0
             for medicamento in colectivo.medicamentos.all():
                 cantidad_restante = medicamento.cantidad_surtida
@@ -2635,22 +2644,26 @@ def completar_colectivo(request, colectivo_id):
                         lote.existencia = 0
                         lote.save()
                 
-                # Crear registro de RecetaMedicamento
-                try:
-                    receta_med = RecetaMedicamento.objects.create(
-                        receta=receta,
-                        medicamento=medicamento.medicamento,
-                        lote=lote_usado,
-                        cantidad_solicitada=medicamento.cantidad_solicitada,
-                        cantidad_surtida=medicamento.cantidad_surtida
-                    )
-                    medicamentos_registrados += 1
-                    print(f"   ✅ RecetaMedicamento creado (ID: {receta_med.id})")
-                except Exception as e:
-                    print(f"   ❌ ERROR al crear RecetaMedicamento: {str(e)}")
-                    raise
+                # ✅ Crear RecetaMedicamento SOLO si se creó una receta
+                if receta:
+                    try:
+                        receta_med = RecetaMedicamento.objects.create(
+                            receta=receta,
+                            medicamento=medicamento.medicamento,
+                            lote=lote_usado,
+                            cantidad_solicitada=medicamento.cantidad_solicitada,
+                            cantidad_surtida=medicamento.cantidad_surtida
+                        )
+                        medicamentos_registrados += 1
+                        print(f"   ✅ RecetaMedicamento creado (ID: {receta_med.id})")
+                    except Exception as e:
+                        print(f"   ❌ ERROR al crear RecetaMedicamento: {str(e)}")
+                        raise
+                else:
+                    print(f"   ⏭️  No se registra en RecetaMedicamento (colectivo de stock)")
             
-            print(f"\n✅ TOTAL MEDICAMENTOS REGISTRADOS: {medicamentos_registrados}")
+            if receta:
+                print(f"\n✅ TOTAL MEDICAMENTOS REGISTRADOS EN RECETA: {medicamentos_registrados}")
             
             # QUINTO: Cambiar estado a COMPLETADO
             colectivo.estado = 'COMPLETADO'
@@ -2674,7 +2687,6 @@ def completar_colectivo(request, colectivo_id):
         traceback.print_exc()
         messages.error(request, f'Error al completar colectivo: {str(e)}')
         return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
-
 
 
 
@@ -2729,32 +2741,51 @@ def generar_pdf_colectivo(request, colectivo_id):
         elements.append(title)
         elements.append(Spacer(1, 0.15*inch))
         
-        # Información del paciente
-        info_data = [
-            ['INFORMACIÓN DEL PACIENTE', ''],
-            ['Nombre:', colectivo.paciente.nombre_completo],
-            ['CURP:', colectivo.paciente.curp or 'N/A'],
-            ['Fecha de Nacimiento:', colectivo.paciente.fecha_nacimiento.strftime('%d/%m/%Y') if colectivo.paciente.fecha_nacimiento else 'N/A'],
-            ['Número de Cama:', colectivo.numero_cama],
-            ['Servicio:', colectivo.servicio],
-            ['', ''],
-            ['INFORMACIÓN DEL COLECTIVO', ''],
-            ['Fecha de Solicitud:', colectivo.fecha_solicitud.strftime('%d/%m/%Y %H:%M')],
-            ['Fecha de Surtido:', colectivo.fecha_completado.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
-            ['Enfermero(a):', colectivo.enfermero_solicitante.get_full_name() or colectivo.enfermero_solicitante.username],
-            ['Farmacéutico(a):', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
-        ]
+        # DETECTAR TIPO DE COLECTIVO
+        es_colectivo_stock = colectivo.paciente is None
+        
+        # Información según el tipo de colectivo
+        if es_colectivo_stock:
+            # COLECTIVO DE STOCK - Sin información de paciente
+            info_data = [
+                ['INFORMACIÓN DEL COLECTIVO', ''],
+                ['Tipo:', 'Colectivo para Stock'],
+                ['Servicio:', colectivo.servicio or 'N/A'],
+                ['Número de Cama:', colectivo.numero_cama or 'N/A'],
+                ['', ''],
+                ['FECHAS Y RESPONSABLES', ''],
+                ['Fecha de Solicitud:', colectivo.fecha_solicitud.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_solicitud else 'N/A'],
+                ['Fecha de Surtido:', colectivo.fecha_completado.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
+                ['Enfermero(a) Solicitante:', colectivo.enfermero_solicitante.get_full_name() or colectivo.enfermero_solicitante.username if colectivo.enfermero_solicitante else 'N/A'],
+                ['Farmacéutico(a) Asignado:', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
+            ]
+        else:
+            # COLECTIVO DE PACIENTE - Con información completa del paciente
+            info_data = [
+                ['INFORMACIÓN DEL PACIENTE', ''],
+                ['Nombre:', colectivo.paciente.nombre_completo],
+                ['CURP:', colectivo.paciente.curp if colectivo.paciente.curp else 'N/A'],
+                ['Fecha de Nacimiento:', colectivo.paciente.fecha_nacimiento.strftime('%d/%m/%Y') if colectivo.paciente.fecha_nacimiento else 'N/A'],
+                ['Número de Cama:', colectivo.numero_cama or 'N/A'],
+                ['Servicio:', colectivo.servicio or 'N/A'],
+                ['', ''],
+                ['INFORMACIÓN DEL COLECTIVO', ''],
+                ['Fecha de Solicitud:', colectivo.fecha_solicitud.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_solicitud else 'N/A'],
+                ['Fecha de Surtido:', colectivo.fecha_completado.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
+                ['Enfermero(a):', colectivo.enfermero_solicitante.get_full_name() or colectivo.enfermero_solicitante.username if colectivo.enfermero_solicitante else 'N/A'],
+                ['Farmacéutico(a):', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
+            ]
         
         info_table = Table(info_data, colWidths=[2*inch, 4.5*inch])
         info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#750000')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('BACKGROUND', (0, 7), (-1, 7), colors.HexColor('#750000')),
-            ('TEXTCOLOR', (0, 7), (-1, 7), colors.whitesmoke),
+            ('BACKGROUND', (0, 5 if es_colectivo_stock else 7), (-1, 5 if es_colectivo_stock else 7), colors.HexColor('#750000')),
+            ('TEXTCOLOR', (0, 5 if es_colectivo_stock else 7), (-1, 5 if es_colectivo_stock else 7), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTNAME', (0, 7), (-1, 7), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 5 if es_colectivo_stock else 7), (-1, 5 if es_colectivo_stock else 7), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ('LEFTPADDING', (0, 0), (-1, -1), 8),
@@ -2789,17 +2820,17 @@ def generar_pdf_colectivo(request, colectivo_id):
         for idx, item in enumerate(colectivo.medicamentos.all(), 1):
             # Usar Paragraph para todos los campos
             numero_paragraph = Paragraph(str(idx), center_style)
-            clave_paragraph = Paragraph(item.medicamento.clave, cell_style)
-            descripcion_paragraph = Paragraph(item.medicamento.descripcion, cell_style)
+            clave_paragraph = Paragraph(item.medicamento.clave if item.medicamento else 'N/A', cell_style)
+            descripcion_paragraph = Paragraph(item.medicamento.descripcion if item.medicamento else 'N/A', cell_style)
             solicitado_paragraph = Paragraph(str(item.cantidad_solicitada), center_style)
             surtido_paragraph = Paragraph(str(item.cantidad_surtida), center_style)
             
             medicamentos_data.append([
-                numero_paragraph,      # ← Ahora con Paragraph centrado
+                numero_paragraph,
                 clave_paragraph,
                 descripcion_paragraph,
-                solicitado_paragraph,  # ← Ahora con Paragraph centrado
-                surtido_paragraph      # ← Ahora con Paragraph centrado
+                solicitado_paragraph,
+                surtido_paragraph
             ])
         
         # Tabla con anchos ajustados
@@ -2811,7 +2842,7 @@ def generar_pdf_colectivo(request, colectivo_id):
         medicamentos_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#750000')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),  # Encabezados centrados
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
@@ -2848,4 +2879,5 @@ def generar_pdf_colectivo(request, colectivo_id):
         print(traceback.format_exc())
         messages.error(request, f'Error al generar PDF: {str(e)}')
         return redirect('lista_colectivos_farmacia')
+
 

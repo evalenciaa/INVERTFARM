@@ -1,188 +1,127 @@
-// ===== CREAR_COLECTIVO.JS =====
-
-console.log('📝 Script de creación de colectivo cargado');
+// ===== CREAR COLECTIVO - GESTIÓN DE MEDICAMENTOS =====
 
 let medicamentosSeleccionados = [];
-let contadorMedicamentos = 0;
+let medicamentoIdGlobal = null;
 
-// ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Inicializando formulario...');
-    
-    // Configurar autocompletado de pacientes
-    configurarAutocompletadoPacientes();
-    
-    // Configurar autocompletado de medicamentos
-    configurarAutocompletadoMedicamentos();
-    
-    // Event listener para agregar medicamento
-    const btnAgregarMed = document.getElementById('btn-agregar-medicamento');
-    if (btnAgregarMed) {
-        btnAgregarMed.addEventListener('click', agregarMedicamento);
-    }
-    
-    // Validación del formulario
-    const form = document.getElementById('form-colectivo');
-    if (form) {
-        form.addEventListener('submit', validarFormulario);
-    }
-    
-    actualizarContador();
+    inicializarBuscadorMedicamentos();
+    inicializarBotonAgregar();
+    inicializarFormulario();
 });
 
-// ===== AUTOCOMPLETADO DE PACIENTES =====
-function configurarAutocompletadoPacientes() {
-    const input = document.getElementById('paciente-input');
-    const hiddenId = document.getElementById('paciente_id');
-    const results = document.getElementById('resultados-paciente');
-    
-    if (!input) return;
-    
-    let timeout = null;
-    
-    input.addEventListener('input', function() {
-        clearTimeout(timeout);
-        const query = this.value.trim();
-        
-        if (query.length < 2) {
-            results.innerHTML = '';
-            results.classList.remove('active');
-            return;
-        }
-        
-        timeout = setTimeout(() => {
-            fetch(`/enfermeria/api/buscar-pacientes/?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(data => {
-                    mostrarResultadosPacientes(data.results, results, input, hiddenId);
-                })
-                .catch(error => {
-                    console.error('Error al buscar pacientes:', error);
-                });
-        }, 300);
-    });
-    
-    // Cerrar resultados al hacer clic fuera
-    document.addEventListener('click', function(e) {
-        if (!input.contains(e.target) && !results.contains(e.target)) {
-            results.classList.remove('active');
-        }
-    });
-}
-
-function mostrarResultadosPacientes(resultados, contenedor, input, hiddenId) {
-    if (resultados.length === 0) {
-        contenedor.innerHTML = '<div class="autocomplete-item">No se encontraron pacientes</div>';
-        contenedor.classList.add('active');
-        return;
-    }
-    
-    contenedor.innerHTML = resultados.map(paciente => `
-        <div class="autocomplete-item" data-id="${paciente.id}" data-nombre="${paciente.nombre}">
-            <strong>${paciente.nombre}</strong><br>
-            <small>CURP: ${paciente.curp}</small>
-        </div>
-    `).join('');
-    
-    contenedor.classList.add('active');
-    
-    // Seleccionar paciente
-    contenedor.querySelectorAll('.autocomplete-item').forEach(item => {
-        item.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const nombre = this.getAttribute('data-nombre');
-            
-            input.value = nombre;
-            hiddenId.value = id;
-            contenedor.classList.remove('active');
-        });
-    });
-}
-
-// ===== AUTOCOMPLETADO DE MEDICAMENTOS =====
-function configurarAutocompletadoMedicamentos() {
+/**
+ * Inicializar buscador de medicamentos
+ */
+function inicializarBuscadorMedicamentos() {
     const input = document.getElementById('medicamento-input');
-    const results = document.getElementById('resultados-medicamento');
+    const resultados = document.getElementById('resultados-medicamento');
     
-    if (!input) return;
+    if (!input || !resultados) return;
     
-    let timeout = null;
+    let timeoutId;
     
     input.addEventListener('input', function() {
-        clearTimeout(timeout);
+        clearTimeout(timeoutId);
         const query = this.value.trim();
         
         if (query.length < 2) {
-            results.innerHTML = '';
-            results.classList.remove('active');
+            resultados.innerHTML = '';
+            resultados.style.display = 'none';
             return;
         }
         
-        timeout = setTimeout(() => {
+        timeoutId = setTimeout(() => {
             fetch(`/enfermeria/api/buscar-medicamentos/?q=${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(data => {
-                    mostrarResultadosMedicamentos(data.results, results, input);
+                    mostrarResultadosMedicamentos(data.results);
                 })
                 .catch(error => {
-                    console.error('Error al buscar medicamentos:', error);
+                    console.error('Error:', error);
+                    resultados.innerHTML = '<div class="autocomplete-item error">Error al buscar medicamentos</div>';
                 });
         }, 300);
     });
     
     // Cerrar resultados al hacer clic fuera
     document.addEventListener('click', function(e) {
-        if (!input.contains(e.target) && !results.contains(e.target)) {
-            results.classList.remove('active');
+        if (!input.contains(e.target) && !resultados.contains(e.target)) {
+            resultados.style.display = 'none';
         }
     });
 }
 
-function mostrarResultadosMedicamentos(resultados, contenedor, input) {
-    if (resultados.length === 0) {
-        contenedor.innerHTML = '<div class="autocomplete-item">No se encontraron medicamentos</div>';
-        contenedor.classList.add('active');
+/**
+ * Mostrar resultados de búsqueda de medicamentos
+ */
+function mostrarResultadosMedicamentos(results) {
+    const resultados = document.getElementById('resultados-medicamento');
+    
+    if (!results || results.length === 0) {
+        resultados.innerHTML = '<div class="autocomplete-item">No se encontraron medicamentos</div>';
+        resultados.style.display = 'block';
         return;
     }
     
-    contenedor.innerHTML = resultados.map(med => `
-        <div class="autocomplete-item" data-id="${med.id}" data-clave="${med.clave}" data-descripcion="${med.descripcion}">
-            <strong>${med.clave}</strong> - ${med.descripcion}
+    resultados.innerHTML = results.map(med => `
+        <div class="autocomplete-item" data-id="${med.id}" data-text="${med.text}">
+            <strong>${med.clave}</strong><br>
+            <small>${med.descripcion}</small>
         </div>
     `).join('');
     
-    contenedor.classList.add('active');
+    resultados.style.display = 'block';
     
-    // Seleccionar medicamento
-    contenedor.querySelectorAll('.autocomplete-item').forEach(item => {
+    // Agregar eventos a los items
+    resultados.querySelectorAll('.autocomplete-item').forEach(item => {
         item.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const clave = this.getAttribute('data-clave');
-            const descripcion = this.getAttribute('data-descripcion');
-            
-            input.value = `${clave} - ${descripcion}`;
-            input.dataset.medicamentoId = id;
-            input.dataset.medicamentoClave = clave;
-            input.dataset.medicamentoDescripcion = descripcion;
-            
-            contenedor.classList.remove('active');
+            seleccionarMedicamento(this.dataset.id, this.dataset.text);
         });
     });
 }
 
-// ===== AGREGAR MEDICAMENTO A LA TABLA =====
-function agregarMedicamento() {
-    const input = document.getElementById('medicamento-input');
+/**
+ * Seleccionar medicamento
+ */
+function seleccionarMedicamento(id, text) {
+    medicamentoIdGlobal = id;
+    document.getElementById('medicamento-input').value = text;
+    document.getElementById('resultados-medicamento').style.display = 'none';
+    document.getElementById('cantidad-input').focus();
+}
+
+/**
+ * Inicializar botón agregar medicamento
+ */
+function inicializarBotonAgregar() {
+    const btnAgregar = document.getElementById('btn-agregar-medicamento');
     const cantidadInput = document.getElementById('cantidad-input');
     
-    const medicamentoId = input.dataset.medicamentoId;
-    const clave = input.dataset.medicamentoClave;
-    const descripcion = input.dataset.medicamentoDescripcion;
-    const cantidad = parseInt(cantidadInput.value);
+    if (!btnAgregar) return;
+    
+    btnAgregar.addEventListener('click', agregarMedicamento);
+    
+    // Agregar con Enter en el campo de cantidad
+    if (cantidadInput) {
+        cantidadInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                agregarMedicamento();
+            }
+        });
+    }
+}
+
+/**
+ * Agregar medicamento a la tabla
+ */
+function agregarMedicamento() {
+    const medicamentoText = document.getElementById('medicamento-input').value.trim();
+    const cantidad = parseInt(document.getElementById('cantidad-input').value);
     
     // Validaciones
-    if (!medicamentoId) {
-        alert('Selecciona un medicamento válido de la lista');
+    if (!medicamentoIdGlobal || !medicamentoText) {
+        alert('Selecciona un medicamento de la lista');
         return;
     }
     
@@ -191,108 +130,154 @@ function agregarMedicamento() {
         return;
     }
     
-    // Verificar si ya está agregado
-    if (medicamentosSeleccionados.some(m => m.id === medicamentoId)) {
+    // Verificar si ya existe
+    const existe = medicamentosSeleccionados.find(m => m.id === medicamentoIdGlobal);
+    if (existe) {
         alert('Este medicamento ya fue agregado');
         return;
     }
     
     // Agregar a la lista
-    const medicamento = {
-        id: medicamentoId,
-        clave: clave,
-        descripcion: descripcion,
+    medicamentosSeleccionados.push({
+        id: medicamentoIdGlobal,
+        text: medicamentoText,
         cantidad: cantidad
-    };
+    });
     
-    medicamentosSeleccionados.push(medicamento);
+    // Actualizar tabla
     actualizarTablaMedicamentos();
     
     // Limpiar campos
-    input.value = '';
-    cantidadInput.value = '';
-    delete input.dataset.medicamentoId;
-    delete input.dataset.medicamentoClave;
-    delete input.dataset.medicamentoDescripcion;
-    
-    input.focus();
+    document.getElementById('medicamento-input').value = '';
+    document.getElementById('cantidad-input').value = '';
+    medicamentoIdGlobal = null;
+    document.getElementById('medicamento-input').focus();
 }
 
-// ===== ACTUALIZAR TABLA DE MEDICAMENTOS =====
+/**
+ * Actualizar tabla de medicamentos
+ */
 function actualizarTablaMedicamentos() {
     const tbody = document.getElementById('medicamentos-tbody');
+    const contador = document.getElementById('contador-medicamentos');
     
     if (medicamentosSeleccionados.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">No hay medicamentos agregados</td></tr>';
-    } else {
-        tbody.innerHTML = medicamentosSeleccionados.map((med, index) => `
+        tbody.innerHTML = `
             <tr>
-                <td>${index + 1}</td>
-                <td><strong>${med.clave}</strong><br><small>${med.descripcion}</small></td>
-                <td>${med.cantidad}</td>
-                <td style="text-align: center;">
-                    <button type="button" class="btn-eliminar-med" onclick="eliminarMedicamento(${index})">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                    <input type="hidden" name="medicamento_id[]" value="${med.id}">
-                    <input type="hidden" name="cantidad[]" value="${med.cantidad}">
+                <td colspan="4" style="text-align: center; color: #999;">
+                    No hay medicamentos agregados
                 </td>
             </tr>
-        `).join('');
+        `;
+        contador.textContent = '0 medicamento(s) agregado(s)';
+        return;
     }
     
-    actualizarContador();
+    tbody.innerHTML = medicamentosSeleccionados.map((med, index) => `
+        <tr>
+            <td>${index + 1}</td>
+            <td>${med.text}</td>
+            <td style="text-align: center;">${med.cantidad}</td>
+            <td style="text-align: center;">
+                <button type="button" class="btn-eliminar" onclick="eliminarMedicamento(${index})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+    
+    contador.textContent = `${medicamentosSeleccionados.length} medicamento(s) agregado(s)`;
 }
 
-// ===== ELIMINAR MEDICAMENTO =====
+/**
+ * Eliminar medicamento
+ */
 function eliminarMedicamento(index) {
-    if (confirm('¿Eliminar este medicamento de la solicitud?')) {
+    if (confirm('¿Eliminar este medicamento?')) {
         medicamentosSeleccionados.splice(index, 1);
         actualizarTablaMedicamentos();
     }
 }
 
-// ===== ACTUALIZAR CONTADOR =====
-function actualizarContador() {
-    const contador = document.getElementById('contador-medicamentos');
-    if (contador) {
-        contador.textContent = `${medicamentosSeleccionados.length} medicamento(s) agregado(s)`;
-    }
+/**
+ * Inicializar validación del formulario
+ */
+function inicializarFormulario() {
+    const form = document.getElementById('form-colectivo');
+    
+    if (!form) return;
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // ✅ Validar según el tipo de colectivo
+        const tipo = document.querySelector('input[name="tipo_colectivo"]:checked').value;
+        
+        if (tipo === 'PACIENTE') {
+            // Validar campos de paciente
+            const pacienteId = document.getElementById('paciente_id').value;
+            const numeroCama = document.getElementById('numero_cama').value;
+            
+            if (!pacienteId) {
+                alert('Selecciona un paciente');
+                return;
+            }
+            
+            if (!numeroCama) {
+                alert('Ingresa el número de cama');
+                return;
+            }
+        } else if (tipo === 'STOCK') {
+            // Validar campos de stock
+            const turno = document.getElementById('turno').value;
+            
+            if (!turno) {
+                alert('Selecciona el turno solicitante');
+                return;
+            }
+        }
+        
+        // Validar servicio (común para ambos tipos)
+        const servicio = document.getElementById('servicio').value;
+        if (!servicio) {
+            alert('Selecciona el servicio');
+            return;
+        }
+        
+        // Validar medicamentos
+        if (medicamentosSeleccionados.length === 0) {
+            alert('Agrega al menos un medicamento');
+            return;
+        }
+        
+        // ✅ Agregar medicamentos como campos ocultos
+        medicamentosSeleccionados.forEach(med => {
+            const inputId = document.createElement('input');
+            inputId.type = 'hidden';
+            inputId.name = 'medicamento_id[]';
+            inputId.value = med.id;
+            form.appendChild(inputId);
+            
+            const inputCant = document.createElement('input');
+            inputCant.type = 'hidden';
+            inputCant.name = 'cantidad[]';
+            inputCant.value = med.cantidad;
+            form.appendChild(inputCant);
+        });
+        
+        // ✅ Deshabilitar campos no necesarios según el tipo
+        if (tipo === 'STOCK') {
+            document.getElementById('paciente_id').disabled = true;
+            const numeroCama = document.getElementById('numero_cama');
+            if (numeroCama) numeroCama.disabled = true;
+        } else if (tipo === 'PACIENTE') {
+            document.getElementById('turno').disabled = true;
+        }
+        
+        // Enviar formulario
+        form.submit();
+    });
 }
 
-// ===== VALIDAR FORMULARIO =====
-function validarFormulario(e) {
-    const pacienteId = document.getElementById('paciente_id').value;
-    const numeroCama = document.getElementById('numero_cama').value;
-    const servicio = document.getElementById('servicio').value;
-    
-    if (!pacienteId) {
-        e.preventDefault();
-        alert('Selecciona un paciente válido');
-        return false;
-    }
-    
-    if (!numeroCama.trim()) {
-        e.preventDefault();
-        alert('Ingresa el número de cama');
-        return false;
-    }
-    
-    if (!servicio.trim()) {
-        e.preventDefault();
-        alert('Ingresa el servicio');
-        return false;
-    }
-    
-    if (medicamentosSeleccionados.length === 0) {
-        e.preventDefault();
-        alert('Debes agregar al menos un medicamento');
-        return false;
-    }
-    
-    // Todo válido
-    return true;
-}
-
-// ===== EXPORTAR FUNCIONES GLOBALES =====
+// Exportar funciones globales
 window.eliminarMedicamento = eliminarMedicamento;

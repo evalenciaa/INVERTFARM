@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/formularios.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/colectivos.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/tipo_colectivo.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -30,7 +31,7 @@
                 Enfermería
             </a>
             <span class="separator">›</span>
-            <a href="{% url 'lista_colectivos_enfermeria' %}" class="active">
+            <a href="{% url 'lista_colectivos_enfermeria' %}">
                 <i class="fas fa-users"></i>
                 Colectivos
             </a>
@@ -40,7 +41,7 @@
                 Nuevo Colectivo
             </a>
         </div>
-        
+    </div>
 
     <!-- Contenido Principal -->
     <div class="main-content">
@@ -66,62 +67,107 @@
             <form method="POST" id="form-colectivo">
                 {% csrf_token %}
                 
-                <!-- Sección 1: Información del Paciente -->
+                <!-- Sección: Tipo de Colectivo -->
                 <div class="form-section">
-                    <h3><i class="fas fa-user"></i> Información del Paciente</h3>
+                    <h3><i class="fas fa-clipboard-list"></i> Tipo de Colectivo</h3>
                     
-                    <div class="form-row">
-                        <div class="form-group autocomplete-container">
-                            <label for="paciente-input" class="required">Paciente</label>
-                            <input 
-                                type="text" 
-                                id="paciente-input" 
-                                class="form-control" 
-                                placeholder="Buscar por nombre o CURP..."
-                                autocomplete="off"
-                                required
-                            >
-                            <input type="hidden" id="paciente_id" name="paciente_id">
-                            <div id="resultados-paciente" class="autocomplete-results"></div>
-                            <div class="form-help">
-                                <i class="fas fa-info-circle"></i>
-                                Escribe al menos 2 caracteres para buscar
+                    <div class="tipo-selector">
+                        <div class="tipo-card selected" id="card-paciente" onclick="seleccionarTipo('PACIENTE')">
+                            <input type="radio" name="tipo_colectivo" value="PACIENTE" id="tipo-paciente" checked>
+                            <div class="tipo-icon">
+                                <i class="fas fa-user-injured"></i>
+                            </div>
+                            <div class="tipo-content">
+                                <h4>Colectivo para Paciente</h4>
+                                <p>Surtir medicamentos para un paciente específico</p>
                             </div>
                         </div>
                         
-                        <div class="form-group">
-                            <label for="numero_cama" class="required">Número de Cama</label>
-                            <input 
-                                type="text" 
-                                id="numero_cama" 
-                                name="numero_cama" 
-                                class="form-control" 
-                                placeholder="Ej: C-101"
-                                required
-                            >
+                        <div class="tipo-card" id="card-stock" onclick="seleccionarTipo('STOCK')">
+                            <input type="radio" name="tipo_colectivo" value="STOCK" id="tipo-stock">
+                            <div class="tipo-icon">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                            <div class="tipo-content">
+                                <h4>Colectivo para Stock</h4>
+                                <p>Resurtir inventario del área de enfermería</p>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="servicio" class="required">Servicio</label>
-                        <select id="servicio" name="servicio" class="form-control" required>
-                            <option value="">Seleccione un servicio...</option>
-                            <option value="Urgencias">Urgencias</option>
-                            <option value="Hospitalización Adultos">Hospitalización Adultos</option>
-                            <option value="Hospitalización Pediatría">Hospitalización Pediatría</option>
-                            <option value="UCI Adultos">UCI Adultos</option>
-                            <option value="UCI Neonatal">UCI Neonatal</option>
-                            <option value="UCI Pediátrica">UCI Pediátrica</option>
-                            <option value="Quirófano">Quirófano</option>
-                            <option value="Sala de Choque">Sala de Choque</option>
-                            <option value="Labor">Labor</option>
-                            <option value="Expulsión">Expulsión</option>
-                            <option value="Tococirugía">Tococirugía</option>
-                        </select>
                     </div>
                 </div>
 
-                <!-- Sección 2: Medicamentos -->
+                <!-- Sección: Información del Paciente -->
+                <div class="form-section seccion-visible" id="seccion-paciente">
+                    <h3><i class="fas fa-user"></i> Información del Paciente</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.paciente.id_for_label }}" class="required">
+                                {{ form.paciente.label }}
+                            </label>
+                            {{ form.paciente }}
+                            {% if form.paciente.errors %}
+                                <div class="field-error">
+                                    {{ form.paciente.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.numero_cama.id_for_label }}" class="required">
+                                {{ form.numero_cama.label }}
+                            </label>
+                            {{ form.numero_cama }}
+                            {% if form.numero_cama.errors %}
+                                <div class="field-error">
+                                    {{ form.numero_cama.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección: Información del Stock -->
+                <div class="form-section seccion-oculta" id="seccion-stock">
+                    <h3><i class="fas fa-warehouse"></i> Información del Stock</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="{{ form.turno.id_for_label }}" class="required">
+                                {{ form.turno.label }}
+                            </label>
+                            {{ form.turno }}
+                            {% if form.turno.errors %}
+                                <div class="field-error">
+                                    {{ form.turno.errors }}
+                                </div>
+                            {% endif %}
+                            <div class="form-help">
+                                <i class="fas fa-info-circle"></i>
+                                Selecciona el turno que solicita el resurtido
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección: Servicio -->
+                <div class="form-section">
+                    <h3><i class="fas fa-building"></i> Servicio</h3>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.servicio.id_for_label }}" class="required">
+                            {{ form.servicio.label }}
+                        </label>
+                        {{ form.servicio }}
+                        {% if form.servicio.errors %}
+                            <div class="field-error">
+                                {{ form.servicio.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Sección: Medicamentos -->
                 <div class="form-section">
                     <h3><i class="fas fa-pills"></i> Medicamentos Solicitados</h3>
                     
@@ -188,19 +234,15 @@
                     </div>
                 </div>
 
-                <!-- Sección 3: Observaciones -->
+                <!-- Sección: Observaciones -->
                 <div class="form-section">
                     <h3><i class="fas fa-comment-medical"></i> Observaciones (Opcional)</h3>
                     
                     <div class="form-group">
-                        <label for="observaciones">Indicaciones especiales</label>
-                        <textarea 
-                            id="observaciones" 
-                            name="observaciones" 
-                            class="form-control" 
-                            rows="4"
-                            placeholder="Ej: Paciente alérgico a penicilina, administrar con alimentos, etc."
-                        ></textarea>
+                        <label for="{{ form.observaciones_enfermeria.id_for_label }}">
+                            {{ form.observaciones_enfermeria.label }}
+                        </label>
+                        {{ form.observaciones_enfermeria }}
                         <div class="form-help">
                             <i class="fas fa-info-circle"></i>
                             Incluye cualquier información relevante para farmacia
@@ -223,8 +265,9 @@
 
     <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
     <script src="{% static 'enfermeria/js/crear_colectivo.js' %}"></script>
+    <script src="{% static 'enfermeria/js/tipo_colectivo.js' %}"></script>
 
-        <div class="page-footer">
+    <div class="page-footer">
         <div class="footer-user-info">
             <i class="fas fa-user-circle"></i>
             <div class="footer-user-details">
@@ -243,6 +286,38 @@
             <span>Cerrar Sesión</span>
         </a>
     </div>
+
+
+    <script>
+    // Validación antes de enviar el formulario
+    document.getElementById('form-colectivo').addEventListener('submit', function(e) {
+        const tipo = document.querySelector('input[name="tipo_colectivo"]:checked').value;
+        
+        // ✅ Si es STOCK, limpiar y deshabilitar campos de paciente
+        if (tipo === 'STOCK') {
+            const campoPaciente = document.getElementById('paciente_id');
+            const campoNumeroCama = document.getElementById('numero_cama');
+            
+            if (campoPaciente) {
+                campoPaciente.value = '';
+                campoPaciente.disabled = true;
+            }
+            if (campoNumeroCama) {
+                campoNumeroCama.value = '';
+                campoNumeroCama.disabled = true;
+            }
+        }
+        
+        // ✅ Si es PACIENTE, limpiar y deshabilitar campo de turno
+        if (tipo === 'PACIENTE') {
+            const campoTurno = document.getElementById('turno');
+            if (campoTurno) {
+                campoTurno.value = '';
+                campoTurno.disabled = true;
+            }
+        }
+    });
+    </script>
 
 </body>
 </html>

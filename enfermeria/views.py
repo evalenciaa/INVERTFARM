@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import permission_required
 from django.views.decorators.cache import never_cache
 from datetime import datetime, timedelta
 from .models import Colectivo, ColectivoMedicamento
+from .forms import ColectivoForm
 from farmacia.models import Medicamento, Paciente, Lote
 
 # ===== DECORADOR DE PERMISOS =====
@@ -89,76 +90,98 @@ def lista_colectivos_enfermeria(request):
     })
 
 
-# ===== CREAR NUEVO COLECTIVO =====
 @never_cache
 @login_required(login_url='login')
 @user_passes_test(enfermeria_requerida, login_url='principal')
 @require_http_methods(["GET", "POST"])
 def crear_colectivo(request):
     """
-    Formulario para crear un nuevo colectivo
+    Formulario para crear un nuevo colectivo (Paciente o Stock)
     """
     if request.method == 'POST':
-        try:
-            # Obtener datos del formulario
-            paciente_id = request.POST.get('paciente_id')
-            numero_cama = request.POST.get('numero_cama')
-            servicio = request.POST.get('servicio')
-            observaciones = request.POST.get('observaciones', '')
+        # ✅ DEBUG: Ver datos recibidos
+        print("=" * 50)
+        print("📥 DATOS RECIBIDOS DEL FORMULARIO:")
+        print(f"   tipo_colectivo: {request.POST.get('tipo_colectivo')}")
+        print(f"   paciente: {request.POST.get('paciente')}")
+        print(f"   numero_cama: {request.POST.get('numero_cama')}")
+        print(f"   turno: {request.POST.get('turno')}")
+        print(f"   servicio: {request.POST.get('servicio')}")
+        print("=" * 50)
+        
+        form = ColectivoForm(request.POST)
+        
+        # Obtener medicamentos
+        medicamentos_ids = request.POST.getlist('medicamento_id[]')
+        cantidades = request.POST.getlist('cantidad[]')
+        
+        if form.is_valid():
+            # Validar que haya al menos un medicamento
+            medicamentos_validos = [
+                (med_id, cant) for med_id, cant in zip(medicamentos_ids, cantidades)
+                if med_id and cant and int(cant) > 0
+            ]
             
-            # Validaciones
-            if not all([paciente_id, numero_cama, servicio]):
-                messages.error(request, 'Todos los campos obligatorios deben ser completados')
-                return redirect('crear_colectivo')
+            if not medicamentos_validos:
+                messages.error(request, 'Debe agregar al menos un medicamento al colectivo')
+                return render(request, 'crear_colectivo.html', {
+                    'form': form,
+                    'medicamentos': Medicamento.objects.filter(activo=True).order_by('descripcion')
+                })
             
-            # Obtener paciente
-            paciente = get_object_or_404(Paciente, id=paciente_id)
-            
-            # Crear colectivo
-            colectivo = Colectivo.objects.create(
-                paciente=paciente,
-                enfermero_solicitante=request.user,
-                numero_cama=numero_cama,
-                servicio=servicio,
-                observaciones_enfermeria=observaciones,
-                estado='PENDIENTE'
-            )
-            
-            # Procesar medicamentos
-            medicamentos_ids = request.POST.getlist('medicamento_id[]')
-            cantidades = request.POST.getlist('cantidad[]')
-            
-            if not medicamentos_ids:
-                colectivo.delete()
-                messages.error(request, 'Debe agregar al menos un medicamento')
-                return redirect('crear_colectivo')
-            
-            # Crear relaciones de medicamentos
-            for med_id, cantidad in zip(medicamentos_ids, cantidades):
-                if med_id and cantidad:
-                    medicamento = get_object_or_404(Medicamento, id=med_id)
-                    ColectivoMedicamento.objects.create(
-                        colectivo=colectivo,
-                        medicamento=medicamento,
-                        cantidad_solicitada=int(cantidad)
-                    )
-            
-            messages.success(request, f'Colectivo {colectivo.folio} creado exitosamente')
-            return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
-            
-        except Exception as e:
-            messages.error(request, f'Error al crear colectivo: {str(e)}')
-            return redirect('crear_colectivo')
+            try:
+                with transaction.atomic():
+                    # Crear colectivo
+                    colectivo = form.save(commit=False)
+                    colectivo.enfermero_solicitante = request.user
+                    colectivo.estado = 'PENDIENTE'
+                    colectivo.save()
+                    
+                    # Agregar medicamentos
+                    for med_id, cantidad in medicamentos_validos:
+                        try:
+                            medicamento = Medicamento.objects.get(id=med_id)
+                            ColectivoMedicamento.objects.create(
+                                colectivo=colectivo,
+                                medicamento=medicamento,
+                                cantidad_solicitada=int(cantidad)
+                            )
+                        except Medicamento.DoesNotExist:
+                            continue
+                    
+                    # Mensaje según el tipo
+                    if colectivo.tipo_colectivo == 'PACIENTE':
+                        mensaje = f'Colectivo {colectivo.folio} para paciente {colectivo.paciente.nombre_completo} creado exitosamente'
+                    else:
+                        mensaje = f'Colectivo de stock {colectivo.folio} para {colectivo.servicio} ({colectivo.get_turno_display()}) creado exitosamente'
+                    
+                    messages.success(request, mensaje)
+                    return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
+                    
+            except Exception as e:
+                messages.error(request, f'Error al crear colectivo: {str(e)}')
+                print(f"❌ ERROR: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            # ✅ DEBUG: Mostrar errores del formulario
+            print("❌ ERRORES DEL FORMULARIO:")
+            for field, errors in form.errors.items():
+                print(f"   {field}: {errors}")
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+    else:
+        form = ColectivoForm()
     
-    # GET - Mostrar formulario
-    pacientes = Paciente.objects.all().order_by('nombre_completo')
+    # Contexto
     medicamentos = Medicamento.objects.filter(activo=True).order_by('descripcion')
     
     return render(request, 'crear_colectivo.html', {
-        'pacientes': pacientes,
+        'form': form,
         'medicamentos': medicamentos,
         'user': request.user
     })
+
 
 
 # ===== VER DETALLE DE COLECTIVO (ENFERMERÍA) =====

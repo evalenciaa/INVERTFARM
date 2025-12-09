@@ -14,6 +14,10 @@ import os
 pymysql.install_as_MySQLdb()
 from pathlib import Path
 from celery.schedules import crontab
+from dotenv import load_dotenv
+
+load_dotenv() 
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-$$rdz5zs!=tq3b9(6d5(a6okbwc8@vwrp9co8)rm1y6h(wb$uv'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-por-defecto')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -108,11 +112,11 @@ WSGI_APPLICATION = 'inventfarm.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'INVENTFARM',
-        'USER': 'root',
-        'PASSWORD': 'mirreysolitario20',
-        'HOST': 'localhost',   # O el IP de tu servidor MySQL
-        'PORT': '3306',        # Puerto por defecto de MySQL
+        'NAME': os.getenv('DB_NAME', 'INVENTFARM'),
+        'USER': os.getenv('DB_USER', 'root'),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''), # <--- Aquí está la magia
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '3306'),      # Puerto por defecto de MySQL
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         }
@@ -189,7 +193,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'valenciaeliu@gmail.com'  # ✅ Coloca aquí tu correo
-EMAIL_HOST_PASSWORD = 'wwxj ygcj shrc qgfa'  # ⚠️ Usa una contraseña de aplicación
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # ⚠️ Usa una contraseña de aplicación
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
@@ -197,7 +201,7 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_BEAT_SCHEDULE = {
     'verificar-alertas-cpm': {
-        'task': 'tu_app.tasks.verificar_alertas_cpm',
+        'task': 'farmacia.tasks.verificar_alertas_cpm',
         'schedule': crontab(hour=8, minute=0),  # Ejecutar diariamente a las 8:00 AM
     },
 }
