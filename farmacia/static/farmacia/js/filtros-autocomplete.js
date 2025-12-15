@@ -1,11 +1,11 @@
-// filtros-autocomplete.js - Sistema de autocompletado para filtros
-console.log('🎯 Cargando sistema de autocompletado para filtros');
-
 document.addEventListener('DOMContentLoaded', function() {
     // Elementos del DOM
     const filtroMedicamentoInput = document.getElementById('filtro-medicamento-input');
     const filtroMedicamentoId = document.getElementById('filtro-medicamento-id');
     const resultadosFiltro = document.getElementById('resultados-filtro-medicamento');
+
+    // Si esta vista no tiene el autocompletado, no inicializar nada (y no sobreescribir window.limpiarFiltros)
+    if (!filtroMedicamentoInput || !filtroMedicamentoId || !resultadosFiltro) return;
     const filtroColor = document.getElementById('filtro-color');
     const btnFiltrar = document.getElementById('btn-filtrar');
     const btnLimpiar = document.getElementById('btn-limpiar');
@@ -150,29 +150,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function limpiarFiltros() {
-        console.log('🧹 Limpiando filtros...');
-        
-        if (filtroMedicamentoInput) {
-            filtroMedicamentoInput.value = '';
-            filtroMedicamentoId.value = '';
-        }
-        
-        if (filtroColor) {
-            filtroColor.value = '';
-        }
-        
-        resultadosFiltro.style.display = 'none';
-        filtrarTabla();
-        
-        console.log('✅ Filtros limpiados');
+    if (filtroMedicamentoInput) {
+        filtroMedicamentoInput.value = '';
+        if (filtroMedicamentoId) filtroMedicamentoId.value = '';
+    }
+    if (filtroColor) filtroColor.value = '';
+    if (resultadosFiltro) resultadosFiltro.style.display = 'none';
+    if (typeof filtrarTabla === 'function') filtrarTabla();
     }
 
-    // Hacer funciones disponibles globalmente
-    window.filtrarTabla = filtrarTabla;
-    window.limpiarFiltros = limpiarFiltros;
+        // Hacer funciones disponibles globalmente
+        window.filtrarTabla = filtrarTabla;
+        window.limpiarFiltros = limpiarFiltros;
 
-    console.log('🎉 Sistema de autocompletado para filtros inicializado');
-});
+        console.log('🎉 Sistema de autocompletado para filtros inicializado');
+    });
 
 // En filtros.js - Actualizar la función guardarFila
 function guardarFila(loteId) {

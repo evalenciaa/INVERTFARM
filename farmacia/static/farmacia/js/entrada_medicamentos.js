@@ -104,17 +104,19 @@ function mostrarNotificacion(tipo, mensaje) {
     }
     
     function toggleTipoEntrada() {
-        if (tipoEntrada.value === 'TRANSFERENCIA') {
-            grupoInstitucion.style.display = 'block';
-            grupoAlmacen.style.display = 'none';
-            document.getElementById('institucion').required = true;
-            document.getElementById('almacen').required = false;
-        } else {
-            grupoInstitucion.style.display = 'none';
-            grupoAlmacen.style.display = 'block';
-            document.getElementById('institucion').required = false;
-            document.getElementById('almacen').required = true;
-        }
+    if (tipoEntrada.value === 'TRANSFERENCIA') {
+        grupoInstitucion.style.display = 'block';
+        grupoAlmacen.style.display = 'none';
+        document.getElementById('institucion').required = true;
+        document.getElementById('almacen').required = false;
+        document.getElementById('almacen').value = '';
+    } else {
+        grupoInstitucion.style.display = 'none';
+        grupoAlmacen.style.display = 'block';
+        document.getElementById('institucion').required = false;
+        document.getElementById('almacen').required = true;
+        document.getElementById('institucion').value = '';
+    }
     }
     
     function agregarEntrada() {

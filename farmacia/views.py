@@ -266,11 +266,18 @@ def editar_lote(request, lote_id):
 
 
 def tiene_acceso_farmacia(user):
-    return user.groups.filter(name__in=[
-        'Administrador',
-        'Capturista_Farmacia',
-        'Supervisor_Farmacia'
-    ]).exists()
+    return (
+        user.is_authenticated and (
+            user.is_superuser
+            or user.rol in ['ADMIN', 'FARMACIA']
+            or user.groups.filter(name__in=[
+                'Administradores',       # el que sí existe
+                'Administrador',
+                'Capturista_Farmacia',
+                'Supervisor_Farmacia'
+            ]).exists()
+        )
+    )
 
 
 @never_cache
@@ -401,9 +408,10 @@ def inventario_general(request):
         )
     
     # ✅ CALCULAR ESTADÍSTICAS DE STOCK
-    stock_adecuado = 0  # >= 100% CPM
-    stock_bajo = 0      # 50-99% CPM
-    desabasto = 0       # < 50% CPM
+    sobreabasto = 0     # > 100% CPM
+    stock_adecuado = 0  # 50-100% CPM
+    stock_bajo = 0      # 1-49% CPM
+    desabasto = 0       # 0% CPM
     
     # Agregar porcentaje a cada item
     inventario_con_porcentaje = []
@@ -418,16 +426,19 @@ def inventario_general(request):
             porcentaje = 0  # Sin CPM definido
         
         # Clasificar estado
-        if cpm > 0:  # Solo clasificar si tiene CPM
-            if porcentaje >= 100:
-                stock_adecuado += 1
-                estado = 'adecuado'
+        if cpm > 0:
+            if porcentaje > 100:
+                estado = 'sobreabasto'
+                sobreabasto += 1
             elif porcentaje >= 50:
-                stock_bajo += 1
+                estado = 'adecuado'
+                stock_adecuado += 1
+            elif porcentaje > 0:
                 estado = 'bajo'
+                stock_bajo += 1
             else:
+                estado = 'desabasto'  # coincide con el <select>
                 desabasto += 1
-                estado = 'critico'
         else:
             estado = 'sin-cpm'
         
@@ -440,6 +451,7 @@ def inventario_general(request):
         'inventario': inventario_con_porcentaje,
         'busqueda_actual': busqueda,
         'total_medicamentos': len(inventario_con_porcentaje),
+        'sobreabasto': sobreabasto,  # si quieres mostrarlo en stats
         'stock_adecuado': stock_adecuado,
         'stock_bajo': stock_bajo,
         'desabasto': desabasto,
@@ -557,39 +569,31 @@ def registro_medicamento(request):
         form = MedicamentoForm(request.POST)
         if form.is_valid():
             try:
-                # Guardar medicamento sin commitir aún
                 medicamento = form.save(commit=False)
-                
-                # Generar ID automático
-                if not medicamento.id:
-                    medicamento.id = f"MED-{Medicamento.objects.count() + 1:04d}"
-                
-                # Establecer valores por defecto para campos no requeridos
+
+                # NO generar medicamento.id: ahora es BigAutoField (numérico)
                 medicamento.activo = True
                 medicamento.costo = 0.00
                 medicamento.codigo_barras = None
                 medicamento.proveedor = None
                 medicamento.presentacion = None
-                
-                # Guardar el medicamento
+
                 medicamento.save()
-                
+
                 messages.success(
-                    request, 
+                    request,
                     f'✓ Medicamento "{medicamento.clave}" registrado correctamente. '
                     f'Ahora puedes agregar lotes desde el módulo de Entradas.'
                 )
-                
-                # Redirigir al inventario general (ajusta el nombre según tu urls.py)
-                return redirect('farmacia_g')  # ← CORREGIDO
-                
+                return redirect('farmacia_g')
+
             except Exception as e:
                 messages.error(request, f'Error al registrar medicamento: {str(e)}')
         else:
             messages.error(request, 'Error en el formulario. Verifica los datos.')
     else:
         form = MedicamentoForm()
-    
+
     return render(request, 'registro_medicamento.html', {'form': form})
 
 
@@ -708,71 +712,112 @@ def buscar_medicamentos(request):
 def guardar_entradas(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
-    
+
     try:
         data = json.loads(request.body)
-        
-        # Validación de campos requeridos
-        required_fields = ['folio', 'fecha', 'tipo_entrada', 'recibido_por', 'detalles', 'fuente_financiamiento', 'proceso']
+
+        # Campos requeridos (snake_case)
+        required_fields = [
+            'folio', 'fecha', 'tipo_entrada', 'recibido_por',
+            'detalles', 'fuente_financiamiento', 'proceso'
+        ]
         for field in required_fields:
-            if field not in data or not data[field]:
+            if field not in data or data[field] in (None, '', []):
                 return JsonResponse({'error': f'Campo {field} es requerido'}, status=400)
-        
+
         if not isinstance(data['detalles'], list) or len(data['detalles']) == 0:
             return JsonResponse({'error': 'Debe incluir al menos un medicamento'}, status=400)
 
+        tipo = data['tipo_entrada']
+        almacen_id = data.get('almacen')
+        institucion_id = data.get('institucion')
+
+        # Validar origen según tipo
+        if tipo == 'ALMACEN':
+            if not almacen_id:
+                return JsonResponse({'error': 'Seleccione un almacén'}, status=400)
+            institucion_id = None
+        elif tipo == 'TRANSFERENCIA':
+            if not institucion_id:
+                return JsonResponse({'error': 'Seleccione una institución'}, status=400)
+            almacen_id = None
+        else:
+            return JsonResponse({'error': 'Tipo de entrada inválido'}, status=400)
+
         with transaction.atomic():
-            # Crear entrada principal
             entrada = Entrada.objects.create(
                 folio=data['folio'],
                 fecha=data['fecha'],
-                tipo_entrada=data['tipo_entrada'],
-                almacen_id=data.get('almacen'),
-                institucion_id=data.get('institucion'),
+                tipo_entrada=tipo,
+                almacen_id=almacen_id,
+                institucion_id=institucion_id,
                 fuente_financiamiento_id=data['fuente_financiamiento'],
                 contrato=data.get('contrato', ''),
                 proceso=data['proceso'],
-                recibido_por_id=data['recibido_por']
+                recibido_por_id=data['recibido_por'],
+                observaciones=data.get('observaciones', '')
             )
-            
-            # Procesar cada detalle
-            for detalle in data['detalles']:
-                # Validar campos del detalle
-                detalle_required = ['medicamento_id', 'lote', 'caducidad', 'cantidad', 'precio_unitario', 'presentacion_id']
-                for field in detalle_required:
-                    if field not in detalle:
-                        raise ValueError(f'Campo {field} es requerido en los detalles')
-                
-                # Crear detalle
-                DetalleEntrada.objects.create(
+
+            detalle_fields = {f.name for f in DetalleEntrada._meta.fields}
+
+            for det in data['detalles']:
+                detalle_required = [
+                    'medicamento_id', 'lote', 'caducidad',
+                    'cantidad', 'precio_unitario', 'presentacion_id'
+                ]
+                for f in detalle_required:
+                    if f not in det or det[f] in (None, ''):
+                        return JsonResponse({'error': f'Campo {f} es requerido en los detalles'}, status=400)
+
+                # Crear detalle con compatibilidad por si el campo se llama distinto
+                kwargs_det = dict(
                     entrada=entrada,
-                    medicamento_id=detalle['medicamento_id'],
-                    lote=detalle['lote'],
-                    caducidad=detalle['caducidad'],
-                    cantidad=detalle['cantidad'],
-                    precio_unitario=detalle['precio_unitario'],
-                    presentacion_id=detalle['presentacion_id']
+                    medicamento_id=det['medicamento_id'],
+                    lote=det['lote'],
+                    caducidad=det['caducidad'],
+                    cantidad=det['cantidad'],
+                    presentacion_id=det['presentacion_id'],
                 )
-                
-                # Actualizar inventario
-                Lote.actualizar_inventario(
-                    medicamento_id=detalle['medicamento_id'],
-                    lote_codigo=detalle['lote'],
-                    cantidad=detalle['cantidad'],
-                    fecha_caducidad=detalle['caducidad'],
-                    presentacion_id=detalle['presentacion_id']
-                )
-            
+                if 'precio_unitario' in detalle_fields:
+                    kwargs_det['precio_unitario'] = det['precio_unitario']
+                elif 'preciounitario' in detalle_fields:
+                    kwargs_det['preciounitario'] = det['precio_unitario']
+                else:
+                    return JsonResponse({'error': 'El modelo DetalleEntrada no tiene campo de precio unitario'}, status=500)
+
+                DetalleEntrada.objects.create(**kwargs_det)
+
+                # Actualizar inventario: intenta ambos nombres de método
+                if hasattr(Lote, 'actualizar_inventario'):
+                    Lote.actualizar_inventario(
+                        medicamento_id=det['medicamento_id'],
+                        lote_codigo=det['lote'],
+                        cantidad=det['cantidad'],
+                        fecha_caducidad=det['caducidad'],
+                        presentacion_id=det['presentacion_id'],
+                    )
+                elif hasattr(Lote, 'actualizarinventario'):
+                    Lote.actualizarinventario(
+                        medicamentoid=det['medicamento_id'],
+                        lotecodigo=det['lote'],
+                        cantidad=det['cantidad'],
+                        fechacaducidad=det['caducidad'],
+                        presentacionid=det['presentacion_id'],
+                    )
+                else:
+                    return JsonResponse({'error': 'No existe método para actualizar inventario en Lote'}, status=500)
+
             return JsonResponse({
                 'success': True,
                 'folio': entrada.folio,
                 'redirect_url': reverse('farmacia_g')
             })
-    
+
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Datos JSON inválidos'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+
 
 
 @csrf_exempt

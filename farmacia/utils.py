@@ -244,79 +244,56 @@ class ProcesadorCargaMasiva:
             return None
     
     def _procesar_medicamentos_bulk(self, datos_validados):
-        """
-        Procesa medicamentos respetando que cada clave es ÚNICA.
-        Agrupa por clave exacta para evitar procesamiento redundante.
-        """
-        # Agrupar por clave EXACTA
         medicamentos_unicos = {}
-        
         for dato in datos_validados:
-            clave = dato['clave']  # Ya viene limpia y en mayúsculas
-            
-            # Usar la PRIMERA ocurrencia de cada clave
+            clave = dato['clave']
             if clave not in medicamentos_unicos:
                 medicamentos_unicos[clave] = {
                     'descripcion': dato['descripcion'],
                     'precio': dato['precio']
                 }
-        
-        # Obtener medicamentos existentes en BD
-        claves_existentes_objs = Medicamento.objects.filter(
-            clave__in=medicamentos_unicos.keys()
-        )
-        
-        # Crear diccionario de medicamentos existentes
-        medicamentos_existentes = {med.clave: med for med in claves_existentes_objs}
-        
-        # Separar medicamentos a crear vs actualizar
+
+        existentes = Medicamento.objects.filter(clave__in=medicamentos_unicos.keys())
+        medicamentos_existentes = {m.clave: m for m in existentes}
+
         medicamentos_a_crear = []
         medicamentos_a_actualizar = []
-        
+
         for clave, datos in medicamentos_unicos.items():
             if clave in medicamentos_existentes:
-                # ACTUALIZAR medicamento existente (solo si hay cambios)
                 med = medicamentos_existentes[clave]
                 actualizado = False
-                
+
                 if med.descripcion != datos['descripcion']:
                     med.descripcion = datos['descripcion']
                     actualizado = True
-                
+
                 if float(med.costo) != datos['precio']:
                     med.costo = datos['precio']
                     actualizado = True
-                
+
                 if actualizado:
                     medicamentos_a_actualizar.append(med)
-                
-                # Guardar en cache para uso posterior
+
                 self.medicamentos_cache[clave] = med
             else:
-                # CREAR nuevo medicamento
-                contador = Medicamento.objects.count() + len(medicamentos_a_crear) + 1
-                nuevo_med = Medicamento(
-                    id=f"MED-{contador:04d}",
+                medicamentos_a_crear.append(Medicamento(
                     clave=clave,
-                    descripcion=datos['descripcion'],
-                    costo=datos['precio'],
+                    descripcion=datos["descripcion"],
+                    costo=datos["precio"],
                     activo=True
-                )
-                medicamentos_a_crear.append(nuevo_med)
-        
-        # Ejecutar bulk operations
+                ))
+
         if medicamentos_a_crear:
             Medicamento.objects.bulk_create(medicamentos_a_crear, batch_size=100)
-            # Actualizar cache con nuevos medicamentos
-            for med in medicamentos_a_crear:
+
+            # Recargar para asegurar IDs y objetos reales en cache
+            nuevas_claves = [m.clave for m in medicamentos_a_crear]
+            for med in Medicamento.objects.filter(clave__in=nuevas_claves):
                 self.medicamentos_cache[med.clave] = med
-        
+
         if medicamentos_a_actualizar:
-            Medicamento.objects.bulk_update(
-                medicamentos_a_actualizar, 
-                ['descripcion', 'costo'], 
-                batch_size=100
-            )
+            Medicamento.objects.bulk_update(medicamentos_a_actualizar, ['descripcion', 'costo'], batch_size=100)
     
     def _procesar_lotes_bulk(self, datos_validados):
         """

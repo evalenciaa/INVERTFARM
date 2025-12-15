@@ -269,9 +269,6 @@
             <button class="btn-exportar-option" onclick="exportarPDF()">
                 <i class="fas fa-file-pdf"></i> Exportar a PDF
             </button>
-            <button class="btn-exportar-option" onclick="exportarCSV()">
-                <i class="fas fa-file-csv"></i> Exportar a CSV
-            </button>
         </div>
         <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="cerrarMenuExportacion()">
             <i class="fas fa-times"></i> Cancelar
@@ -352,10 +349,11 @@
 <div id="modal-overlay-eliminar" style="display: none;" onclick="cerrarModalEliminar()"></div>
 
 
+<form style="display:none;">{% csrf_token %}</form>
+
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{% static 'farmacia/js/inv_gene_f.js' %}"></script>
-    <script src="{% static 'farmacia/js/filtros-autocomplete.js' %}"></script>
     
     <script>
         // Calcular estadísticas al cargar
@@ -364,26 +362,28 @@
         });
 
         function calcularEstadisticas() {
-            const filas = document.querySelectorAll('.medicamento-row');
-            let stockAdecuado = 0;
-            let stockBajo = 0;
-            let desabasto = 0;
+        const filas = document.querySelectorAll('tbody tr[data-medicamento-id]');
+        let stockAdecuado = 0, stockBajo = 0, desabasto = 0;
 
-            filas.forEach(fila => {
-                const existencia = parseInt(fila.querySelector('.existencia-cell').dataset.existencia) || 0;
-                const cpm = parseInt(fila.querySelector('.cpm-cell').dataset.cpm) || 0;
+        filas.forEach(fila => {
+            const existencia = parseInt(fila.dataset.existencia || '0', 10);
+            const cpm = parseInt(fila.dataset.cpm || '0', 10);
 
-                if (cpm > 0) {
-                    const porcentaje = (existencia / cpm) * 100;
-                    if (porcentaje <= 0) desabasto++;
-                    else if (porcentaje < 50) stockBajo++;
-                    else stockAdecuado++;
-                }
-            });
+            if (cpm > 0) {
+            const porcentaje = (existencia / cpm) * 100;
+            if (porcentaje <= 0) desabasto++;
+            else if (porcentaje < 50) stockBajo++;
+            else stockAdecuado++;
+            }
+        });
 
-            document.getElementById('stock-adecuado').textContent = stockAdecuado;
-            document.getElementById('stock-bajo').textContent = stockBajo;
-            document.getElementById('desabasto').textContent = desabasto;
+        const elAdecuado = document.querySelector('.stockadecuado');
+        const elBajo = document.querySelector('.stockbajo');
+        const elDesabasto = document.querySelector('.desabasto');
+
+        if (elAdecuado) elAdecuado.textContent = stockAdecuado;
+        if (elBajo) elBajo.textContent = stockBajo;
+        if (elDesabasto) elDesabasto.textContent = desabasto;
         }
     </script>
 </body>

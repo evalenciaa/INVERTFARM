@@ -92,40 +92,23 @@ class Presentacion(models.Model):
 
 
 class Medicamento(models.Model):
-    id = models.CharField(primary_key=True, max_length=50, editable=False)
+    id = models.BigAutoField(primary_key=True)
     clave = models.CharField(max_length=50, unique=True)
     descripcion = models.TextField(verbose_name="Descripción", blank=False)
     codigo_barras = models.CharField(max_length=40, null=True, blank=True)
-    costo = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        verbose_name="Costo Unitario",
-        default=0.00
-    )
+    costo = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Costo Unitario", default=0.00)
+
     proveedor = models.ForeignKey(
-        Proveedor,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name="Proveedor"
+        Proveedor, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Proveedor"
     )
     presentacion = models.ForeignKey(
-        Presentacion,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name="Presentación"
+        Presentacion, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Presentación"
     )
     activo = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.clave} - {self.descripcion}"
-    
-    def save(self, *args, **kwargs):
-        if not self.id:
-            # Generar ID automático si no existe
-            self.id = f"MED-{Medicamento.objects.count() + 1:04d}"
-        super().save(*args, **kwargs)
+
     
 
 class CPM(models.Model):
@@ -427,13 +410,15 @@ class Entrada(models.Model):
     )
     almacen = models.ForeignKey(
         Almacen, 
-        on_delete=models.PROTECT,
-        verbose_name="Almacén"
+        on_delete=models.PROTECT, 
+        null=True, 
+        blank=True
     )
     institucion = models.ForeignKey(
         Institucion, 
-        on_delete=models.PROTECT,
-        verbose_name="Institución"
+        on_delete=models.PROTECT, 
+        null=True, 
+        blank=True
     )
     fuente_financiamiento = models.ForeignKey(
         FuenteFinanciamiento,

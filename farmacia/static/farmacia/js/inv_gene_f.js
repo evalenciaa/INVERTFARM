@@ -225,59 +225,92 @@ function exportarAPDF() {
 
 // En inv_gene_f.js - agregar funciones para editar CPM
 function actualizarCPM(elemento) {
-    const medicamentoId = elemento.getAttribute('data-medicamento-id');
-    const nuevoCPM = elemento.textContent.trim();
-    
-    // Validar que sea un número
-    if (!/^\d+$/.test(nuevoCPM)) {
-        alert('El CPM debe ser un número entero');
-        elemento.textContent = elemento.dataset.valorAnterior || '0';
-        return;
-    }
-    
-    const cpmNum = parseInt(nuevoCPM);
-    if (cpmNum < 0) {
-        alert('El CPM no puede ser negativo');
-        elemento.textContent = elemento.dataset.valorAnterior || '0';
-        return;
-    }
-    
-    // Mostrar loading
-    elemento.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    
-    // Enviar al servidor
-    fetch('/editar-cpm/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCSRFToken()
-        },
-        body: JSON.stringify({
-            medicamento_id: medicamentoId,
-            cpm: cpmNum
-        })
+  const medicamentoId = elemento.getAttribute('data-medicamento-id');
+
+  // Si tu CPM es un <input>, usa .value; si es contenteditable, usa textContent
+  const nuevoCPMStr = (elemento.value !== undefined ? elemento.value : elemento.textContent).trim();
+
+  if (!/^\d+$/.test(nuevoCPMStr)) {
+    alert('El CPM debe ser un número entero');
+    if (elemento.value !== undefined) elemento.value = elemento.dataset.valorAnterior || '0';
+    else elemento.textContent = elemento.dataset.valorAnterior || '0';
+    return;
+  }
+
+  const cpmNum = parseInt(nuevoCPMStr, 10);
+  if (cpmNum < 0) {
+    alert('El CPM no puede ser negativo');
+    if (elemento.value !== undefined) elemento.value = elemento.dataset.valorAnterior || '0';
+    else elemento.textContent = elemento.dataset.valorAnterior || '0';
+    return;
+  }
+
+  const valorAnterior = elemento.dataset.valorAnterior || '0';
+
+  // Loading
+  if (elemento.value !== undefined) elemento.disabled = true;
+  else elemento.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+  const csrfToken = getCSRFToken();
+
+  fetch('/editar-cpm/', {   // ruta existente en tu urls.py [file:52]
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {})
+    },
+    body: JSON.stringify({
+      // manda ambos por compatibilidad, y en backend lees el que tengas
+      medicamento_id: medicamentoId,
+      medicamentoid: medicamentoId,
+      cpm: cpmNum
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            elemento.textContent = data.nuevo_cpm;
-            elemento.dataset.valorAnterior = data.nuevo_cpm;
-            
-            // Actualizar estado de alerta visualmente
-            actualizarEstadoAlerta(medicamentoId, cpmNum);
-            
-            // Mostrar mensaje de éxito
-            mostrarMensajeTemporal('CPM actualizado correctamente', 'success');
-        } else {
-            alert('Error: ' + data.error);
-            elemento.textContent = elemento.dataset.valorAnterior || '0';
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error al actualizar el CPM');
-        elemento.textContent = elemento.dataset.valorAnterior || '0';
-    });
+  })
+  .then(async (response) => {
+    // si Django bloquea (403) devuelve HTML y esto revienta si haces response.json() directo
+    const text = await response.text();
+    try { return JSON.parse(text); } catch { throw new Error(text); }
+  })
+  .then(data => {
+    if (data.success) {
+      const nuevo = (data.nuevo_cpm ?? data.nuevocpm ?? cpmNum).toString();
+
+      if (elemento.value !== undefined) {
+        elemento.value = nuevo;
+        elemento.disabled = false;
+      } else {
+        elemento.textContent = nuevo;
+      }
+
+      elemento.dataset.valorAnterior = nuevo;
+
+      if (typeof actualizarEstadoAlerta === 'function') {
+        actualizarEstadoAlerta(medicamentoId, cpmNum);
+      }
+      if (typeof mostrarMensajeTemporal === 'function') {
+        mostrarMensajeTemporal('CPM actualizado correctamente', 'success');
+      }
+    } else {
+      alert('Error: ' + (data.error || 'No se pudo actualizar el CPM'));
+      if (elemento.value !== undefined) {
+        elemento.value = valorAnterior;
+        elemento.disabled = false;
+      } else {
+        elemento.textContent = valorAnterior;
+      }
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Error al actualizar el CPM');
+
+    if (elemento.value !== undefined) {
+      elemento.value = valorAnterior;
+      elemento.disabled = false;
+    } else {
+      elemento.textContent = valorAnterior;
+    }
+  });
 }
 
 function actualizarEstadoAlerta(medicamentoId, nuevoCPM) {
@@ -312,8 +345,15 @@ function actualizarEstadoAlerta(medicamentoId, nuevoCPM) {
 }
 
 function getCSRFToken() {
-    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+  // 1) Preferido: token renderizado por Django en el HTML
+  const input = document.querySelector('[name=csrfmiddlewaretoken]');
+  if (input && input.value) return input.value;
+
+  // 2) Fallback: cookie csrftoken
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
 }
+
 
 function mostrarMensajeTemporal(mensaje, tipo = 'info') {
     const div = document.createElement('div');
@@ -388,41 +428,43 @@ function cerrarModalEditarCPM() {
 }
 
 function guardarCPM() {
-    const medicamentoId = document.getElementById('edit-medicamento-id').value;
-    const cpmValor = document.getElementById('edit-cpm-input').value;
-    
-    if (!cpmValor || cpmValor < 0) {
-        alert('Por favor ingrese un valor válido para el CPM');
-        return;
+  const medicamentoId = document.getElementById('edit-medicamento-id').value;
+  const cpmValor = document.getElementById('edit-cpm-input').value || '0';
+
+  const tokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+  const csrfToken = tokenInput ? tokenInput.value : '';
+
+  fetch('/actualizar_cpm/', {          // <- URL correcta [file:52]
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    body: JSON.stringify({
+      medicamento_id: medicamentoId,   // <- clave correcta
+      cpm: parseInt(cpmValor, 10)
+    })
+  })
+  .then(async (r) => {
+    const text = await r.text();
+    // si vino HTML (403) no intentes JSON
+    try { return JSON.parse(text); } catch { throw new Error(text); }
+  })
+  .then(data => {
+    if (data.success) {
+      cerrarModalEditarCPM();
+      location.reload();
+    } else {
+      alert(data.error || 'Error al actualizar el CPM');
     }
-    
-    // Hacer petición AJAX para guardar
-    fetch('/actualizar_cpm/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({
-            medicamento_id: medicamentoId,
-            cpm: cpmValor
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('CPM actualizado correctamente');
-            cerrarModalEditarCPM();
-            location.reload();
-        } else {
-            alert('Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error al actualizar el CPM');
-    });
+  })
+  .catch(err => {
+    console.error(err);
+    alert('Error al actualizar el CPM (revisa CSRF/permiso).');
+  });
 }
+
 
 // ===== ELIMINAR MEDICAMENTO =====
 function confirmarEliminacionMedicamento(medicamentoId, descripcion) {
@@ -532,3 +574,44 @@ function exportarExcelGeneral() {
 function exportarPdfGeneral() {
     window.location.href = '/exportar_inventario_general_pdf/';
 }
+
+function aplicarFiltros() {
+  const clave = (document.getElementById('filtro-clave')?.value || '').trim().toLowerCase();
+  const descripcion = (document.getElementById('filtro-descripcion')?.value || '').trim().toLowerCase();
+  const estado = (document.getElementById('filtro-estado')?.value || '').trim();
+
+  const filas = document.querySelectorAll('tbody tr[data-medicamento-id]');
+
+  filas.forEach(fila => {
+    const filaClave = (fila.dataset.clave || '').toLowerCase();
+    const filaDesc = (fila.dataset.descripcion || '').toLowerCase();
+    const filaEstado = (fila.dataset.estado || ''); // debe existir en tu <tr data-estado="...">
+
+    let mostrar = true;
+
+    if (clave && !filaClave.includes(clave)) mostrar = false;
+    if (descripcion && !filaDesc.includes(descripcion)) mostrar = false;
+    if (estado && filaEstado !== estado) mostrar = false;
+
+    fila.style.display = mostrar ? '' : 'none';
+  });
+}
+
+function limpiarFiltros() {
+  const elClave = document.getElementById('filtro-clave');
+  const elDesc = document.getElementById('filtro-descripcion');
+  const elEstado = document.getElementById('filtro-estado');
+
+  if (elClave) elClave.value = '';
+  if (elDesc) elDesc.value = '';
+  if (elEstado) elEstado.value = '';
+
+  // opcional: limpiar cajas de “resultados” si las usas luego
+  const resClave = document.getElementById('resultados-clave');
+  const resDesc = document.getElementById('resultados-descripcion');
+  if (resClave) resClave.innerHTML = '';
+  if (resDesc) resDesc.innerHTML = '';
+
+  aplicarFiltros();
+}
+

@@ -208,12 +208,12 @@
                                 {% elif lote.dias_para_caducidad <= 365 %}fondo-amarillo
                                 {% else %}fondo-verde{% endif %}"
                                 data-lote-id="{{ lote.id }}"
-                                data-clave="{{ lote.medicamento.clave }}"
-                                data-descripcion="{{ lote.medicamento.descripcion }}"
-                                data-lote="{{ lote.lote_codigo }}"
+                                data-clave="{{ lote.medicamento.clave|escapejs }}"
+                                data-descripcion="{{ lote.medicamento.descripcion|escapejs }}"
+                                data-lote="{{ lote.lote_codigo|escapejs }}"
                                 data-fecha="{{ lote.fecha_caducidad|date:'Y-m-d' }}"
                                 data-existencia="{{ lote.existencia }}"
-                                data-presentacion="{{ lote.presentacion.nombre }}"
+                                data-presentacion="{{ lote.presentacion.nombre|escapejs }}"
                                 data-dias="{{ lote.dias_para_caducidad }}">
                                 
                                 <!-- Columna 1: Clave -->
@@ -269,12 +269,12 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
                                         <button class="btn-action btn-qr" 
-                                                onclick="generarQR('{{ lote.id }}')" 
+                                                onclick="generarQRIndividual('{{ lote.id|escapejs }}')"
                                                 title="Generar QR">
                                             <i class="fas fa-qrcode"></i>
                                         </button>
                                         <button class="btn-action btn-delete" 
-                                                onclick="confirmarEliminacion('{{ lote.id }}', '{{ lote.medicamento.descripcion }}')" 
+                                                onclick="eliminarLote('{{ lote.id|escapejs }}')" 
                                                 title="Eliminar">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
@@ -631,7 +631,7 @@
             });
 
             document.getElementById('count-visible').innerHTML = 
-                `Mostrando <strong>${visibles}</strong> de <strong>${filas.length}</strong> lotes`;
+                'Mostrando <strong>' + visibles + '</strong> de <strong>' + filas.length + '</strong> lotes';
         }
 
         // Limpiar filtros
@@ -646,7 +646,7 @@
             filas.forEach(fila => fila.style.display = '');
 
             document.getElementById('count-visible').innerHTML = 
-                `Mostrando <strong>${filas.length}</strong> lotes`;
+                'Mostrando <strong>' + filas.length + '</strong> lotes';
         }
 
         // Funciones de exportación
@@ -683,15 +683,17 @@
 
         function eliminarLote(loteId) {
             // Obtener info del lote desde la fila
-            const fila = document.querySelector(`[data-lote-id="${loteId}"]`);
-            if (!fila) {
+            const filaReal = Array.from(document.querySelectorAll('.lote-row'))
+            .find(tr => String(tr.dataset.loteId) === String(loteId));
+
+            if (!filaReal) {
                 mostrarModalError('No se encontró el lote', 'Error al obtener información del lote');
                 return;
             }
             
-            const clave = fila.dataset.clave;
-            const lote = fila.dataset.lote;
-            const existenciaText = fila.querySelector('.existencia-cell .badge-existencia');
+            const clave = filaReal.dataset.clave;
+            const lote = filaReal.dataset.lote;
+            const existenciaText = filaReal.querySelector('.existencia-cell .badge-existencia');
             const existencia = existenciaText ? existenciaText.textContent.trim().split(' ')[0] : '0';
             
             // Guardar info para uso posterior
@@ -704,10 +706,10 @@
             
             // Mostrar modal de confirmación
             mostrarModalEliminar(
-                'Confirmar Eliminación',
-                `¿Estás seguro de eliminar este lote?`,
-                `Esta acción no se puede deshacer.`,
-                'warning',
+            'Confirmar Eliminación',
+            '¿Estás seguro de eliminar este lote?',
+            'Esta acción no se puede deshacer.',
+            'warning',
                 [
                     { texto: 'Cancelar', clase: 'btn-secondary', accion: 'cerrarModalEliminar()' },
                     { texto: 'Eliminar', clase: 'btn-danger', accion: 'confirmarEliminarLote()' }
@@ -728,7 +730,7 @@
             const footer = document.getElementById('modal-eliminar-footer');
             footer.innerHTML = '<button class="btn btn-secondary" disabled><i class="fas fa-spinner fa-spin"></i> Eliminando...</button>';
             
-            fetch(`/api/lote/${loteAEliminar.id}/eliminar/`, {
+            fetch('/api/lote/' + loteAEliminar.id + '/eliminar/', {
                 method: 'DELETE',
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}',
@@ -742,7 +744,7 @@
                     mostrarModalEliminar(
                         '¡Eliminado Correctamente!',
                         data.mensaje,
-                        `Clave: ${data.clave}`,
+                        'Clave: ' + data.clave,
                         'success',
                         [
                             { texto: 'Aceptar', clase: 'btn-primary', accion: 'location.reload()' }
@@ -774,10 +776,10 @@
                         
                         // Agregar solución sugerida
                         const detalle = document.getElementById('modal-eliminar-detalle');
-                        detalle.innerHTML = `
-                            <strong>Problema:</strong> ${data.detalle}<br><br>
-                            <strong>Solución:</strong> ${data.solucion}
-                        `;
+                        detalle.innerHTML = 
+                            '<strong>Problema:</strong> ' + data.detalle + '<br><br>' +
+                            '<strong>Solución:</strong> ' + data.solucion;
+                        ;
                         detalle.style.textAlign = 'left';
                         detalle.style.background = '#fff3cd';
                         detalle.style.padding = '1rem';
@@ -861,7 +863,7 @@
             // Generar botones dinámicamente
             const footer = document.getElementById('modal-eliminar-footer');
             footer.innerHTML = botones.map(btn => 
-                `<button class="btn ${btn.clase}" onclick="${btn.accion}">${btn.texto}</button>`
+                '<button class="btn ' + btn.clase + '" onclick="' + btn.accion + '">' + btn.texto + '</button>'
             ).join('');
             
             // Mostrar modal
@@ -890,21 +892,23 @@
 
         // Generar QR PDF INDIVIDUAL (solo ese lote, tantas veces como existencia)
         function generarQRIndividual(loteId) {
-            const fila = document.querySelector(`[data-lote-id="${loteId}"]`);
-            if (!fila) return alert('No se encontró el lote');
-            const clave = fila.dataset.clave;
-            const lote = fila.dataset.lote;
-            const caducidad = fila.dataset.fecha;
-            let existencia = parseInt(fila.dataset.existencia);
+            const filaReal = Array.from(document.querySelectorAll('.lote-row'))
+            .find(tr => String(tr.dataset.loteId) === String(loteId));
+
+            if (!filaReal) return alert('No se encontró el lote');
+            const clave = filaReal.dataset.clave;
+            const lote = filaReal.dataset.lote;
+            const caducidad = filaReal.dataset.fecha;
+            let existencia = parseInt(filaReal.dataset.existencia);
             if (isNaN(existencia)) existencia = 0;
             if (existencia <= 0) return alert('Este lote no tiene existencia.');
 
-            if (confirm(`¿Generar PDF con ${existencia} códigos QR del lote ${lote}?`)) {
+            if (confirm('¿Generar PDF con ' + existencia + ' códigos QR del lote ' + lote + '?')) {
                 const qrsArray = [];
                 for (let i = 0; i < existencia; i++) {
                     qrsArray.push({ clave, lote, caducidad, numero: i + 1, totalExistencia: existencia });
                 }
-                generarPDFConQRs(qrsArray, `QR_${clave}_${lote}`);
+                generarPDFConQRs(qrsArray, 'QR_' + clave + '_' + lote);
             }
         }
 
@@ -923,7 +927,7 @@
                 }
             });
             if (!qrsArray.length) return alert('No hay lotes con existencia para generar QR');
-            if (confirm(`¿Generar PDF con ${qrsArray.length} códigos QR?`)){
+            if (confirm('¿Generar PDF con ' + qrsArray.length + ' códigos QR?')){
                 generarPDFConQRs(qrsArray, 'QR_Inventario_Completo');
             }
         }
@@ -938,7 +942,7 @@
                 doc.setFontSize(14); doc.setFont(undefined, 'bold');
                 doc.text('Códigos QR - Inventario', A4_WIDTH / 2, 6, { align:'center' });
                 doc.setFontSize(8); doc.setFont(undefined, 'normal');
-                doc.text(`Fecha: ${new Date().toLocaleDateString()}  |  Total: ${qrsArray.length}  |  Página ${pageNum}`, A4_WIDTH / 2, 11, { align:'center' });
+                doc.text('Fecha: ' + new Date().toLocaleDateString() + '  |  Total: ' + qrsArray.length + '  |  Página ' + pageNum, A4_WIDTH / 2, 11, { align:'center' });
                 doc.setDrawColor(150); doc.line(MARGIN, 12, A4_WIDTH - MARGIN, 12);
             }
 
@@ -952,7 +956,7 @@
                 const qrCanvas = document.createElement('canvas');
                 new QRious({
                     element: qrCanvas,
-                    value: `CLAVE:${qrsArray[i].clave}|LOTE:${qrsArray[i].lote}|U:${qrsArray[i].numero}/${qrsArray[i].totalExistencia}`,
+                    value: 'CLAVE:' + qrsArray[i].clave + '|LOTE:' + qrsArray[i].lote + '|U:' + qrsArray[i].numero + '/' + qrsArray[i].totalExistencia,
                     size: 200,
                     level: 'H'
                 });
@@ -962,8 +966,8 @@
                 doc.setFontSize(6.5); doc.setFont(undefined, 'bold');
                 doc.text(qrsArray[i].clave, x + QR_SIZE/2, y + QR_SIZE + 2, { align:'center' });
                 doc.setFont(undefined, 'normal'); doc.setFontSize(5.5);
-                doc.text(`Lote: ${qrsArray[i].lote}`, x + QR_SIZE/2, y + QR_SIZE + 5, { align:'center' });
-                doc.text(`${qrsArray[i].numero}/${qrsArray[i].totalExistencia}`, x + QR_SIZE/2, y + QR_SIZE + 7.5, { align:'center' });
+                doc.text('Lote: ' + qrsArray[i].lote, x + QR_SIZE/2, y + QR_SIZE + 5, { align:'center' });
+                doc.text(qrsArray[i].numero + '/' + qrsArray[i].totalExistencia, x + QR_SIZE/2, y + QR_SIZE + 7.5, { align:'center' });
 
                 qrCount++;
                 if (qrCount % 16 === 0 && i < qrsArray.length - 1) {
@@ -971,13 +975,13 @@
                     qrCount = 0;
                 }
             }
-            doc.save(`${nombreArchivo}_${new Date().toLocaleDateString().replace(/\//g,'-')}.pdf`);
+            doc.save(nombreArchivo + '_' + new Date().toLocaleDateString().replace(/\//g,'-') + '.pdf');
         }
 
         // ===== EDITAR LOTE =====
         function editarLote(loteId) {
             // Hacer petición para obtener datos del lote
-            fetch(`/editar_lote/${loteId}/`, {
+            fetch('/editar_lote/' + loteId + '/', {
                 method: 'GET',
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}'
@@ -1026,7 +1030,7 @@
             btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
             btnGuardar.disabled = true;
             
-            fetch(`/editar_lote/${loteId}/`, {
+            fetch('/editar_lote/' + loteId + '/', {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': '{{ csrf_token }}'
@@ -1056,20 +1060,22 @@
         // ===== VER DETALLES DEL LOTE (CORREGIDO - CPM) =====
         function verDetalleLote(loteId) {
             // Obtener info del lote desde la fila
-            const fila = document.querySelector(`[data-lote-id="${loteId}"]`);
-            if (!fila) {
+            const filaReal = Array.from(document.querySelectorAll('.lote-row'))
+            .find(tr => String(tr.dataset.loteId) === String(loteId));
+
+            if (!filaReal) {
                 alert('No se encontró el lote');
                 return;
             }
             
             // Extraer datos desde data attributes
-            const clave = fila.dataset.clave || 'N/A';
-            const descripcion = fila.dataset.descripcion || 'Sin descripción';
-            const lote = fila.dataset.lote || 'N/A';
-            const presentacion = fila.dataset.presentacion || 'N/A';
-            const existencia = fila.dataset.existencia || '0';
-            const fecha = fila.dataset.fecha; // Formato: YYYY-MM-DD
-            const dias = parseInt(fila.dataset.dias) || 0;
+            const clave = filaReal.dataset.clave || 'N/A';
+            const descripcion = filaReal.dataset.descripcion || 'Sin descripción';
+            const lote = filaReal.dataset.lote || 'N/A';
+            const presentacion = filaReal.dataset.presentacion || 'N/A';
+            const existencia = filaReal.dataset.existencia || '0';
+            const fecha = filaReal.dataset.fecha; // Formato: YYYY-MM-DD
+            const dias = parseInt(filaReal.dataset.dias) || 0;
             
             // Rellenar información básica
             document.getElementById('detalle-clave').textContent = clave;
@@ -1081,7 +1087,7 @@
             // ✅ Fecha en formato corto DD/MM/YYYY
             if (fecha) {
                 const [year, month, day] = fecha.split('-');
-                const fechaFormateada = `${day}/${month}/${year}`;
+                const fechaFormateada = day + '/' + month + '/' + year;
                 document.getElementById('detalle-fecha').textContent = fechaFormateada;
             } else {
                 document.getElementById('detalle-fecha').textContent = 'No disponible';
