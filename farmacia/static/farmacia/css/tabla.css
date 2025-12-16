@@ -1774,3 +1774,30 @@ tr.fondo-rojo:hover {
     color: #856404;
     border: 1px solid #ffeaa7;
 }
+
+
+.costo-badge{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:10px 12px;
+  min-width:120px;
+  text-align:right;
+  border-radius:14px;
+  border:2px solid #1b4f9c;
+  background:#fff;
+}
+
+.costo-total{
+  font-size:16px;
+  font-weight:700;
+  line-height:1.1;
+  color:#1b4f9c;
+}
+
+.costo-detalle{
+  font-size:12px;
+  line-height:1.1;
+  opacity:.85;
+  white-space:nowrap;
+}

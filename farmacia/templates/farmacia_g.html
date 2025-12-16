@@ -198,6 +198,7 @@
                                 <th><i class="fas fa-capsules"></i> Presentación</th>
                                 <th><i class="fas fa-cubes"></i> Existencia</th>
                                 <th><i class="fas fa-calendar-alt"></i> Caducidad</th>
+                                <th><i class="fas fa-dollar-sign"></i> Costo total</th>
                                 <th><i class="fas fa-cogs"></i> Acciones</th>
                             </tr>
                         </thead>
@@ -213,6 +214,8 @@
                                 data-lote="{{ lote.lote_codigo|escapejs }}"
                                 data-fecha="{{ lote.fecha_caducidad|date:'Y-m-d' }}"
                                 data-existencia="{{ lote.existencia }}"
+                                data-costo-unitario="{{ lote.costo_unitario }}"
+                                data-costo-total="{{ lote.costo_total }}"
                                 data-presentacion="{{ lote.presentacion.nombre|escapejs }}"
                                 data-dias="{{ lote.dias_para_caducidad }}">
                                 
@@ -259,7 +262,18 @@
                                     <br>
                                     <small class="dias-restantes">({{ lote.dias_para_caducidad }} días)</small>
                                 </td>
-                                
+
+                                <td class="costo-total-cell">
+                                <div class="costo-badge">
+                                    <div class="costo-total">
+                                    ${{ lote.costo_total|floatformat:2 }}
+                                    </div>
+                                    <div class="costo-detalle">
+                                    {{ lote.existencia|floatformat:0 }} × ${{ lote.costo_unitario|floatformat:2 }}
+                                    </div>
+                                </div>
+                                </td>   
+
                                 <!-- Columna 7: Acciones -->
                                 <td class="acciones-cell">
                                     <div class="action-buttons">
@@ -514,6 +528,21 @@
                         <span class="detalle-valor badge-existencia" id="detalle-existencia"></span>
                     </div>
                 </div>
+
+                <!-- Costos -->
+                <div class="detalle-section">
+                <h4><i class="fas fa-dollar-sign"></i> Costos</h4>
+
+                <div class="detalle-row">
+                    <span class="detalle-label">Costo unitario:</span>
+                    <span class="detalle-valor" id="detalle-costo-unitario"></span>
+                </div>
+
+                <div class="detalle-row">
+                    <span class="detalle-label">Costo total:</span>
+                    <span class="detalle-valor" id="detalle-costo-total"></span>
+                </div>
+</div>
 
                 <!-- Caducidad -->
                 <div class="detalle-section">
@@ -1074,6 +1103,8 @@
             const lote = filaReal.dataset.lote || 'N/A';
             const presentacion = filaReal.dataset.presentacion || 'N/A';
             const existencia = filaReal.dataset.existencia || '0';
+            const costoUnitario = filaReal.dataset.costoUnitario || '0';
+            const costoTotal = filaReal.dataset.costoTotal || '0';
             const fecha = filaReal.dataset.fecha; // Formato: YYYY-MM-DD
             const dias = parseInt(filaReal.dataset.dias) || 0;
             
@@ -1083,6 +1114,8 @@
             document.getElementById('detalle-lote').textContent = lote;
             document.getElementById('detalle-presentacion').textContent = presentacion;
             document.getElementById('detalle-existencia').textContent = existencia + ' unidades';
+            document.getElementById('detalle-costo-unitario').textContent = `$${Number(costoUnitario).toFixed(2)}`;
+            document.getElementById('detalle-costo-total').textContent = `$${Number(costoTotal).toFixed(2)}`;
             
             // ✅ Fecha en formato corto DD/MM/YYYY
             if (fecha) {

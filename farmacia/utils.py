@@ -365,6 +365,7 @@ class ProcesadorCargaMasiva:
                     lote_codigo=lote_codigo,
                     fecha_caducidad=dato['fecha_caducidad'],
                     existencia=cantidad_total,
+                    costo_unitario=dato['precio'],
                     presentacion=presentacion,
                     cpm=0
                 )
@@ -378,7 +379,7 @@ class ProcesadorCargaMasiva:
         if lotes_a_actualizar:
             Lote.objects.bulk_update(
                 lotes_a_actualizar, 
-                ['existencia'], 
+                ['existencia', 'costo_unitario'], 
                 batch_size=100
             )
     

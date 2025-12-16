@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.db import transaction
 import uuid
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.core.mail import send_mail
 
 
@@ -159,6 +160,13 @@ class Lote(models.Model):
     alerta_stock_enviada = models.BooleanField(default=False)
     presentacion = models.ForeignKey(Presentacion, on_delete=models.CASCADE, null=True, blank=True)
     cpm = models.PositiveIntegerField(default=0, verbose_name="Consumo Promedio Mensual")
+    costo_unitario = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0)],
+        verbose_name="Costo unitario (lote)"
+    )
 
 
     def __str__(self):
@@ -186,26 +194,30 @@ class Lote(models.Model):
             raise ValidationError("La fecha de caducidad debe ser futura")
     
     @classmethod
-    def actualizar_inventario(cls, medicamento_id, lote_codigo, cantidad, fecha_caducidad, presentacion_id):
-        """Método para crear/actualizar lotes de forma segura"""
+    def actualizar_inventario(cls, medicamento_id, lote_codigo, cantidad, fecha_caducidad, presentacion_id, costo_unitario=None):
         with transaction.atomic():
+            defaults = {
+                'fecha_caducidad': fecha_caducidad,
+                'existencia': cantidad,
+                'presentacion_id': presentacion_id,
+                'id': f"LOT-{uuid.uuid4().hex[:10].upper()}",
+            }
+            if costo_unitario is not None:
+                defaults['costo_unitario'] = costo_unitario
+
             lote, created = cls.objects.get_or_create(
                 lote_codigo=lote_codigo,
                 medicamento_id=medicamento_id,
-                defaults={
-                    'fecha_caducidad': fecha_caducidad,
-                    'existencia': cantidad,
-                    'presentacion_id': presentacion_id,
-                    'id': f"LOT-{uuid.uuid4().hex[:10].upper()}"  # Generar ID único
-                }
+                defaults=defaults
             )
-            
+
             if not created:
                 lote.existencia += cantidad
+                if costo_unitario is not None:
+                    lote.costo_unitario = costo_unitario
                 lote.save()
-                
+
             return lote
-    
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -214,7 +226,6 @@ class Lote(models.Model):
             )
         ]
 
-    
 
 class Paciente(models.Model):
     id = models.AutoField(primary_key=True)
@@ -255,17 +266,9 @@ class Receta(models.Model):
     fecha_surtido = models.DateField(null=True, blank=True)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES)
     origen = models.CharField(max_length=50, choices=ORIGEN_CHOICES)
-    surtido_por = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name="recetas_surtidas"
+    surtido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="recetas_surtidas"
     )
-    observaciones_faltantes = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name='Medicamentos No Surtidos',
-        help_text='Registro de medicamentos que no pudieron ser surtidos y el motivo'
+    observaciones_faltantes = models.TextField(blank=True, null=True, verbose_name='Medicamentos No Surtidos', help_text='Registro de medicamentos que no pudieron ser surtidos y el motivo'
     )
 
     def __str__(self):
@@ -283,6 +286,8 @@ class RecetaMedicamento(models.Model):
     )
     cantidad_solicitada = models.IntegerField()
     cantidad_surtida = models.IntegerField()
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    precio_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
 
     def __str__(self):
         return f"{self.medicamento.descripcion} - Receta {self.receta.id_folio}"
@@ -554,30 +559,34 @@ class Salida(models.Model):
 
 @receiver(post_save, sender=DetalleEntrada)
 def sumar_existencia(sender, instance, created, **kwargs):
-    if created:
-        # El código de lote viene en instance.lote (CharField)
-        lote_codigo = instance.lote
-        cantidad = instance.cantidad
+    if not created:
+        return
 
-        # Ajustar cantidad si la presentación es caja
-        if instance.presentacion and instance.presentacion.nombre.upper() == 'CAJA':
-            cantidad *= instance.presentacion.unidades_por_caja
+    lote_codigo = instance.lote
+    cantidad = instance.cantidad
 
-        try:
-            lote_obj = Lote.objects.get(lote_codigo=lote_codigo)
-            lote_obj.existencia += cantidad
-            lote_obj.save()
-        except Lote.DoesNotExist:
-            # Si no existe lote, tal vez lo creas o solo pasas
-            # Por ejemplo, crear nuevo lote:
-            Lote.objects.create(
-                id=f"auto-{lote_codigo}",  # Genera un id único si quieres
-                medicamento=instance.medicamento,
-                lote_codigo=lote_codigo,
-                fecha_caducidad=instance.caducidad,
-                existencia=cantidad,
-                presentacion=instance.presentacion
-            )
+    # Ajustar cantidad si es caja
+    if instance.presentacion and instance.presentacion.nombre.upper() == "CAJA":
+        cantidad *= instance.presentacion.unidadesporcaja
+
+    try:
+        lote_obj = Lote.objects.get(
+            lote_codigo=lote_codigo,
+            medicamento=instance.medicamento
+        )
+        lote_obj.existencia += cantidad
+        lote_obj.costo_unitario = instance.precio_unitario  # <-- guardar costo
+        lote_obj.save()
+    except Lote.DoesNotExist:
+        Lote.objects.create(
+            id=f"LOT-{uuid.uuid4().hex[:10].upper()}",
+            medicamento=instance.medicamento,
+            lote_codigo=lote_codigo,
+            fecha_caducidad=instance.caducidad,
+            existencia=cantidad,
+            presentacion=instance.presentacion,
+            costo_unitario=instance.precio_unitario,  # <-- guardar costo
+        )
 
 
 def enviar_alerta_stock(lote, cpm_del_medicamento):

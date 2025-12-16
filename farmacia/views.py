@@ -18,7 +18,7 @@ from enfermeria.models import Colectivo, ColectivoMedicamento
 from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente, MedicamentoNoSurtido
 from datetime import timedelta, date, datetime
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Sum, Q, F, Value, IntegerField, Count, Max
+from django.db.models import Sum, Q, F, Value, IntegerField, Count, Max, DecimalField, ExpressionWrapper
 from django.db.models.functions import Coalesce, TruncMonth
 from .forms import LoteForm, MedicamentoForm, SalidaForm
 from django.http import HttpResponse, JsonResponse
@@ -42,6 +42,7 @@ from django.templatetags.static import static
 from .pdf_utils import generar_pdf_salida
 from django.conf import settings
 from .forms import CargaMasivaForm
+from decimal import Decimal
 import uuid
 import logging
 logger = logging.getLogger(__name__)
@@ -317,10 +318,17 @@ def farmacia_g(request):
             return redirect('farmacia_g')
 
     # Obtener todos los lotes
-    lotes = Lote.objects.select_related(
-        'medicamento', 
-        'presentacion'
-    ).all().order_by('fecha_caducidad')
+    lotes = (
+        Lote.objects
+        .select_related('medicamento', 'presentacion')
+        .annotate(
+            costo_total=ExpressionWrapper(
+                F('existencia') * F('costo_unitario'),
+                output_field=DecimalField(max_digits=14, decimal_places=2)
+            )
+        )
+        .order_by('fecha_caducidad')
+    )
     
     presentaciones = Presentacion.objects.all()
     
@@ -795,6 +803,7 @@ def guardar_entradas(request):
                         cantidad=det['cantidad'],
                         fecha_caducidad=det['caducidad'],
                         presentacion_id=det['presentacion_id'],
+                        costo_unitario=det['preciounitario'],
                     )
                 elif hasattr(Lote, 'actualizarinventario'):
                     Lote.actualizarinventario(
@@ -803,6 +812,7 @@ def guardar_entradas(request):
                         cantidad=det['cantidad'],
                         fechacaducidad=det['caducidad'],
                         presentacionid=det['presentacion_id'],
+                        costo_unitario=det['preciounitario'],
                     )
                 else:
                     return JsonResponse({'error': 'No existe método para actualizar inventario en Lote'}, status=500)
@@ -1262,12 +1272,17 @@ def registrar_salida(request):
                     lote = item['lote']
                     cantidad = item['cantidad']
                     
+                    precio_unitario = (lote.costo_unitario if lote else Decimal('0.00'))
+                    precio_total = Decimal(cantidad) * precio_unitario 
+                       
                     RecetaMedicamento.objects.create(
                         receta=receta_salida,
                         medicamento=lote.medicamento, 
                         lote=lote, 
                         cantidad_solicitada=cantidad,
-                        cantidad_surtida=cantidad
+                        cantidad_surtida=cantidad,
+                        precio_unitario=precio_unitario,
+                        precio_total=precio_total,
                     )
                     
                     # Restar del stock
@@ -1637,6 +1652,8 @@ def exportar_inventario_excel(request):
         worksheet.set_column('D:D', 18)
         worksheet.set_column('E:E', 12)
         worksheet.set_column('F:F', 15)
+        worksheet.set_column('F:F', 12)  # Costo
+        worksheet.set_column('G:G', 15) 
         
         # Agregar logo
         logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
@@ -1653,15 +1670,12 @@ def exportar_inventario_excel(request):
                 print(f"Error insertando logo: {e}")
         
         # Título (desplazado después del logo)
-        worksheet.merge_range('A3:G3', 'REPORTE DE INVENTARIO DE MEDICAMENTOS POR LOTE', title_format)
-        worksheet.set_row(2, 25)
-        
-        # Fecha
-        worksheet.merge_range('A4:G4', f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}", date_format)
-        worksheet.set_row(3, 18)
+        worksheet.merge_range('A3:H3', 'REPORTE DE INVENTARIO DE MEDICAMENTOS POR LOTE', title_format)
+        worksheet.merge_range('A4:H4', f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}", date_format)
+
         
         # Encabezados
-        headers = ['Clave', 'Descripción', 'Lote', 'Presentación', 'Existencia', 'Caducidad']
+        headers = ['Clave', 'Descripción', 'Lote', 'Presentación', 'Existencia', 'Costo','Caducidad']
         for col, header in enumerate(headers):
             worksheet.write(5, col, header, header_format)
         worksheet.set_row(5, 20)
@@ -1674,25 +1688,26 @@ def exportar_inventario_excel(request):
             worksheet.write(row, 2, lote.lote_codigo, data_format)
             worksheet.write(row, 3, lote.presentacion.nombre if lote.presentacion else 'N/A', data_format)
             worksheet.write(row, 4, lote.existencia, data_format)
+            worksheet.write(row, 5, float(lote.costo_unitario or 0), data_format)
             
             # Determinar color según caducidad
             dias_restantes = (lote.fecha_caducidad - datetime.now().date()).days
             fecha_str = lote.fecha_caducidad.strftime('%d/%m/%Y')
             
             if dias_restantes <= 0:
-                worksheet.write(row, 5, fecha_str, red_format)
+                worksheet.write(row, 6, fecha_str, red_format)
             elif dias_restantes <= 30:
-                worksheet.write(row, 5, fecha_str, orange_format)
+                worksheet.write(row, 6, fecha_str, orange_format)
             elif dias_restantes <= 90:
-                worksheet.write(row, 5, fecha_str, yellow_format)
+                worksheet.write(row, 6, fecha_str, yellow_format)
             else:
-                worksheet.write(row, 5, fecha_str, green_format)
+                worksheet.write(row, 6, fecha_str, green_format)
             
             worksheet.set_row(row, 18)
             row += 1
         
         # Pie de página
-        worksheet.merge_range(row + 1, 0, row + 1, 6, 'Documento generado automáticamente por INVENTFARM', date_format)
+        worksheet.merge_range(row + 1, 0, row + 1, 7, 'Documento generado automáticamente por INVENTFARM', date_format)
         
         # Finalizar
         workbook.close()
@@ -1770,7 +1785,7 @@ def exportar_inventario_pdf(request):
         y_actual -= 20
         
         # Tabla de datos
-        data_tabla = [['Clave', 'Descripción', 'Lote', 'Pres.', 'Exist.', 'Caducidad']]
+        data_tabla = [['Clave', 'Descripción', 'Lote', 'Pres.', 'Exist.', 'Costo', 'Caducidad']]
         
         for lote in lotes:
             data_tabla.append([
@@ -1779,10 +1794,11 @@ def exportar_inventario_pdf(request):
                 lote.lote_codigo,
                 lote.presentacion.nombre[:8] if lote.presentacion else 'N/A',
                 str(lote.existencia),
+                f"${lote.costo_unitario:.2f}",
                 lote.fecha_caducidad.strftime('%d/%m/%Y')
             ])
         
-        tabla = Table(data_tabla, colWidths=[1.0*inch, 2.5*inch, 1.0*inch, 1.0*inch, 0.8*inch, 1.0*inch])
+        tabla = Table(data_tabla, colWidths=[0.95*inch, 2.25*inch, 0.95*inch, 0.75*inch, 0.65*inch, 0.75*inch, 0.95*inch])
         
         # Estilo de tabla
         tabla.setStyle(TableStyle([
@@ -2220,13 +2236,17 @@ def api_reportes_kpis(request):
             fecha_surtido__range=[fecha_inicio, fecha_fin]
         ).values('paciente').distinct().count()
         
+        valor_total = RecetaMedicamento.objects.filter(
+        receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
+        ).aggregate(total=Sum('precio_total'))['total'] or 0
+        
         return JsonResponse({
             'success': True,
             'kpis': {
                 'total_salidas': total_salidas,
                 'total_medicamentos': total_medicamentos,
                 'total_pacientes': total_pacientes,
-                'valor_total': 0
+                'valor_total': float(valor_total),
             }
         })
         
@@ -2291,7 +2311,8 @@ def api_reportes_salidas(request):
                 'cantidad': item.cantidad_surtida,
                 'paciente': item.receta.paciente.nombre_completo if item.receta.paciente else 'N/A',
                 'responsable': f"{item.receta.surtido_por.first_name} {item.receta.surtido_por.last_name}" if item.receta.surtido_por else 'N/A',
-                'valor': 0,
+                'valor': float(item.precio_total or 0),
+                'precio_unitario': float(item.precio_unitario or 0),
                 'tipo': tipo,  # ← NUEVO
                 'tipo_badge': tipo_badge  # ← Para el CSS
             })
