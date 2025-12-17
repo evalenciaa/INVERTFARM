@@ -200,78 +200,111 @@ function loadHistorialTable(filteredData = null) {
 
 // ===== TAB 2: MEDICAMENTOS MÁS DISPENSADOS =====
 function loadMedicamentosCharts() {
-    // Calcular top medicamentos
-    const medicamentosCounts = {};
-    salidasData.forEach(item => {
-        medicamentosCounts[item.medicamento] = (medicamentosCounts[item.medicamento] || 0) + item.cantidad;
-    });
-    
-    const topMedicamentos = Object.entries(medicamentosCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-    
-    // Destruir gráfica anterior si existe
-    if (charts.medicamentos) {
-        charts.medicamentos.destroy();
-    }
-    
-    // Crear gráfica
-    const ctx = document.getElementById('chartMedicamentos').getContext('2d');
-    charts.medicamentos = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: topMedicamentos.map(item => item[0]),
-            datasets: [{
-                label: 'Unidades Dispensadas',
-                data: topMedicamentos.map(item => item[1]),
-                backgroundColor: 'rgba(117, 0, 0, 0.8)',
-                borderColor: 'rgba(117, 0, 0, 1)',
-                borderWidth: 2,
-                borderRadius: 8
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                title: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        font: {
-                            size: 12,
-                            weight: 'bold'
-                        }
-                    }
-                },
-                x: {
-                    ticks: {
-                        font: {
-                            size: 11
-                        },
-                        maxRotation: 45,
-                        minRotation: 45
-                    }
-                }
-            }
-        }
-    });
-    
-    // Generar ranking
-    loadRankingMedicamentos(topMedicamentos);
-    
-    // Event listener para cambiar tipo de gráfica
-    document.getElementById('chartTypeMed').addEventListener('change', function() {
-        charts.medicamentos.config.type = this.value;
-        charts.medicamentos.update();
-    });
+  // Calcular top medicamentos
+  const medicamentosCounts = {};
+  salidasData.forEach(item => {
+    medicamentosCounts[item.medicamento] = (medicamentosCounts[item.medicamento] || 0) + item.cantidad;
+  });
+
+  const topMedicamentos = Object.entries(medicamentosCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  // Destruir gráfica anterior si existe
+  if (charts.medicamentos) {
+    charts.medicamentos.destroy();
+  }
+
+  const coloresRanking = [
+    '#d4af37', // oro
+    '#c0c0c0', // plata
+    '#cd7f32', // bronce
+    'rgba(117,0,0,0.85)',
+    'rgba(117,0,0,0.75)',
+    'rgba(117,0,0,0.65)',
+    'rgba(117,0,0,0.55)',
+    'rgba(117,0,0,0.45)',
+    'rgba(117,0,0,0.35)',
+    'rgba(117,0,0,0.25)'
+  ];
+
+  const selector = document.getElementById('chartTypeMed');
+  const tipoInicial = selector?.value || 'bar';
+
+  const buildData = () => ({
+    labels: topMedicamentos.map(i => i[0]),
+    datasets: [{
+      label: 'Unidades Dispensadas',
+      data: topMedicamentos.map(i => i[1]),
+      backgroundColor: coloresRanking.slice(0, topMedicamentos.length),
+      borderColor: coloresRanking.slice(0, topMedicamentos.length),
+      borderWidth: 1,
+      borderRadius: 8
+    }]
+  });
+
+  const buildOptions = (tipoSeleccionado) => {
+    const isHorizontal = (tipoSeleccionado === 'barHorizontal');
+    const isPieLike = (tipoSeleccionado === 'pie' || tipoSeleccionado === 'doughnut');
+
+    // Opciones base
+    const opts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        title: { display: false }
+      }
+    };
+
+    // Pie / doughnut no usan scales
+    if (isPieLike) return opts;
+
+    // Barras (vertical u horizontal)
+    opts.indexAxis = isHorizontal ? 'y' : 'x';
+    opts.scales = {
+      // En horizontal: X = valores, Y = categorías
+      // En vertical:   Y = valores, X = categorías
+      x: isHorizontal
+        ? { beginAtZero: true, ticks: { font: { size: 12, weight: 'bold' } } }
+        : { ticks: { font: { size: 11 }, maxRotation: 45, minRotation: 45 } },
+
+      y: isHorizontal
+        ? { ticks: { font: { size: 11 } } }
+        : { beginAtZero: true, ticks: { font: { size: 12, weight: 'bold' } } }
+    };
+
+    return opts;
+  };
+
+  const getChartType = (tipoSeleccionado) => {
+    // Chart.js v4: horizontalBar NO existe; es bar + indexAxis:'y'
+    if (tipoSeleccionado === 'barHorizontal') return 'bar';
+    return tipoSeleccionado; // 'bar' | 'pie' | 'doughnut'
+  };
+
+  // Crear gráfica
+  const ctx = document.getElementById('chartMedicamentos').getContext('2d');
+  charts.medicamentos = new Chart(ctx, {
+    type: getChartType(tipoInicial),
+    data: buildData(),
+    options: buildOptions(tipoInicial)
+  });
+
+  // Generar ranking
+  loadRankingMedicamentos(topMedicamentos);
+
+  // Cambio de tipo (sin duplicar listeners)
+  if (selector) {
+    selector.onchange = function () {
+      const tipo = this.value;
+
+      charts.medicamentos.config.type = getChartType(tipo);
+      charts.medicamentos.options = buildOptions(tipo);
+
+      charts.medicamentos.update();
+    };
+  }
 }
 
 // ===== RANKING DE MEDICAMENTOS =====
@@ -552,6 +585,39 @@ function getActiveTab() {
     return activeBtn ? activeBtn.getAttribute('data-tab') : 'historial';
 }
 
+function safeGetCanvasImage(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
+
+  // Si el canvas está en 0x0 (tab no visible o aún no renderiza), no sirve
+  if (canvas.width === 0 || canvas.height === 0) return null;
+
+  try {
+    return canvas.toDataURL('image/png', 1.0);
+  } catch (e) {
+    console.warn(`No se pudo capturar canvas ${canvasId}:`, e);
+    return null;
+  }
+}
+
+function addCanvasToPDF(doc, canvasId, x, y, w, h) {
+  const imgData = safeGetCanvasImage(canvasId);
+  if (!imgData) return false;
+  doc.addImage(imgData, 'PNG', x, y, w, h);
+  return true;
+}
+
+function getJsPDF() {
+  // jsPDF UMD expone: window.jspdf.jsPDF
+  if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+
+  // fallback (por si algún día cambias el build)
+  if (window.jsPDF) return window.jsPDF;
+
+  throw new Error('jsPDF no está cargado (window.jspdf.jsPDF no existe).');
+}
+
+
 // ===== EVENT LISTENERS =====
 function initializeEventListeners() {
     // Paginación
@@ -770,131 +836,180 @@ async function exportarHistorialPDF() {
 }
 
 async function exportarMedicamentosPDF() {
-    const { jsPDF } = window.jspdf;
+    const jsPDF = getJsPDF();
     const doc = new jsPDF();
-    
-    // Agregar logo
-    const logoUrl = '/static/farmacia/img/logo.jpg';
-    doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
-    
-    // Título
-    doc.setFontSize(18);
-    doc.text('Top 10 Medicamentos Más Dispensados', 14, 30);
-    
-    doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
-    
-    // Línea divisoria
-    doc.setLineWidth(0.5);
-    doc.line(14, 42, 196, 42);
-    
-    // Obtener datos desde el ranking
-    const rows = [];
-    const ranking = document.getElementById('rankingMedicamentos');
-    
-    if (ranking) {
-        ranking.querySelectorAll('.ranking-item').forEach((item, index) => {
-            const nombre = item.querySelector('.ranking-name')?.textContent.trim() || '';
-            const cantidad = item.querySelector('.ranking-value')?.textContent.trim() || '0';
-            rows.push([index + 1, nombre, cantidad]);
-        });
-    }
-    
-    // Crear tabla
-    doc.autoTable({
-        startY: 46,
-        head: [['#', 'Medicamento', 'Cantidad Dispensada']],
-        body: rows,
-        theme: 'grid',
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [139, 0, 0] }
+
+
+  // Logo
+  const logoUrl = window.STATIC_LOGO_URL;
+  doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
+
+  // Título
+  doc.setFontSize(18);
+  doc.text('Top 10 Medicamentos Más Dispensados', 14, 30);
+
+  // Fecha
+  doc.setFontSize(10);
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
+
+  // Línea
+  doc.setLineWidth(0.5);
+  doc.line(14, 42, 196, 42);
+
+  // 1) CHART (si existe)
+  // Ubicación pensada para una hoja portrait
+  // (ancho util ~ 182mm)
+  const okChart = addCanvasToPDF(doc, 'chartMedicamentos', 14, 46, 182, 80);
+
+  // 2) TABLA (ranking)
+  const rows = [];
+  const ranking = document.getElementById('rankingMedicamentos');
+
+  if (ranking) {
+    ranking.querySelectorAll('.ranking-item').forEach((item, index) => {
+      const nombre = item.querySelector('.ranking-name')?.textContent.trim() || 'N/A';
+      const cantidad = item.querySelector('.ranking-value')?.textContent.trim() || '0';
+      rows.push([String(index + 1), nombre, cantidad]);
     });
-    
-    doc.save('Top_Medicamentos.pdf');
+  }
+
+  // Si hubo chart, baja la tabla; si no, úsala desde arriba
+  const startY = okChart ? 46 + 80 + 8 : 46;
+
+  doc.autoTable({
+    startY,
+    head: [['#', 'Medicamento', 'Cantidad Dispensada']],
+    body: rows,
+    theme: 'grid',
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [139, 0, 0] }
+  });
+
+  doc.save('TopMedicamentos.pdf');
 }
 
 
 async function exportarPacientesPDF() {
-    const { jsPDF } = window.jspdf;
+    const jsPDF = getJsPDF();
     const doc = new jsPDF();
-    
-    // Agregar logo
-    const logoUrl = '/static/farmacia/img/logo.jpg';
-    doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
-    
-    doc.setFontSize(18);
-    doc.text('Pacientes Frecuentes', 14, 30);
-    
-    doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
-    
-    // Línea divisoria
-    doc.setLineWidth(0.5);
-    doc.line(14, 42, 196, 42);
-    
-    // Obtener datos de la tabla
-    const rows = [];
-    const tbody = document.getElementById('tablePacientesBody');
-    
-    if (tbody) {
-        tbody.querySelectorAll('tr').forEach(row => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 6) {
-                rows.push([
-                    cells[0].textContent.trim(),
-                    cells[1].textContent.trim(),
-                    cells[2].textContent.trim(),
-                    cells[3].textContent.trim(),
-                    cells[4].textContent.trim(),
-                    cells[5].textContent.trim()
-                ]);
-            }
-        });
-    }
-    
-    doc.autoTable({
-        startY: 46,
-        head: [['#', 'Paciente', 'Visitas', 'Medicamentos', 'Última Visita', 'Gasto']],
-        body: rows,
-        theme: 'grid',
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [139, 0, 0] }
+
+
+  // Logo
+  const logoUrl = window.STATIC_LOGO_URL;
+  doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
+
+  // Título
+  doc.setFontSize(18);
+  doc.text('Pacientes Frecuentes', 14, 30);
+
+  // Fecha
+  doc.setFontSize(10);
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
+
+  // Línea
+  doc.setLineWidth(0.5);
+  doc.line(14, 42, 196, 42);
+
+  // 1) CHART (dona)
+  const okChart = addCanvasToPDF(doc, 'chartPacientes', 14, 46, 182, 85);
+
+  // 2) TABLA (detalle)
+  const rows = [];
+  const tbody = document.getElementById('tablePacientesBody');
+
+  if (tbody) {
+    tbody.querySelectorAll('tr').forEach(row => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length === 6) {
+        rows.push([
+          cells[0].textContent.trim(),
+          cells[1].textContent.trim(),
+          cells[2].textContent.trim(),
+          cells[3].textContent.trim(),
+          cells[4].textContent.trim(),
+          cells[5].textContent.trim()
+        ]);
+      }
     });
-    
-    doc.save('Pacientes_Frecuentes.pdf');
+  }
+
+  const startY = okChart ? 46 + 85 + 8 : 46;
+
+  doc.autoTable({
+    startY,
+    head: [['#', 'Paciente', 'Visitas', 'Medicamentos', 'Última Visita', 'Gasto']],
+    body: rows,
+    theme: 'grid',
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [139, 0, 0] }
+  });
+
+  doc.save('PacientesFrecuentes.pdf');
 }
+
 
 
 async function exportarTendenciasPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('landscape'); // Horizontal para gráficas
-    
-    // Agregar logo (en landscape)
-    const logoUrl = '/static/farmacia/img/logo.jpg';
-    doc.addImage(logoUrl, 'JPEG', 14, 10, 100, 15); // Más grande en horizontal
-    
-    doc.setFontSize(18);
-    doc.text('Tendencias Temporales', 14, 32);
-    
-    doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 39);
-    
-    // Línea divisoria
-    doc.setLineWidth(0.5);
-    doc.line(14, 44, 280, 44);
-    
-    // Capturar gráfica como imagen
-    const canvas = document.getElementById('chartTendencias');
-    if (canvas) {
-        const imgData = canvas.toDataURL('image/png');
-        doc.addImage(imgData, 'PNG', 14, 50, 260, 120);
-    }
-    
-    doc.save('Tendencias_Temporales.pdf');
+    const jsPDF = getJsPDF();
+    const doc = new jsPDF('landscape');
+
+
+
+  // Logo
+  const logoUrl = window.STATIC_LOGO_URL;
+  doc.addImage(logoUrl, 'JPEG', 14, 10, 100, 15);
+
+  // Título
+  doc.setFontSize(18);
+  doc.text('Tendencias Temporales', 14, 32);
+
+  // Fecha
+  doc.setFontSize(10);
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 39);
+
+  // Línea
+  doc.setLineWidth(0.5);
+  doc.line(14, 44, 280, 44);
+
+  // Chart principal (línea)
+  addCanvasToPDF(doc, 'chartTendencias', 14, 50, 260, 85);
+
+  // Charts secundarios (abajo, 2 columnas)
+  // Ajusta alturas si lo ves apretado
+  addCanvasToPDF(doc, 'chartDiasSemana', 14, 140, 128, 55);
+  addCanvasToPDF(doc, 'chartHoras', 146, 140, 128, 55);
+
+  doc.save('TendenciasTemporales.pdf');
 }
 
 
+
 // ===== FUNCIONES DE EXPORTACIÓN EXCEL =====
+
+async function canvasToPngBase64(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
+
+  // dataURL: "data:image/png;base64,...."
+  return canvas.toDataURL('image/png', 1.0);
+}
+
+function downloadArrayBufferExcel(buffer, filename) {
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
 
 async function exportarHistorialExcel() {
     const wb = XLSX.utils.book_new();
@@ -926,67 +1041,145 @@ async function exportarHistorialExcel() {
 }
 
 async function exportarMedicamentosExcel() {
-    const wb = XLSX.utils.book_new();
-    
-    const data = [['#', 'Medicamento', 'Cantidad Dispensada']];
-    
-    const ranking = document.getElementById('rankingMedicamentos');
-    if (ranking) {
-        ranking.querySelectorAll('.ranking-item').forEach((item, index) => {
-            const nombre = item.querySelector('.ranking-name')?.textContent.trim() || '';
-            const cantidad = item.querySelector('.ranking-value')?.textContent.trim() || '0';
-            data.push([index + 1, nombre, cantidad]);
-        });
-    }
-    
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Top Medicamentos');
-    XLSX.writeFile(wb, 'Top_Medicamentos.xlsx');
+  const workbook = new ExcelJS.Workbook();
+
+  // Hoja 1: Chart
+  const wsChart = workbook.addWorksheet('Chart');
+  wsChart.getCell('A1').value = 'Top 10 Medicamentos - Gráfica';
+  wsChart.getCell('A1').font = { bold: true, size: 14 };
+
+  const imgBase64 = await canvasToPngBase64('chartMedicamentos');
+  if (imgBase64) {
+    const imageId = workbook.addImage({ base64: imgBase64, extension: 'png' });
+    // Ubicación aproximada en celdas
+    wsChart.addImage(imageId, {
+      tl: { col: 0, row: 2 },   // A3
+      ext: { width: 900, height: 420 }
+    });
+  } else {
+    wsChart.getCell('A3').value = 'No se pudo capturar la gráfica (canvas vacío).';
+  }
+
+  // Hoja 2: Datos
+  const wsData = workbook.addWorksheet('Top Medicamentos');
+  wsData.addRow(['#', 'Medicamento', 'Cantidad Dispensada']).font = { bold: true };
+
+  const ranking = document.getElementById('rankingMedicamentos');
+  if (ranking) {
+    ranking.querySelectorAll('.ranking-item').forEach((item, index) => {
+      const nombre = item.querySelector('.ranking-name')?.textContent.trim() || '';
+      const cantidad = item.querySelector('.ranking-value')?.textContent.trim() || '0';
+      wsData.addRow([index + 1, nombre, Number(String(cantidad).replace(/[^\d.]/g, '')) || cantidad]);
+    });
+  }
+
+  wsData.columns = [
+    { width: 6 },
+    { width: 70 },
+    { width: 22 }
+  ];
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadArrayBufferExcel(buffer, 'Top_Medicamentos.xlsx');
 }
+
 
 async function exportarPacientesExcel() {
-    const wb = XLSX.utils.book_new();
-    
-    const data = [['#', 'Paciente', 'Total Visitas', 'Medicamentos', 'Última Visita', 'Gasto Total']];
-    
-    const tbody = document.getElementById('tablePacientesBody');
-    if (tbody) {
-        tbody.querySelectorAll('tr').forEach(row => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 6) {
-                data.push([
-                    cells[0].textContent.trim(),
-                    cells[1].textContent.trim(),
-                    cells[2].textContent.trim(),
-                    cells[3].textContent.trim(),
-                    cells[4].textContent.trim(),
-                    cells[5].textContent.trim()
-                ]);
-            }
-        });
-    }
-    
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Pacientes');
-    XLSX.writeFile(wb, 'Pacientes_Frecuentes.xlsx');
+  const workbook = new ExcelJS.Workbook();
+
+  // Hoja 1: Chart
+  const wsChart = workbook.addWorksheet('Chart');
+  wsChart.getCell('A1').value = 'Pacientes Frecuentes - Gráfica';
+  wsChart.getCell('A1').font = { bold: true, size: 14 };
+
+  const imgBase64 = await canvasToPngBase64('chartPacientes');
+  if (imgBase64) {
+    const imageId = workbook.addImage({ base64: imgBase64, extension: 'png' });
+    wsChart.addImage(imageId, {
+      tl: { col: 0, row: 2 },
+      ext: { width: 900, height: 420 }
+    });
+  } else {
+    wsChart.getCell('A3').value = 'No se pudo capturar la gráfica (canvas vacío).';
+  }
+
+  // Hoja 2: Datos
+  const wsData = workbook.addWorksheet('Pacientes');
+  wsData.addRow(['#', 'Paciente', 'Total Visitas', 'Medicamentos', 'Última Visita', 'Gasto Total']).font = { bold: true };
+
+  const tbody = document.getElementById('tablePacientesBody');
+  if (tbody) {
+    tbody.querySelectorAll('tr').forEach(row => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 6) {
+        wsData.addRow([
+          cells[0].textContent.trim(),
+          cells[1].textContent.trim(),
+          cells[2].textContent.trim(),
+          cells[3].textContent.trim(),
+          cells[4].textContent.trim(),
+          cells[5].textContent.trim()
+        ]);
+      }
+    });
+  }
+
+  wsData.columns = [
+    { width: 6 },
+    { width: 40 },
+    { width: 15 },
+    { width: 15 },
+    { width: 16 },
+    { width: 16 }
+  ];
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadArrayBufferExcel(buffer, 'Pacientes_Frecuentes.xlsx');
 }
 
+
 async function exportarTendenciasExcel() {
-    const wb = XLSX.utils.book_new();
-    
-    // Aquí exportamos los datos de la gráfica si tienes acceso a ellos
-    // Por ahora, un mensaje simple
-    const data = [
-        ['Reporte de Tendencias'],
-        ['Generado:', new Date().toLocaleString('es-MX')],
-        [''],
-        ['Nota: Los datos de las gráficas se exportan mejor en formato PDF']
-    ];
-    
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Tendencias');
-    XLSX.writeFile(wb, 'Tendencias_Temporales.xlsx');
+  const workbook = new ExcelJS.Workbook();
+
+  // Hoja 1: Charts
+  const wsChart = workbook.addWorksheet('Charts');
+  wsChart.getCell('A1').value = 'Tendencias - Gráficas';
+  wsChart.getCell('A1').font = { bold: true, size: 14 };
+  wsChart.getCell('A2').value = `Generado: ${new Date().toLocaleString('es-MX')}`;
+
+  const c1 = await canvasToPngBase64('chartTendencias');
+  const c2 = await canvasToPngBase64('chartDiasSemana');
+  const c3 = await canvasToPngBase64('chartHoras');
+
+  let rowOffset = 3;
+
+  if (c1) {
+    const id1 = workbook.addImage({ base64: c1, extension: 'png' });
+    wsChart.addImage(id1, { tl: { col: 0, row: rowOffset }, ext: { width: 1100, height: 420 } });
+    rowOffset += 22;
+  }
+
+  if (c2) {
+    const id2 = workbook.addImage({ base64: c2, extension: 'png' });
+    wsChart.addImage(id2, { tl: { col: 0, row: rowOffset }, ext: { width: 540, height: 320 } });
+  }
+
+  if (c3) {
+    const id3 = workbook.addImage({ base64: c3, extension: 'png' });
+    wsChart.addImage(id3, { tl: { col: 8, row: rowOffset }, ext: { width: 540, height: 320 } });
+  }
+
+  // Hoja 2: Nota / (si luego quieres, aquí ponemos meses y totales desde tu API)
+  const wsData = workbook.addWorksheet('Datos');
+  wsData.addRow(['Reporte de Tendencias']).font = { bold: true };
+  wsData.addRow(['Generado:', new Date().toLocaleString('es-MX')]);
+  wsData.addRow([]);
+  wsData.addRow(['Nota:', 'Los datos detallados se pueden agregar aquí (meses/totales).']);
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadArrayBufferExcel(buffer, 'Tendencias_Temporales.xlsx');
 }
+
 
 function setDefaultDates() {
     const today = new Date();

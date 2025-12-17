@@ -73,17 +73,17 @@ class Proveedor(models.Model):
 class Presentacion(models.Model):
     nombre = models.CharField(max_length=20, unique=True)  # 'CAJA', 'UNIDAD'
     unidades_por_caja = models.IntegerField(default=1, help_text="Solo aplica si es caja")
+    activo = models.BooleanField(default=True)
 
     def __str__(self):
-        if self.nombre.upper() == "CAJA":
-            return f"CAJA ({self.unidades_por_caja} unidades)"
-        return "UNIDAD"
-    
-    def __str__(self):
-        if self.nombre.upper() == "AMPOLLETA":
-            return f"AMPOLLETA ({self.unidades_por_caja} unidades)"
-        return "UNIDAD"
-    
+        n = (self.nombre or "").strip().upper()
+
+        # Solo estas presentaciones usan unidades por caja (ajusta si aplica a más)
+        if n in ("CAJA", "AMPOLLETA"):
+            return f"{n} ({self.unidades_por_caja} unidades)"
+
+        # Para POLVO, SOLUCION, etc. muestra el nombre tal cual
+        return self.nombre
 
 
     def delete(self, *args, **kwargs):
@@ -567,7 +567,7 @@ def sumar_existencia(sender, instance, created, **kwargs):
 
     # Ajustar cantidad si es caja
     if instance.presentacion and instance.presentacion.nombre.upper() == "CAJA":
-        cantidad *= instance.presentacion.unidadesporcaja
+        cantidad *= instance.presentacion.unidades_por_caja
 
     try:
         lote_obj = Lote.objects.get(

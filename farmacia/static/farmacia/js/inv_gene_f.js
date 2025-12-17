@@ -144,83 +144,133 @@ function exportarAExcel() {
 }
 
 function exportarAPDF() {
-    // Cargar la librería jsPDF dinámicamente
-    const filasVisibles = document.querySelectorAll('#tabla-inventario-general tbody tr[style=""]');
-    if (filasVisibles.length === 0) {
-        alert('No hay datos visibles para exportar');
-        return;
-    }
+  // Cargar la librera jsPDF dinmicamente
+  const filasVisibles = document.querySelectorAll('tabla-inventario-general tbody tr:not([style*="display: none"])');
+  if (filasVisibles.length === 0) {
+    alert('No hay datos visibles para exportar');
+    return;
+  }
 
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    script.onload = function() {
-        const scriptAutoTable = document.createElement('script');
-        scriptAutoTable.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js';
-        scriptAutoTable.onload = function() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            // Título del documento
-            doc.setFontSize(18);
-            doc.setTextColor(117, 0, 0); // Color vino
-            doc.text('Inventario General de Farmacia', 14, 15);
-            doc.setFontSize(12);
-            doc.setTextColor(0, 0, 0);
-            doc.text(`Generado el: ${new Date().toLocaleDateString()}`, 14, 22);
-            
-            // Obtener datos de la tabla
-            const tabla = document.getElementById('tabla-inventario-general');
-            const encabezados = [];
-            const datos = [];
-            
-            // Encabezados
-            tabla.querySelectorAll('thead th').forEach(th => {
-                encabezados.push({
-                    header: th.textContent.trim(),
-                    dataKey: th.textContent.trim().toLowerCase().replace(/\s+/g, '_')
-                });
-            });
-            
-            // Datos (solo filas visibles)
-            tabla.querySelectorAll('tbody tr').forEach(tr => {
-                if (tr.style.display !== 'none') {
-                    const fila = {};
-                    const celdas = tr.querySelectorAll('td');
-                    encabezados.forEach((col, index) => {
-                        fila[col.dataKey] = celdas[index].textContent.trim();
-                    });
-                    datos.push(fila);
-                }
-            });
-            
-            // Generar tabla en PDF
-            doc.autoTable({
-                head: [encabezados.map(col => col.header)],
-                body: datos.map(row => encabezados.map(col => row[col.dataKey])),
-                startY: 30,
-                styles: {
-                    cellPadding: 5,
-                    fontSize: 10,
-                    valign: 'middle'
-                },
-                headStyles: {
-                    fillColor: [117, 0, 0], // Color vino
-                    textColor: 255,
-                    fontStyle: 'bold'
-                },
-                alternateRowStyles: {
-                    fillColor: [240, 240, 240]
-                }
-            });
-            
-            // Guardar PDF
-            doc.save('inventario_general.pdf');
-            cerrarMenuExportacion();
-        };
-        document.head.appendChild(scriptAutoTable);
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  script.onload = function() {
+    const scriptAutoTable = document.createElement('script');
+    scriptAutoTable.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js';
+    scriptAutoTable.onload = function() {
+      const jsPDF = window.jspdf.jsPDF;
+      const doc = new jsPDF({
+        orientation: 'landscape', // 👈 Cambiar a landscape para más espacio
+        unit: 'mm',
+        format: 'letter'
+      });
+
+      // Título del documento
+      doc.setFontSize(18);
+      doc.setTextColor(117, 0, 0); // Color vino
+      doc.text('Inventario General de Farmacia', 14, 15);
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Generado el ' + new Date().toLocaleDateString(), 14, 22);
+
+      // Obtener datos de la tabla
+      const tabla = document.getElementById('tabla-inventario-general');
+      const encabezados = [];
+      const datos = [];
+
+      // Encabezados
+      tabla.querySelectorAll('thead th').forEach(th => {
+        encabezados.push({
+          header: th.textContent.trim(),
+          dataKey: th.textContent.trim().toLowerCase().replace(/\s+/g, '')
+        });
+      });
+
+      // Datos - solo filas visibles
+      tabla.querySelectorAll('tbody tr').forEach(tr => {
+        if (tr.style.display !== 'none') {
+          const fila = {};
+          const celdas = tr.querySelectorAll('td');
+          encabezados.forEach((col, index) => {
+            fila[col.dataKey] = celdas[index]?.textContent.trim() || '';
+          });
+          datos.push(fila);
+        }
+      });
+
+      // 🔥 SOLUCIÓN: Definir ancho de columnas y habilitar wrapText
+      const columnWidths = {
+        clave: 25,           // Clave: 25mm
+        descripción: 100,    // Descripción: 100mm (la más ancha para que no se corte)
+        existenciatotal: 25, // Existencia: 25mm
+        cpm: 20,             // CPM: 20mm
+        estado: 30,          // Estado: 30mm
+        acciones: 20         // Acciones: 20mm
+      };
+
+      // Generar tabla en PDF
+      doc.autoTable({
+        head: encabezados.map(col => col.header),
+        body: datos.map(row => encabezados.map(col => row[col.dataKey])),
+        startY: 30,
+        margin: { left: 10, right: 10 },
+        
+        // 🔥 Anchos de columna
+        columnStyles: {
+          0: { cellWidth: columnWidths.clave },       // Clave
+          1: { cellWidth: columnWidths.descripción, halign: 'left', wrapText: true }, // Descripción con wrap
+          2: { cellWidth: columnWidths.existenciatotal, halign: 'center' }, // Existencia
+          3: { cellWidth: columnWidths.cpm, halign: 'center' },             // CPM
+          4: { cellWidth: columnWidths.estado, halign: 'center' },          // Estado
+          5: { cellWidth: columnWidths.acciones, halign: 'center' }         // Acciones
+        },
+        
+        // Estilos globales
+        styles: {
+          cellPadding: 5,
+          fontSize: 9,        // Reducir un poco el font
+          valign: 'middle',
+          overflow: 'linebreak' // Permitir saltos de línea
+        },
+        
+        // Estilos del encabezado
+        headStyles: {
+          fillColor: [117, 0, 0], // Color vino
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'center',
+          valign: 'middle',
+          cellPadding: 4
+        },
+        
+        // Filas alternadas
+        alternateRowStyles: {
+          fillColor: [245, 245, 245] // Gris muy claro
+        },
+        
+        // Altura mínima para las filas
+        rowPageBreak: 'avoid',
+        didDrawPage: function(data) {
+          // Footer con número de página (opcional)
+          const pageCount = doc.internal.pages.length - 1;
+          doc.setFontSize(10);
+          doc.text(
+            'Página ' + data.pageNumber + ' de ' + pageCount,
+            doc.internal.pageSize.getWidth() / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: 'center' }
+          );
+        }
+      });
+
+      // Guardar PDF
+      doc.save('inventario_general.pdf');
+      cerrarMenuExportacion();
     };
-    document.head.appendChild(script);
+    document.head.appendChild(scriptAutoTable);
+  };
+  document.head.appendChild(script);
 }
+
 
 
 // En inv_gene_f.js - agregar funciones para editar CPM

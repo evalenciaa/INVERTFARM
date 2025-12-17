@@ -46,8 +46,20 @@ class RecetaAdmin(admin.ModelAdmin):
     inlines = [RecetaMedicamentoInline]
 
 class PresentacionAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'unidades_por_caja')
+    list_display = ('nombre', 'unidades_por_caja', 'activo')
+    list_filter = ('activo',)
     search_fields = ('nombre',)
+
+    def get_fields(self, request, obj=None):
+        # En "alta" (obj is None): NO mostrar unidades_por_caja
+        fields = ['nombre', 'activo']
+
+        # En "edición": mostrar unidades_por_caja solo si es CAJA o AMPOLLETA
+        if obj and (obj.nombre or '').upper() in ('CAJA', 'AMPOLLETA'):
+            fields.insert(1, 'unidades_por_caja')
+
+        return fields
+
     
 class ProveedorAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'rfc', 'telefono', 'email', 'activo')
@@ -70,7 +82,7 @@ admin.site.register(Paciente)
 admin.site.register(Entrada)
 admin.site.register(Salida)
 admin.site.register(Receta, RecetaAdmin)
-admin.site.register(Presentacion)
+admin.site.register(Presentacion, PresentacionAdmin)
 admin.site.register(Proveedor, ProveedorAdmin)
 admin.site.register(Almacen)
 admin.site.register(Institucion)

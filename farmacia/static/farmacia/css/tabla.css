@@ -1801,3 +1801,56 @@ tr.fondo-rojo:hover {
   opacity:.85;
   white-space:nowrap;
 }
+
+.lotes-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.lotes-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  white-space: nowrap;
+}
+
+.lotes-table td.acciones-cell{ overflow: visible; }
+
+.lotes-table td.presentacion-cell .presentacion-select{
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== CENTRADO DE COLUMNAS (LOTES) ===== */
+
+/* Encabezado "Lote" (columna 3) centrado */
+.lotes-table thead th:nth-child(3){
+  text-align: center;
+}
+
+/* Contenido centrado */
+.lotes-table td.presentacion-cell,
+.lotes-table td.caducidad-cell,
+.lotes-table td.costo-total-cell{
+  text-align: center;
+}
+
+/* (Opcional) si quieres que el badge del costo quede centrado como bloque */
+.lotes-table td.costo-total-cell .costo-badge{
+  margin: 0 auto;
+  text-align: center; /* para alinear texto interno */
+}
+
+/* ===== Centrar encabezados específicos (LOTES) ===== */
+.lotes-table thead th:nth-child(4),  /* Presentación */
+.lotes-table thead th:nth-child(6),  /* Caducidad */
+.lotes-table thead th:nth-child(7) { /* Costo total */
+  text-align: center;
+}

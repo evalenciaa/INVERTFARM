@@ -190,6 +190,16 @@
                 </div>
                 <div class="table-container">
                     <table class="lotes-table" id="tabla-lotes">
+                            <colgroup>
+                                <col style="width:170px;">  <!-- Clave -->
+                                <col style="width:380px;">  <!-- Descripción -->
+                                <col style="width:140px;">  <!-- Lote -->
+                                <col style="width:140px;">  <!-- Presentación -->
+                                <col style="width:120px;">  <!-- Existencia -->
+                                <col style="width:170px;">  <!-- Caducidad -->
+                                <col style="width:170px;">  <!-- Costo total -->
+                                <col style="width:170px;">  <!-- Acciones -->
+                            </colgroup>
                         <thead>
                             <tr>
                                 <th><i class="fas fa-key"></i> Clave</th>
@@ -242,13 +252,7 @@
                                 
                                 <!-- Columna 4: Presentación -->
                                 <td class="presentacion-cell">
-                                    <select name="presentacion_{{ lote.id }}" class="presentacion-select">
-                                        {% for pres in presentaciones %}
-                                            <option value="{{ pres.id }}" {% if lote.presentacion.id == pres.id %}selected{% endif %}>
-                                                {{ pres.nombre }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
+                                    <span class="badge">{{ lote.presentacion.nombre|default:"N/A" }}</span>
                                 </td>
                                 
                                 <!-- Columna 5: Existencia -->
@@ -287,6 +291,11 @@
                                                 title="Generar QR">
                                             <i class="fas fa-qrcode"></i>
                                         </button>
+                                        {% if es_admin %}
+                                            <button class="btn-action btn-edit" onclick="editarLote('{{ lote.id }}')" title="Editar lote">
+                                            <i class="fas fa-edit"></i>
+                                            </button>
+                                        {% endif %}
                                         <button class="btn-action btn-delete" 
                                                 onclick="eliminarLote('{{ lote.id|escapejs }}')" 
                                                 title="Eliminar">
@@ -297,7 +306,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="empty-state">
+                                <td colspan="8" class="empty-state">
                                     <div class="empty-content">
                                         <i class="fas fa-inbox"></i>
                                         <p>No se encontraron lotes en inventario</p>
@@ -531,18 +540,18 @@
 
                 <!-- Costos -->
                 <div class="detalle-section">
-                <h4><i class="fas fa-dollar-sign"></i> Costos</h4>
+                    <h4><i class="fas fa-dollar-sign"></i> Costos</h4>
 
-                <div class="detalle-row">
-                    <span class="detalle-label">Costo unitario:</span>
-                    <span class="detalle-valor" id="detalle-costo-unitario"></span>
-                </div>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Costo unitario:</span>
+                        <span class="detalle-valor" id="detalle-costo-unitario"></span>
+                    </div>
 
-                <div class="detalle-row">
-                    <span class="detalle-label">Costo total:</span>
-                    <span class="detalle-valor" id="detalle-costo-total"></span>
+                    <div class="detalle-row">
+                        <span class="detalle-label">Costo total:</span>
+                        <span class="detalle-valor" id="detalle-costo-total"></span>
+                    </div>
                 </div>
-</div>
 
                 <!-- Caducidad -->
                 <div class="detalle-section">

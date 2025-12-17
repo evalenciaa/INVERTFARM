@@ -211,50 +211,51 @@ def alertas(request):
 @login_required
 @require_http_methods(["POST", "GET"])
 def editar_lote(request, lote_id):
+    es_admin = (
+        request.user.is_superuser or
+        request.user.groups.filter(name__in=['Administrador', 'Administradores']).exists()
+    )
+
+    if not es_admin:
+        return JsonResponse({'success': False, 'error': 'No autorizado'}, status=403)
+
     lote = get_object_or_404(Lote, id=lote_id)
-    
+
     if request.method == 'POST':
         try:
-            # Campos que todos pueden editar
+            # Campos que todos pueden editar (pero ya filtraste: solo admins llegan aquí)
             cpm = request.POST.get('cpm')
             presentacion_id = request.POST.get('presentacion')
-            
+
             if cpm:
                 lote.cpm = float(cpm)
-            
+
             if presentacion_id:
                 presentacion = get_object_or_404(Presentacion, id=presentacion_id)
                 lote.presentacion = presentacion
-            
-            # Campos solo para admin
-            if request.user.is_superuser:
-                lote_codigo = request.POST.get('lote_codigo')
-                existencia = request.POST.get('existencia')
-                fecha_caducidad = request.POST.get('fecha_caducidad')
-                
-                if lote_codigo:
-                    lote.lote_codigo = lote_codigo
-                
-                if existencia:
-                    lote.existencia = int(existencia)
-                
-                if fecha_caducidad:
-                    lote.fecha_caducidad = fecha_caducidad
-            
+
+            # Campos admin (ahora admin = superuser o grupo Administrador/Administradores)
+            lote_codigo = request.POST.get('lote_codigo')
+            existencia = request.POST.get('existencia')
+            fecha_caducidad = request.POST.get('fecha_caducidad')
+
+            if lote_codigo:
+                lote.lote_codigo = lote_codigo
+
+            if existencia is not None and existencia != '':
+                lote.existencia = int(existencia)
+
+            if fecha_caducidad:
+                lote.fecha_caducidad = fecha_caducidad
+
             lote.save()
-            
-            return JsonResponse({
-                'success': True,
-                'mensaje': 'Lote actualizado correctamente'
-            })
-            
+
+            return JsonResponse({'success': True, 'mensaje': 'Lote actualizado correctamente'})
+
         except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=400)
-    
-    # GET: devolver datos del lote en JSON
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+    # GET
     return JsonResponse({
         'id': lote.id,
         'medicamento': f"{lote.medicamento.clave} - {lote.medicamento.descripcion}",
@@ -355,6 +356,10 @@ def farmacia_g(request):
             criticos += 1
     
     medicamentos = Medicamento.objects.filter(activo=True)
+    
+    es_admin = (
+    request.user.is_superuser or
+    request.user.groups.filter(name__in=['Administrador', 'Administradores']).exists())
 
     context = {
         'lotes': lotes_con_dias,
@@ -363,6 +368,7 @@ def farmacia_g(request):
         'vigentes': vigentes,
         'por_vencer': por_vencer,
         'criticos': criticos,
+        'es_admin': es_admin,
     }
 
     return render(request, 'farmacia_g.html', context)
@@ -794,28 +800,6 @@ def guardar_entradas(request):
                     return JsonResponse({'error': 'El modelo DetalleEntrada no tiene campo de precio unitario'}, status=500)
 
                 DetalleEntrada.objects.create(**kwargs_det)
-
-                # Actualizar inventario: intenta ambos nombres de método
-                if hasattr(Lote, 'actualizar_inventario'):
-                    Lote.actualizar_inventario(
-                        medicamento_id=det['medicamento_id'],
-                        lote_codigo=det['lote'],
-                        cantidad=det['cantidad'],
-                        fecha_caducidad=det['caducidad'],
-                        presentacion_id=det['presentacion_id'],
-                        costo_unitario=det['preciounitario'],
-                    )
-                elif hasattr(Lote, 'actualizarinventario'):
-                    Lote.actualizarinventario(
-                        medicamentoid=det['medicamento_id'],
-                        lotecodigo=det['lote'],
-                        cantidad=det['cantidad'],
-                        fechacaducidad=det['caducidad'],
-                        presentacionid=det['presentacion_id'],
-                        costo_unitario=det['preciounitario'],
-                    )
-                else:
-                    return JsonResponse({'error': 'No existe método para actualizar inventario en Lote'}, status=500)
 
             return JsonResponse({
                 'success': True,
@@ -1675,7 +1659,7 @@ def exportar_inventario_excel(request):
 
         
         # Encabezados
-        headers = ['Clave', 'Descripción', 'Lote', 'Presentación', 'Existencia', 'Costo','Caducidad']
+        headers = ['Clave', 'Descripción', 'Lote', 'Presentación', 'Existencia', 'Costo Unit.','Caducidad']
         for col, header in enumerate(headers):
             worksheet.write(5, col, header, header_format)
         worksheet.set_row(5, 20)
@@ -1736,7 +1720,10 @@ def exportar_inventario_pdf(request):
         from reportlab.lib.pagesizes import letter
         from reportlab.lib.units import inch
         from reportlab.lib import colors
-        from reportlab.platypus import Table, TableStyle
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        from datetime import datetime  # ✅ Asegúrate de importar
+        from reportlab.lib.styles import getSampleStyleSheet
+
         
         lotes = Lote.objects.select_related('medicamento', 'presentacion').all()
         
@@ -1772,12 +1759,18 @@ def exportar_inventario_pdf(request):
         
         # Título
         p.setFont("Helvetica-Bold", 16)
-        p.drawCentredString(width / 2.0, y_actual, "REPORTE DE INVENTARIO DE MEDICAMENTOS")
+        p.drawCentredString(width / 2.0, y_actual, "REPORTE DE INVENTARIO POR LOTES DE MEDICAMENTOS")
         y_actual -= 20
         
         # Fecha
         p.setFont("Helvetica", 10)
-        p.drawCentredString(width / 2.0, y_actual, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        p.drawCentredString(width / 2.0, y_actual, f"Fecha de Generacion: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        y_actual -= 16
+        
+        # ✅ USUARIO QUE GENERÓ EL PDF
+        nombre_usuario = (request.user.get_full_name() or request.user.username).strip()
+        p.setFont("Helvetica", 10)
+        p.drawCentredString(width / 2.0, y_actual, f"Generado por: {nombre_usuario}")
         y_actual -= 20
         
         # Línea divisoria
@@ -1785,12 +1778,26 @@ def exportar_inventario_pdf(request):
         y_actual -= 20
         
         # Tabla de datos
-        data_tabla = [['Clave', 'Descripción', 'Lote', 'Pres.', 'Exist.', 'Costo', 'Caducidad']]
+        data_tabla = [['Clave', 'Descripción', 'Lote', 'Pres.', 'Exist.', 'Costo Unit.', 'Caducidad']]
+        
+        styles = getSampleStyleSheet()
+        style_desc = styles["Normal"]
+        style_desc.fontName = "Helvetica"
+        style_desc.fontSize = 7
+        style_desc.leading = 8
+        
+        style_clave = styles["Normal"]
+        style_clave.fontName = "Helvetica"
+        style_clave.fontSize = 6.2
+        style_clave.leading = 7
+
         
         for lote in lotes:
+            desc = lote.medicamento.descripcion or ""
+            clave = lote.medicamento.clave or ""
             data_tabla.append([
-                lote.medicamento.clave,
-                lote.medicamento.descripcion[:25] + '...' if len(lote.medicamento.descripcion) > 25 else lote.medicamento.descripcion,
+                Paragraph(clave, style_clave),
+                Paragraph(desc, style_desc),   # ✅ WRAP real
                 lote.lote_codigo,
                 lote.presentacion.nombre[:8] if lote.presentacion else 'N/A',
                 str(lote.existencia),
@@ -1798,7 +1805,34 @@ def exportar_inventario_pdf(request):
                 lote.fecha_caducidad.strftime('%d/%m/%Y')
             ])
         
-        tabla = Table(data_tabla, colWidths=[0.95*inch, 2.25*inch, 0.95*inch, 0.75*inch, 0.65*inch, 0.75*inch, 0.95*inch])
+        # ✅ Ancho disponible real en la hoja (dejando márgenes)
+        margen_x = inch
+        ancho_disponible = width - (2 * margen_x)
+
+        # Pesos por columna (más peso = más ancho)
+        pesos = {
+            "clave": 1.5,
+            "descripcion": 3.6,   # aquí decides cuánto gana descripción
+            "lote": 1.4,
+            "pres": 1.0,
+            "exist": 0.9,
+            "costo": 1.1,
+            "cad": 1.3,
+        }
+
+        total = sum(pesos.values())
+        col_widths = [
+            ancho_disponible * (pesos["clave"] / total),
+            ancho_disponible * (pesos["descripcion"] / total),
+            ancho_disponible * (pesos["lote"] / total),
+            ancho_disponible * (pesos["pres"] / total),
+            ancho_disponible * (pesos["exist"] / total),
+            ancho_disponible * (pesos["costo"] / total),
+            ancho_disponible * (pesos["cad"] / total),
+        ]
+
+        tabla = Table(data_tabla, colWidths=col_widths)
+
         
         # Estilo de tabla
         tabla.setStyle(TableStyle([
@@ -1809,10 +1843,16 @@ def exportar_inventario_pdf(request):
             ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 7),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 1), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
         ]))
         
         # Obtener altura de la tabla
@@ -1829,7 +1869,7 @@ def exportar_inventario_pdf(request):
         
         # Pie de página
         p.setFont("Helvetica", 9)
-        p.drawCentredString(width / 2.0, inch * 0.5, "Documento generado por INVENTFARM")
+        p.drawCentredString(width / 2.0, inch * 0.5, f"Documento generado por INVENTFARM - {nombre_usuario}")
         
         # Finalizar PDF
         p.showPage()
@@ -1845,6 +1885,7 @@ def exportar_inventario_pdf(request):
         import traceback
         traceback.print_exc()
         return HttpResponse(f'Error: {str(e)}', status=400)
+
 
 
 @login_required
@@ -2069,14 +2110,16 @@ def exportar_inventario_general_excel(request):
 
 @login_required
 def exportar_inventario_general_pdf(request):
-    """Exportar inventario general a PDF"""
+    """Exportar inventario general a PDF (descripción con wrap)"""
     try:
         from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.pagesizes import letter, landscape
         from reportlab.lib.units import inch
         from reportlab.lib import colors
-        from reportlab.platypus import Table, TableStyle
-        
+        from reportlab.platypus import Table, TableStyle, Paragraph
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_LEFT
+
         # Obtener inventario general
         inventario = Lote.objects.values(
             'medicamento__id',
@@ -2085,55 +2128,74 @@ def exportar_inventario_general_pdf(request):
         ).annotate(
             existencia_total=Sum('existencia'),
             cpm_medicamento=Coalesce(
-                F('medicamento__cpm_medicamento__valor'),
+                F('medicamento__cpm_medicamento__valor'),  # OJO: related_name en tu modelo es cpmmedicamento [file:5]
                 Value(0),
                 output_field=IntegerField()
             )
         ).filter(
             existencia_total__gt=0
-        ).order_by('medicamento__descripcion')
-        
-        # Crear PDF en memoria
+        ).order_by('medicamento__descripcion')  # [file:6]
+
+        # Crear PDF
         buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=letter)
-        width, height = letter
-        
+        p = canvas.Canvas(buffer, pagesize=landscape(letter))
+        width, height = landscape(letter)
+
         # Logo
         logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
-        
         logo_width = 7.0 * inch
         logo_height = 1.0 * inch
-        
         x_logo = (width - logo_width) / 2
         y_logo = height - (0.75 * inch) - logo_height
-        
+
         if os.path.exists(logo_path):
             try:
-                p.drawImage(logo_path, x_logo, y_logo,
-                           width=logo_width, height=logo_height,
-                           preserveAspectRatio=True)
+                p.drawImage(
+                    logo_path,
+                    x_logo, y_logo,
+                    width=logo_width, height=logo_height,
+                    preserveAspectRatio=True
+                )
             except Exception as e:
                 print(f"Error cargando logo: {e}")
-        
+
         y_actual = y_logo - (0.25 * inch)
-        
+
         # Título
         p.setFont("Helvetica-Bold", 16)
         p.drawCentredString(width / 2.0, y_actual, "REPORTE DE INVENTARIO GENERAL DE MEDICAMENTOS")
         y_actual -= 20
-        
+
         # Fecha
         p.setFont("Helvetica", 10)
-        p.drawCentredString(width / 2.0, y_actual, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        p.drawCentredString(width / 2.0, y_actual, f"Fecha del Reporte: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
         y_actual -= 20
         
-        # Línea divisoria
+                
+        nombre_usuario = (request.user.get_full_name() or request.user.username).strip()
+        p.setFont("Helvetica", 10)
+        p.drawCentredString(width / 2.0, y_actual, f"Generado por: {nombre_usuario}")
+        y_actual -= 16
+        
+
+        # Línea
         p.line(inch, y_actual, width - inch, y_actual)
         y_actual -= 20
-        
-        # Tabla de datos
+
+        # ====== FIX: Paragraph para wrap en descripción ======
+        styles = getSampleStyleSheet()
+        desc_style = ParagraphStyle(
+            "desc",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7,
+            leading=8,
+            alignment=TA_LEFT,
+        )
+
+        # Tabla
         data_tabla = [['Clave', 'Descripción', 'Existencia', 'CPM', 'Estado']]
-        
+
         for item in inventario:
             existencia = item['existencia_total']
             if existencia <= 10:
@@ -2144,18 +2206,38 @@ def exportar_inventario_general_pdf(request):
                 estado = 'Medio'
             else:
                 estado = 'Adecuado'
-            
+
             data_tabla.append([
                 item['medicamento__clave'],
-                item['medicamento__descripcion'][:30] + '...' if len(item['medicamento__descripcion']) > 30 else item['medicamento__descripcion'],
+                Paragraph(item['medicamento__descripcion'] or "", desc_style),  # ✅ sin recorte
                 str(existencia),
                 str(item['cpm_medicamento']),
                 estado
             ])
-        
-        tabla = Table(data_tabla, colWidths=[1.0*inch, 2.8*inch, 1.0*inch, 0.8*inch, 1.0*inch])
-        
-        # Estilo de tabla
+
+        margen_x = inch
+        ancho_disponible = width - (2 * margen_x)
+
+        # Reparto proporcional (ajusta estos “pesos” a tu gusto)
+        pesos = {
+            "clave": 1.2,
+            "descripcion": 6.0,   # la más grande
+            "existencia": 1.1,
+            "cpm": 0.9,
+            "estado": 1.1,
+        }
+
+        total_pesos = sum(pesos.values())
+        col_widths = [
+            ancho_disponible * (pesos["clave"] / total_pesos),
+            ancho_disponible * (pesos["descripcion"] / total_pesos),
+            ancho_disponible * (pesos["existencia"] / total_pesos),
+            ancho_disponible * (pesos["cpm"] / total_pesos),
+            ancho_disponible * (pesos["estado"] / total_pesos),
+        ]
+
+        tabla = Table(data_tabla, colWidths=col_widths)
+
         tabla.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.darkred),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -2163,42 +2245,47 @@ def exportar_inventario_general_pdf(request):
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+
+            # Cuerpo
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 7),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+
+            # ✅ Para que el texto envuelto se vea bien
+            ('VALIGN', (0, 1), (-1, -1), 'TOP'),
+            ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+            ('LEFTPADDING', (1, 1), (1, -1), 4),
+            ('RIGHTPADDING', (1, 1), (1, -1), 4),
         ]))
-        
-        # Obtener altura de la tabla
+
+        # Dibujar tabla
         wrap_height = tabla.wrapOn(p, width - 2*inch, height)[1]
         y_tabla = y_actual - wrap_height - 20
-        
+
         if y_tabla < (inch * 2.5):
             p.showPage()
             y_tabla = height - inch - wrap_height
-        
-        # Dibujar tabla
+
         tabla.drawOn(p, inch, y_tabla)
-        
-        # Pie de página
+
+        # Pie
         p.setFont("Helvetica", 9)
         p.drawCentredString(width / 2.0, inch * 0.5, "Documento generado por INVENTFARM")
-        
-        # Finalizar PDF
+
         p.showPage()
         p.save()
-        
-        # Retornar como descarga
+
         buffer.seek(0)
         response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Inventario_General_{datetime.now().strftime("%d%m%Y")}.pdf"'
         return response
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
         return HttpResponse(f'Error: {str(e)}', status=400)
+
     
 # ===== MÓDULO DE REPORTES =====
 
