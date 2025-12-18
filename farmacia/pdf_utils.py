@@ -20,6 +20,15 @@ def generar_pdf_salida(receta):
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter  # Ancho: 8.5 inch, Alto: 11 inch
     
+    styles = getSampleStyleSheet()
+
+    cell_style = styles["Normal"]
+    cell_style.fontName = "Helvetica"
+    cell_style.fontSize = 9
+    cell_style.leading = 10
+    cell_style.wordWrap = 'CJK'   # wrap agresivo, funciona mejor con textos largos
+
+    
     # ✅ Obtener la hora en zona de México
     zona_mexico = pytz.timezone(settings.TIME_ZONE)
     fecha_actual = now().astimezone(zona_mexico)
@@ -56,6 +65,15 @@ def generar_pdf_salida(receta):
     p.setFont("Helvetica", 10)
     p.drawCentredString(width / 2.0, y_actual, f"Fecha de Emisión: {fecha_actual.strftime('%d/%m/%Y %H:%M')}")
     y_actual -= 20
+    
+    y_actual -= 10  # Espaciador menor
+
+    # Agregar línea con usuario
+    usuario_nombre = receta.surtido_por.get_full_name() or receta.surtido_por.username
+    p.setFont("Helvetica", 9)
+    p.drawCentredString(width / 2.0, y_actual, f"Generado por: {usuario_nombre}")
+
+    y_actual -= 30
     
     # Línea divisoria
     p.line(inch, y_actual, width - inch, y_actual)
@@ -100,21 +118,18 @@ def generar_pdf_salida(receta):
     max_desc_len = 50
     
     for item in items:
-        desc = item.medicamento.descripcion
-        if len(desc) > max_desc_len:
-            desc = desc[:max_desc_len] + "..."
         data_tabla.append([
             item.medicamento.clave,
-            desc,
+            Paragraph(item.medicamento.descripcion or "N/A", cell_style),
             item.lote.lote_codigo if item.lote else 'N/A',
-            item.cantidad_surtida
+            str(item.cantidad_surtida),
         ])
     
     # Si no hay medicamentos surtidos
     if len(data_tabla) == 1:
         data_tabla.append(['---', 'No se surtió ningún medicamento', '---', '0'])
     
-    tabla = Table(data_tabla, colWidths=[1.5*inch, 4*inch, 1*inch, 0.5*inch])
+    tabla = Table(data_tabla, colWidths=[1.2*inch, 4.6*inch, 1.0*inch, 0.7*inch])
     tabla.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#343a40")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -125,6 +140,7 @@ def generar_pdf_salida(receta):
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('ALIGN', (3, 1), (3, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     
     wrap_height = tabla.wrapOn(p, width - 2*inch, height)[1]
@@ -135,8 +151,13 @@ def generar_pdf_salida(receta):
         p.showPage()
         y_tabla = height - inch - wrap_height
     
-    tabla.drawOn(p, inch, y_tabla)
-    y_actual = y_tabla - 30  # Posición después de la tabla
+    available_width = width - 2*inch
+
+    # --- tabla surtidos ---
+    table_width = sum(tabla._colWidths)
+    x_table = inch + (available_width - table_width) / 2
+    tabla.drawOn(p, x_table, y_tabla)   # Posición después de la tabla
+    y_actual = y_tabla - 30
     
     # --- 4. MEDICAMENTOS NO DISPONIBLES ---
     medicamentos_faltantes = MedicamentoNoSurtido.objects.filter(
@@ -155,21 +176,13 @@ def generar_pdf_salida(receta):
         data_faltantes = [['Medicamento', 'Cant. Solicitada', 'Motivo']]
         
         for faltante in medicamentos_faltantes:
-            desc = faltante.medicamento_descripcion
-            if len(desc) > 40:
-                desc = desc[:40] + "..."
-            
-            motivo = faltante.motivo
-            if len(motivo) > 50:
-                motivo = motivo[:50] + "..."
-            
             data_faltantes.append([
-                desc,
+                Paragraph(faltante.medicamento_descripcion or "N/A", cell_style),
                 str(faltante.cantidad_solicitada),
-                motivo
+                Paragraph(faltante.motivo or "N/A", cell_style),
             ])
         
-        tabla_faltantes = Table(data_faltantes, colWidths=[2.5*inch, 1.5*inch, 3*inch])
+        tabla_faltantes = Table(data_faltantes, colWidths=[3.4*inch, 1.2*inch, 2.9*inch])
         tabla_faltantes.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#ffc107")),  # Amarillo
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
@@ -191,7 +204,10 @@ def generar_pdf_salida(receta):
             p.showPage()
             y_tabla_faltantes = height - inch - wrap_height_faltantes
         
-        tabla_faltantes.drawOn(p, inch, y_tabla_faltantes)
+        faltantes_width = sum(tabla_faltantes._colWidths)
+        x_faltantes = inch + (available_width - faltantes_width) / 2
+        tabla_faltantes.drawOn(p, x_faltantes, y_tabla_faltantes)
+        y_actual = y_tabla - 30
     
     # Finalizar PDF
     p.save()

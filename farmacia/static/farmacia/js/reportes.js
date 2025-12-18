@@ -249,13 +249,15 @@ function loadMedicamentosCharts() {
 
     // Opciones base
     const opts = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        title: { display: false }
-      }
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 3,   // <-- clave para que el canvas salga HD
+        plugins: {
+            legend: { display: false },
+            title: { display: false }
+        }
     };
+
 
     // Pie / doughnut no usan scales
     if (isPieLike) return opts;
@@ -375,6 +377,7 @@ function loadPacientesCharts() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            devicePixelRatio: 3,
             plugins: {
                 legend: {
                     position: 'right',
@@ -458,6 +461,7 @@ function loadTendenciasMensuales() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            devicePixelRatio: 3,
             plugins: {
                 legend: {
                     display: true,
@@ -515,6 +519,7 @@ function loadDistribucionDias() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            devicePixelRatio: 3,
             plugins: {
                 legend: {
                     position: 'bottom'
@@ -561,6 +566,7 @@ function loadHorasPico() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            devicePixelRatio: 3,
             scales: {
                 y: {
                     beginAtZero: true
@@ -588,17 +594,23 @@ function getActiveTab() {
 function safeGetCanvasImage(canvasId) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return null;
-
-  // Si el canvas está en 0x0 (tab no visible o aún no renderiza), no sirve
   if (canvas.width === 0 || canvas.height === 0) return null;
 
   try {
+    // Chart.js v3/v4: obtener instancia y exportar directo (mejor calidad)
+    const chart = (window.Chart && window.Chart.getChart) ? window.Chart.getChart(canvas) : null;
+    if (chart && typeof chart.toBase64Image === 'function') {
+      return chart.toBase64Image('image/png', 1.0);
+    }
+
+    // Fallback: lo que ya tenías (por si no encuentra el chart)
     return canvas.toDataURL('image/png', 1.0);
   } catch (e) {
-    console.warn(`No se pudo capturar canvas ${canvasId}:`, e);
+    console.warn('No se pudo capturar canvas', canvasId, e);
     return null;
   }
 }
+
 
 function addCanvasToPDF(doc, canvasId, x, y, w, h) {
   const imgData = safeGetCanvasImage(canvasId);
@@ -616,6 +628,32 @@ function getJsPDF() {
 
   throw new Error('jsPDF no está cargado (window.jspdf.jsPDF no existe).');
 }
+
+async function elementToPngBase64(elementId) {
+  const element = document.getElementById(elementId);
+  if (!element) return null;
+
+  if (typeof html2canvas === 'undefined') {
+    console.warn('html2canvas no está cargado. Agrega: <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>');
+    return null;
+  }
+
+  try {
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#FFFFFF'
+    });
+
+    return canvas.toDataURL('image/png', 1.0);
+  } catch (e) {
+    console.warn('Error capturando tabla:', e);
+    return null;
+  }
+}
+
+
 
 
 // ===== EVENT LISTENERS =====
@@ -782,136 +820,246 @@ function formatDate(dateString) {
 }
 
 async function exportarHistorialPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    // Agregar logo (1236x175 = proporción ~7:1)
-    const logoUrl = '/static/farmacia/img/logo.jpg';
-    doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12); // Ancho 80mm, Alto 12mm
-    
-    // Título
-    doc.setFontSize(18);
-    doc.text('Historial de Salidas', 14, 30);
-    
-    // Fecha de generación
-    doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
-    
-    // Línea divisoria
-    doc.setLineWidth(0.5);
-    doc.line(14, 42, 196, 42);
-    
-    // Preparar datos de la tabla
-    const rows = [];
-    const tbody = document.getElementById('tableSalidasBody');
-    
-    if (tbody) {
-        tbody.querySelectorAll('tr').forEach(row => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 7) {
-                rows.push([
-                    cells[0].textContent.trim(),
-                    cells[1].textContent.trim(),
-                    cells[2].textContent.trim(),
-                    cells[3].textContent.trim(),
-                    cells[4].textContent.trim(),
-                    cells[5].textContent.trim(),
-                    cells[6].textContent.trim()
-                ]);
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p', 'mm', 'letter');
+      // Fuentes Unicode
+      doc.addFileToVFS('DejaVuSans.ttf', window.DEJAVU_SANS_TTF_BASE64);
+      doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
+
+      doc.addFileToVFS('DejaVuSans-Bold.ttf', window.DEJAVU_SANS_BOLD_TTF_BASE64);
+      doc.addFont('DejaVuSans-Bold.ttf', 'DejaVuSans', 'bold');
+
+
+      const pageWidth = 215.9;
+      const pageHeight = 279.4;
+      const margin = 10;
+      const availableWidth = pageWidth - (2 * margin);
+
+      // Logo ancho completo (similar al reporte de salida)
+      const logoUrl = '/static/farmacia/img/logo.jpg';
+      doc.addImage(logoUrl, 'JPEG', margin, 8, availableWidth, 25);
+
+      // Título
+      doc.setFontSize(18);
+      doc.setFont('DejaVuSans', 'bold');
+      doc.text('Historial de Salidas', pageWidth / 2, 40, { align: 'center' });
+
+      // Fecha
+      doc.setFontSize(10);
+      doc.setFont('DejaVuSans', 'normal');
+      doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, pageWidth / 2, 47, { align: 'center' });
+
+      // Línea
+      doc.setLineWidth(0.5);
+      doc.line(margin, 50, pageWidth - margin, 50);
+
+      // Helpers (tipo Paragraph)
+      const cleanText = (v) => {
+        if (v === null || v === undefined) return '';
+        return String(v)
+            .replace(/\u00A0/g, ' ') // NBSP -> espacio normal
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+
+      const formatFechaYMD = (dateString) => {
+            if (!dateString) return '';
+            const d = new Date(dateString);
+            if (isNaN(d.getTime())) return cleanText(dateString);
+            // dd/mm/yyyy
+            return d.toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      };
+
+      // Construir rows desde salidasData (todos los datos)
+      const rows = (salidasData || []).map(item => ([
+            cleanText(item.id),
+            formatFechaYMD(item.fecha),
+            cleanText(item.medicamento),
+            cleanText(item.cantidad),
+            cleanText(item.paciente),
+            cleanText(item.responsable),
+            item.valor !== undefined && item.valor !== null ? `$${Number(item.valor).toLocaleString('es-MX')}` : '$0'
+      ]));
+
+      doc.autoTable({
+            startY: 55,
+            margin: { left: margin, right: margin, top: 10, bottom: 10 },
+            head: [[ 'ID', 'Fecha', 'Medicamento', 'Cant.', 'Paciente', 'Responsable', 'Valor' ]],
+            body: rows,
+            theme: 'grid',
+
+            // Estilo global
+            styles: {
+                  font: 'DejaVuSans',
+                  fontSize: 7,          // base
+                  cellPadding: 2,
+                  overflow: 'linebreak', // CLAVE: wrap como “Paragraph”
+                  valign: 'top',
+                  halign: 'left',
+                  lineWidth: 0.2
+            },
+
+            // Encabezados
+            headStyles: {
+                  font: 'DejaVuSans',
+                  fillColor: [139, 0, 0],
+                  textColor: [255, 255, 255],
+                  fontStyle: 'bold',
+                  fontSize: 7,
+                  halign: 'center',
+                  valign: 'middle',
+                  cellPadding: 2
+            },
+
+            // Ajustes por columna (suman 195.9mm exactos)
+            columnStyles: {
+                  0: { cellWidth: 10, halign: 'center' }, // ID
+                  1: { cellWidth: 22, halign: 'center' }, // Fecha (dd/mm/yyyy)
+                  2: { cellWidth: 70, halign: 'left'   }, // Medicamento (wrap)
+                  3: { cellWidth: 12, halign: 'center' }, // Cant.
+                  4: { cellWidth: 36, halign: 'left'   }, // Paciente
+                  5: { cellWidth: 30, halign: 'left'   }, // Responsable (más chico pero presente)
+                  6: { cellWidth: 15, halign: 'right'  }  // Valor
+            },
+
+            // Evitar que “Cant.” se vea raro y mejorar look
+            didParseCell: function (data) {
+                  // Encabezado: asegurar texto corto y centrado
+                  if (data.section === 'head' && data.column.index === 3) {
+                        data.cell.text = ['Cant.']; // evita saltos raros
+                  }
+                  // Forzar que medicamento respete wrap sin “estirar” espacios
+                  if (data.section === 'body' && data.column.index === 2) {
+                        data.cell.styles.valign = 'top';
+                        data.cell.styles.fontSize = 6.7;
+                  }
+            },
+
+            alternateRowStyles: { fillColor: [248, 249, 250] },
+
+            didDrawPage: function (data) {
+                  const pageCount = doc.internal.getNumberOfPages();
+                  doc.setFontSize(8);
+                  doc.setFont('DejaVuSans', 'normal');
+                  doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
             }
-        });
-    }
-    
-    // Crear tabla
-    doc.autoTable({
-        startY: 46,
-        head: [['ID', 'Fecha', 'Medicamento', 'Cant.', 'Paciente', 'Responsable', 'Valor']],
-        body: rows,
-        theme: 'grid',
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [139, 0, 0] }
-    });
-    
-    doc.save('Historial_Salidas.pdf');
+      });
+
+      doc.save('Historial_Salidas.pdf');
 }
 
-async function exportarMedicamentosPDF() {
-    const jsPDF = getJsPDF();
-    const doc = new jsPDF();
 
+
+async function exportarMedicamentosPDF() {
+  const jsPDF = getJsPDF();
+  const doc = new jsPDF('p', 'mm', 'letter');
+
+  doc.addFileToVFS('DejaVuSans.ttf', window.DEJAVU_SANS_TTF_BASE64);
+  doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
+
+  doc.addFileToVFS('DejaVuSans-Bold.ttf', window.DEJAVU_SANS_BOLD_TTF_BASE64);
+  doc.addFont('DejaVuSans-Bold.ttf', 'DejaVuSans', 'bold');
+
+  const margin = 10;
+
+  const cleanText = (v) => (v ?? '')
+    .toString()
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   // Logo
   const logoUrl = window.STATIC_LOGO_URL;
-  doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
+  doc.addImage(logoUrl, 'JPEG', margin, 8, 195.9, 25);
 
   // Título
   doc.setFontSize(18);
-  doc.text('Top 10 Medicamentos Más Dispensados', 14, 30);
+  doc.setFont('DejaVuSans', 'bold');
+  doc.text('Top 10 Medicamentos Más Dispensados', 105, 40, { align: 'center' });
 
   // Fecha
   doc.setFontSize(10);
-  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
+  doc.setFont('DejaVuSans', 'normal');
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 105, 47, { align: 'center' });
 
   // Línea
   doc.setLineWidth(0.5);
-  doc.line(14, 42, 196, 42);
+  doc.line(margin, 50, 200, 50);
 
-  // 1) CHART (si existe)
-  // Ubicación pensada para una hoja portrait
-  // (ancho util ~ 182mm)
-  const okChart = addCanvasToPDF(doc, 'chartMedicamentos', 14, 46, 182, 80);
+  // Chart
+  const okChart = addCanvasToPDF(doc, 'chartMedicamentos', margin, 55, 195.9, 80);
 
-  // 2) TABLA (ranking)
+  // Rows
   const rows = [];
   const ranking = document.getElementById('rankingMedicamentos');
 
   if (ranking) {
     ranking.querySelectorAll('.ranking-item').forEach((item, index) => {
-      const nombre = item.querySelector('.ranking-name')?.textContent.trim() || 'N/A';
-      const cantidad = item.querySelector('.ranking-value')?.textContent.trim() || '0';
-      rows.push([String(index + 1), nombre, cantidad]);
+      const nombre = item.querySelector('.ranking-name')?.textContent || 'N/A';
+      const cantidad = item.querySelector('.ranking-value')?.textContent || '0';
+      rows.push([String(index + 1), cleanText(nombre), cleanText(cantidad)]);
     });
   }
 
-  // Si hubo chart, baja la tabla; si no, úsala desde arriba
-  const startY = okChart ? 46 + 80 + 8 : 46;
+  const startY = okChart ? 55 + 80 + 8 : 55;
 
-  doc.autoTable({
+    const pageWidth = doc.internal.pageSize.getWidth();  // 215.9
+    const marginX = 10;
+    const usableWidth = pageWidth - (marginX * 2);  // 195.9
+
+    doc.autoTable({
     startY,
+    margin: { left: marginX, right: marginX },
     head: [['#', 'Medicamento', 'Cantidad Dispensada']],
     body: rows,
-    theme: 'grid',
-    styles: { fontSize: 10 },
-    headStyles: { fillColor: [139, 0, 0] }
-  });
+    theme: 'grid',  // ← VUELVE AL GRID
+    styles: {
+        font: 'DejaVuSans',
+        fontSize: 10,
+        overflow: 'linebreak',
+        valign: 'top',
+        cellPadding: 2,
+        // lineWidth: 0  ← QUITA ESTA LÍNEA, déjalo por defecto
+    },
+    headStyles: {
+        font: 'DejaVuSans',
+        fillColor: [139, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+    },
+    columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 136, halign: 'left', fontSize: 9 },  // ← 2mm menos, font 9
+        2: { cellWidth: 47, halign: 'right' }
+        }
+    });
 
   doc.save('TopMedicamentos.pdf');
 }
 
 
 async function exportarPacientesPDF() {
-    const jsPDF = getJsPDF();
-    const doc = new jsPDF();
+  const jsPDF = getJsPDF();
+  const doc = new jsPDF();
 
-
-  // Logo
+  // Logo - AMPLIAR: de 80x12 a 195.9x25 (como el anterior PDF)
   const logoUrl = window.STATIC_LOGO_URL;
-  doc.addImage(logoUrl, 'JPEG', 14, 10, 80, 12);
+  doc.addImage(logoUrl, 'JPEG', 10, 8, 195.9, 25);
 
   // Título
   doc.setFontSize(18);
-  doc.text('Pacientes Frecuentes', 14, 30);
+  doc.text('Pacientes Frecuentes', 14, 40);
 
   // Fecha
   doc.setFontSize(10);
-  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 37);
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 47);
 
   // Línea
   doc.setLineWidth(0.5);
-  doc.line(14, 42, 196, 42);
+  doc.line(10, 52, 200, 52);
 
-  // 1) CHART (dona)
-  const okChart = addCanvasToPDF(doc, 'chartPacientes', 14, 46, 182, 85);
+  // 1) CHART (dona) - MEJORAR CALIDAD: aumentar tamaño + `devicePixelRatio: 3`
+  const okChart = addCanvasToPDF(doc, 'chartPacientes', 14, 56, 182, 85);
 
   // 2) TABLA (detalle)
   const rows = [];
@@ -933,7 +1081,7 @@ async function exportarPacientesPDF() {
     });
   }
 
-  const startY = okChart ? 46 + 85 + 8 : 46;
+  const startY = okChart ? 56 + 85 + 8 : 56;
 
   doc.autoTable({
     startY,
@@ -948,36 +1096,81 @@ async function exportarPacientesPDF() {
 }
 
 
-
 async function exportarTendenciasPDF() {
-    const jsPDF = getJsPDF();
-    const doc = new jsPDF('landscape');
+  const jsPDF = getJsPDF();
+  const doc = new jsPDF('landscape', 'mm', 'letter');
 
+  const margin = 10;
 
+  // Medidas hoja
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const usableW = pageW - margin * 2;
 
-  // Logo
+  // Logo banner
   const logoUrl = window.STATIC_LOGO_URL;
-  doc.addImage(logoUrl, 'JPEG', 14, 10, 100, 15);
+  doc.addImage(logoUrl, 'JPEG', margin, 8, usableW, 25);
 
-  // Título
+  // Título / fecha / línea
   doc.setFontSize(18);
-  doc.text('Tendencias Temporales', 14, 32);
+  doc.text('Tendencias Temporales', margin, 40);
 
-  // Fecha
   doc.setFontSize(10);
-  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 14, 39);
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, margin, 47);
 
-  // Línea
+  // (Opcional) rango del filtro
+  const fi = document.getElementById('fechaInicio')?.value;
+  const ff = document.getElementById('fechaFin')?.value;
+  if (fi && ff) doc.text(`Rango: ${fi} a ${ff}`, margin, 52);
+
   doc.setLineWidth(0.5);
-  doc.line(14, 44, 280, 44);
+  doc.line(margin, 56, pageW - margin, 56);
 
-  // Chart principal (línea)
-  addCanvasToPDF(doc, 'chartTendencias', 14, 50, 260, 85);
+  // Helper wrap con límite de líneas
+  const drawParagraphLimited = (text, x, y, maxW, maxLines, lineH = 4) => {
+    const lines = doc.splitTextToSize(text, maxW).slice(0, maxLines);
+    doc.text(lines, x, y);
+    return y + (lines.length * lineH);
+  };
 
-  // Charts secundarios (abajo, 2 columnas)
-  // Ajusta alturas si lo ves apretado
-  addCanvasToPDF(doc, 'chartDiasSemana', 14, 140, 128, 55);
-  addCanvasToPDF(doc, 'chartHoras', 146, 140, 128, 55);
+  // ===== ANCLAS (no se mueven) =====
+  const chartTopY = 66;                 // chart grande fijo
+  const chartTopH = 78;                 // un poco menos alto para dejar espacio abajo
+  const bottomChartsY = 162;            // charts de abajo fijo
+  const bottomChartH = 45;              // más bajo para que no choque con el borde
+  const gapX = 5;
+  const leftW = (usableW - gapX) / 2;
+
+  // Texto contextual arriba del chart grande (máximo 2 líneas)
+  doc.setFontSize(10);
+  drawParagraphLimited(
+    'La gráfica superior muestra el total de salidas por mes (conteo de registros). Abajo se muestran patrones por día de la semana y por hora para identificar días y horarios con mayor carga.',
+    margin, 60, usableW, 2
+  );
+
+  // Chart grande
+  addCanvasToPDF(doc, 'chartTendencias', margin, chartTopY, usableW, chartTopH);
+
+  // Títulos + texto arriba de los charts de abajo (sin mover los charts)
+  const bottomTitleY = bottomChartsY - 10;  // texto siempre encima
+  doc.setFontSize(11);
+  doc.text('Patrones de operación', margin, bottomTitleY);
+
+  doc.setFontSize(9);
+  drawParagraphLimited(
+    'Distribución de salidas por día (Lun–Dom). Útil para ver qué días se atiende más.',
+    margin, bottomTitleY + 4, leftW, 2
+  );
+
+  const rightX = margin + leftW + gapX;
+  drawParagraphLimited(
+    'Salidas por hora (8:00–19:00). Útil para detectar horas pico y planear personal.',
+    rightX, bottomTitleY + 4, leftW, 2
+  );
+
+  // Charts de abajo (ANCLADOS)
+  addCanvasToPDF(doc, 'chartDiasSemana', margin, bottomChartsY, leftW, bottomChartH);
+  addCanvasToPDF(doc, 'chartHoras', rightX, bottomChartsY, leftW, bottomChartH);
 
   doc.save('TendenciasTemporales.pdf');
 }
@@ -1012,33 +1205,51 @@ function downloadArrayBufferExcel(buffer, filename) {
 
 
 async function exportarHistorialExcel() {
-    const wb = XLSX.utils.book_new();
-    
-    // Preparar datos
-    const data = [['ID', 'Fecha', 'Medicamento', 'Cantidad', 'Paciente', 'Responsable', 'Valor']];
-    
-    const tbody = document.getElementById('tableSalidasBody');
-    if (tbody) {
-        tbody.querySelectorAll('tr').forEach(row => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 7) {
-                data.push([
-                    cells[0].textContent.trim(),
-                    cells[1].textContent.trim(),
-                    cells[2].textContent.trim(),
-                    cells[3].textContent.trim(),
-                    cells[4].textContent.trim(),
-                    cells[5].textContent.trim(),
-                    cells[6].textContent.trim()
-                ]);
-            }
-        });
+  const workbook = new ExcelJS.Workbook();
+
+  // ===== HOJA 1: Tabla de datos (TODOS) =====
+  const wsData = workbook.addWorksheet('Historial');
+
+  const headerRow = wsData.addRow([
+    'ID', 'Fecha', 'Medicamento', 'Cantidad',
+    'Paciente', 'Responsable', 'Tipo de Salida', 'Precio'
+  ]);
+
+  headerRow.font = { bold: true, color: { rgb: 'FFFFFF' }, size: 11 };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { rgb: 'C00000' } };
+  headerRow.alignment = { horizontal: 'center', vertical: 'center' };
+
+  const allRows = (salidasData || []).map(item => ([
+    String(item.id ?? ''),
+    String(item.fecha ?? ''),
+    String(item.medicamento ?? ''),
+    String(item.cantidad ?? ''),
+    String(item.paciente ?? ''),
+    String(item.responsable ?? ''),
+    String(item.tipo ?? ''),
+    String(item.valor ?? '')
+  ]));
+
+  allRows.forEach((r, idx) => {
+    const newRow = wsData.addRow(r);
+
+    if ((idx + 1) % 2 === 0) {
+      newRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { rgb: 'F8F9FA' } };
     }
-    
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Historial');
-    XLSX.writeFile(wb, 'Historial_Salidas.xlsx');
+    newRow.alignment = { horizontal: 'left', vertical: 'center' };
+  });
+
+  wsData.columns = [
+    { width: 10 }, { width: 15 }, { width: 45 }, { width: 15 },
+    { width: 30 }, { width: 24 }, { width: 16 }, { width: 12 }
+  ];
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadArrayBufferExcel(buffer, 'Historial_Salidas.xlsx');
 }
+
+
+
 
 async function exportarMedicamentosExcel() {
   const workbook = new ExcelJS.Workbook();

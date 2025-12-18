@@ -662,3 +662,32 @@ body {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+/* ===== FIX: ranking con nombres largos ===== */
+.ranking-item{
+  align-items: flex-start; /* que pueda crecer hacia abajo */
+}
+
+.ranking-info{
+  min-width: 0; /* CLAVE en flex para que el texto pueda wrappear */
+}
+
+.ranking-name{
+  white-space: normal;      /* permitir varias líneas */
+  overflow-wrap: anywhere;  /* corta palabras larguísimas */
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.ranking-detail{
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.ranking-value{
+  flex: 0 0 auto;     /* no se encoja */
+  white-space: nowrap;
+  margin-left: 12px;  /* separación del texto */
+}
