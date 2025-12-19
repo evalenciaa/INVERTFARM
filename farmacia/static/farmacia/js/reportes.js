@@ -1254,7 +1254,7 @@ async function exportarHistorialExcel() {
 async function exportarMedicamentosExcel() {
   const workbook = new ExcelJS.Workbook();
 
-  // Hoja 1: Chart
+  // ===== HOJA 1: Chart (Gráfica) =====
   const wsChart = workbook.addWorksheet('Chart');
   wsChart.getCell('A1').value = 'Top 10 Medicamentos - Gráfica';
   wsChart.getCell('A1').font = { bold: true, size: 14 };
@@ -1262,27 +1262,38 @@ async function exportarMedicamentosExcel() {
   const imgBase64 = await canvasToPngBase64('chartMedicamentos');
   if (imgBase64) {
     const imageId = workbook.addImage({ base64: imgBase64, extension: 'png' });
-    // Ubicación aproximada en celdas
     wsChart.addImage(imageId, {
-      tl: { col: 0, row: 2 },   // A3
+      tl: { col: 0, row: 2 },
       ext: { width: 900, height: 420 }
     });
   } else {
     wsChart.getCell('A3').value = 'No se pudo capturar la gráfica (canvas vacío).';
   }
 
-  // Hoja 2: Datos
+  // ===== HOJA 2: Datos (Ranking) =====
   const wsData = workbook.addWorksheet('Top Medicamentos');
-  wsData.addRow(['#', 'Medicamento', 'Cantidad Dispensada']).font = { bold: true };
 
-  const ranking = document.getElementById('rankingMedicamentos');
-  if (ranking) {
-    ranking.querySelectorAll('.ranking-item').forEach((item, index) => {
-      const nombre = item.querySelector('.ranking-name')?.textContent.trim() || '';
-      const cantidad = item.querySelector('.ranking-value')?.textContent.trim() || '0';
-      wsData.addRow([index + 1, nombre, Number(String(cantidad).replace(/[^\d.]/g, '')) || cantidad]);
-    });
-  }
+  // Header
+  const headerRow = wsData.addRow(['#', 'Medicamento', 'Cantidad Dispensada']);
+  headerRow.font = { bold: true, color: { rgb: 'FFFFFF' }, size: 11 };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { rgb: 'C00000' } };
+  headerRow.alignment = { horizontal: 'center', vertical: 'center' };
+
+  // Calcular ranking desde salidasData (igual que en la gráfica)
+  const medicamentosCounts = {};
+  (salidasData || []).forEach(item => {
+    medicamentosCounts[item.medicamento] = (medicamentosCounts[item.medicamento] || 0) + item.cantidad;
+  });
+
+  const topMedicamentos = Object.entries(medicamentosCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  // Agregar filas
+  topMedicamentos.forEach((med, idx) => {
+    const newRow = wsData.addRow([idx + 1, med[0], med[1]]);
+    newRow.alignment = { horizontal: 'center', vertical: 'center' };
+  });
 
   wsData.columns = [
     { width: 6 },
@@ -1295,10 +1306,11 @@ async function exportarMedicamentosExcel() {
 }
 
 
+
 async function exportarPacientesExcel() {
   const workbook = new ExcelJS.Workbook();
 
-  // Hoja 1: Chart
+  // ===== Hoja 1: Chart =====
   const wsChart = workbook.addWorksheet('Chart');
   wsChart.getCell('A1').value = 'Pacientes Frecuentes - Gráfica';
   wsChart.getCell('A1').font = { bold: true, size: 14 };
@@ -1314,26 +1326,57 @@ async function exportarPacientesExcel() {
     wsChart.getCell('A3').value = 'No se pudo capturar la gráfica (canvas vacío).';
   }
 
-  // Hoja 2: Datos
+  // ===== Hoja 2: Datos (TODOS) =====
   const wsData = workbook.addWorksheet('Pacientes');
-  wsData.addRow(['#', 'Paciente', 'Total Visitas', 'Medicamentos', 'Última Visita', 'Gasto Total']).font = { bold: true };
 
-  const tbody = document.getElementById('tablePacientesBody');
-  if (tbody) {
-    tbody.querySelectorAll('tr').forEach(row => {
-      const cells = row.querySelectorAll('td');
-      if (cells.length >= 6) {
-        wsData.addRow([
-          cells[0].textContent.trim(),
-          cells[1].textContent.trim(),
-          cells[2].textContent.trim(),
-          cells[3].textContent.trim(),
-          cells[4].textContent.trim(),
-          cells[5].textContent.trim()
-        ]);
-      }
-    });
-  }
+  const headerRow = wsData.addRow([
+    '#', 'Paciente', 'Total Visitas', 'Medicamentos', 'Última Visita', 'Gasto Total'
+  ]);
+  headerRow.font = { bold: true, color: { rgb: 'FFFFFF' }, size: 11 };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { rgb: 'C00000' } };
+  headerRow.alignment = { horizontal: 'center', vertical: 'center' };
+
+  // Construir métricas desde salidasData (sin depender del DOM)
+  const counts = {};              // visitas (salidas) por paciente
+  const valores = {};             // gasto total
+  const ultimaVisita = {};        // fecha última
+  const medicamentosUnicos = {};  // Set de medicamentos por paciente
+
+  (salidasData || []).forEach(item => {
+    const p = item.paciente ?? '';
+    if (!p) return;
+
+    counts[p] = (counts[p] || 0) + 1;
+    valores[p] = (valores[p] || 0) + Number(item.valor || 0);
+
+    if (!medicamentosUnicos[p]) medicamentosUnicos[p] = new Set();
+    if (item.medicamento) medicamentosUnicos[p].add(item.medicamento);
+
+    const f = item.fecha ? new Date(item.fecha) : null;
+    if (f && !isNaN(f.getTime())) {
+      const prev = ultimaVisita[p] ? new Date(ultimaVisita[p]) : null;
+      if (!prev || f > prev) ultimaVisita[p] = item.fecha;
+    }
+  });
+
+  // TOP_N: null para exportar todos, o 10/50/etc.
+  const TOP_N = null;
+
+  let pacientesOrdenados = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1]); // por visitas desc
+
+  if (TOP_N) pacientesOrdenados = pacientesOrdenados.slice(0, TOP_N);
+
+  pacientesOrdenados.forEach(([paciente, totalVisitas], idx) => {
+    wsData.addRow([
+      idx + 1,
+      paciente,
+      totalVisitas,
+      (medicamentosUnicos[paciente]?.size || 0),
+      String(ultimaVisita[paciente] ?? ''),
+      Number(valores[paciente] || 0)
+    ]);
+  });
 
   wsData.columns = [
     { width: 6 },
@@ -1349,47 +1392,110 @@ async function exportarPacientesExcel() {
 }
 
 
+
 async function exportarTendenciasExcel() {
   const workbook = new ExcelJS.Workbook();
 
-  // Hoja 1: Charts
-  const wsChart = workbook.addWorksheet('Charts');
-  wsChart.getCell('A1').value = 'Tendencias - Gráficas';
-  wsChart.getCell('A1').font = { bold: true, size: 14 };
-  wsChart.getCell('A2').value = `Generado: ${new Date().toLocaleString('es-MX')}`;
+  const headerStyle = (cell) => {
+    cell.font = { bold: true, color: { rgb: 'FFFFFF' }, size: 11 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { rgb: 'C00000' } };
+    cell.alignment = { horizontal: 'center', vertical: 'center' };
+  };
 
-  const c1 = await canvasToPngBase64('chartTendencias');
-  const c2 = await canvasToPngBase64('chartDiasSemana');
-  const c3 = await canvasToPngBase64('chartHoras');
+  // ====== DATA desde salidasData (igual que tus charts) ======
+  // 1) Mensual
+  const mesesLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']; // igual que UI [file:49]
+  const mesesData = new Array(12).fill(0);
+  (salidasData || []).forEach(item => {
+    const d = item.fecha ? new Date(item.fecha) : null;
+    if (!d || isNaN(d.getTime())) return;
+    mesesData[d.getMonth()] += 1;
+  });
 
-  let rowOffset = 3;
+  // 2) Días semana (Lun..Dom), con domingo al final (igual que UI) [file:49]
+  const diasLabels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const diasData = new Array(7).fill(0);
+  (salidasData || []).forEach(item => {
+    const d = item.fecha ? new Date(item.fecha) : null;
+    if (!d || isNaN(d.getTime())) return;
+    const dia = d.getDay();              // 0=Dom..6=Sáb
+    const idx = (dia === 0) ? 6 : dia-1; // mover domingo al final (igual que UI) [file:49]
+    diasData[idx] += 1;
+  });
 
-  if (c1) {
-    const id1 = workbook.addImage({ base64: c1, extension: 'png' });
-    wsChart.addImage(id1, { tl: { col: 0, row: rowOffset }, ext: { width: 1100, height: 420 } });
-    rowOffset += 22;
-  }
+  // 3) Horas pico (8:00–19:00), 12 slots (igual que UI) [file:49]
+  const horasLabels = [];
+  for (let i = 8; i <= 19; i++) horasLabels.push(`${i}:00`);
+  const horasData = new Array(12).fill(0);
+  (salidasData || []).forEach(item => {
+    const hRaw = item.hora ? String(item.hora) : '';
+    const hora = parseInt(hRaw.split(':')[0], 10);
+    if (!Number.isFinite(hora)) return;
+    if (hora >= 8 && hora <= 19) horasData[hora - 8] += 1;
+  });
 
-  if (c2) {
-    const id2 = workbook.addImage({ base64: c2, extension: 'png' });
-    wsChart.addImage(id2, { tl: { col: 0, row: rowOffset }, ext: { width: 540, height: 320 } });
-  }
+  // Helper para crear hoja con imagen + tabla
+  const buildSheet = async ({ sheetName, title, canvasId, labels, values }) => {
+    const ws = workbook.addWorksheet(sheetName);
 
-  if (c3) {
-    const id3 = workbook.addImage({ base64: c3, extension: 'png' });
-    wsChart.addImage(id3, { tl: { col: 8, row: rowOffset }, ext: { width: 540, height: 320 } });
-  }
+    ws.getCell('A1').value = title;
+    ws.getCell('A1').font = { bold: true, size: 14 };
+    ws.getCell('A2').value = `Generado: ${new Date().toLocaleString('es-MX')}`;
 
-  // Hoja 2: Nota / (si luego quieres, aquí ponemos meses y totales desde tu API)
-  const wsData = workbook.addWorksheet('Datos');
-  wsData.addRow(['Reporte de Tendencias']).font = { bold: true };
-  wsData.addRow(['Generado:', new Date().toLocaleString('es-MX')]);
-  wsData.addRow([]);
-  wsData.addRow(['Nota:', 'Los datos detallados se pueden agregar aquí (meses/totales).']);
+    // Imagen
+    const img = await canvasToPngBase64(canvasId);
+    if (img) {
+      const imageId = workbook.addImage({ base64: img, extension: 'png' });
+      ws.addImage(imageId, { tl: { col: 0, row: 3 }, ext: { width: 980, height: 380 } });
+    } else {
+      ws.getCell('A4').value = 'No se pudo capturar la gráfica (canvas vacío).';
+    }
+
+    // Tabla de datos (debajo)
+    const startRow = 24;
+    const headerRow = ws.getRow(startRow);
+    headerRow.getCell(1).value = 'Etiqueta';
+    headerRow.getCell(2).value = 'Total';
+    headerStyle(headerRow.getCell(1));
+    headerStyle(headerRow.getCell(2));
+
+    labels.forEach((lab, i) => {
+      ws.getCell(`A${startRow + 1 + i}`).value = lab;
+      ws.getCell(`B${startRow + 1 + i}`).value = values[i];
+    });
+
+    ws.columns = [{ width: 20 }, { width: 12 }];
+  };
+
+  // ====== 3 hojas ======
+  await buildSheet({
+    sheetName: 'Mensual',
+    title: 'Tendencias Mensuales (Salidas por mes)',
+    canvasId: 'chartTendencias',
+    labels: mesesLabels,
+    values: mesesData
+  });
+
+  await buildSheet({
+    sheetName: 'Días',
+    title: 'Distribución por Día (Lun–Dom)',
+    canvasId: 'chartDiasSemana',
+    labels: diasLabels,
+    values: diasData
+  });
+
+  await buildSheet({
+    sheetName: 'Horas',
+    title: 'Horas Pico (8:00–19:00)',
+    canvasId: 'chartHoras',
+    labels: horasLabels,
+    values: horasData
+  });
 
   const buffer = await workbook.xlsx.writeBuffer();
   downloadArrayBufferExcel(buffer, 'Tendencias_Temporales.xlsx');
 }
+
 
 
 function setDefaultDates() {

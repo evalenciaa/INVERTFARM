@@ -17,6 +17,7 @@ from django.views.decorators.cache import never_cache
 from enfermeria.models import Colectivo, ColectivoMedicamento
 from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente, MedicamentoNoSurtido
 from datetime import timedelta, date, datetime
+from math import ceil
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Q, F, Value, IntegerField, Count, Max, DecimalField, ExpressionWrapper
 from django.db.models.functions import Coalesce, TruncMonth
@@ -2300,33 +2301,31 @@ def reportes_farmacia(request):
 
 @login_required
 def api_reportes_kpis(request):
-    """API para obtener KPIs del dashboard"""
     try:
-        # Últimos 30 días
         fecha_fin = timezone.now().date()
-        fecha_inicio = fecha_fin - timedelta(days=30)
-        
-        # Total de salidas - CORREGIDO: quitar .date()
-        total_salidas = Receta.objects.filter(
-            fecha_surtido__range=[fecha_inicio, fecha_fin]
+        fecha_inicio = fecha_fin - timedelta(days=90)
+
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
+
+        total_salidas = RecetaMedicamento.objects.filter(
+            receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
         ).count()
-        
-        # Total medicamentos dispensados
+
         total_medicamentos = RecetaMedicamento.objects.filter(
             receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
-        ).aggregate(
-            total=Sum('cantidad_surtida')
-        )['total'] or 0
-        
-        # Pacientes atendidos (únicos)
+        ).aggregate(total=Sum('cantidad_surtida'))['total'] or 0
+
         total_pacientes = Receta.objects.filter(
             fecha_surtido__range=[fecha_inicio, fecha_fin]
         ).values('paciente').distinct().count()
-        
+
         valor_total = RecetaMedicamento.objects.filter(
-        receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
+            receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
         ).aggregate(total=Sum('precio_total'))['total'] or 0
-        
+
         return JsonResponse({
             'success': True,
             'kpis': {
@@ -2336,14 +2335,9 @@ def api_reportes_kpis(request):
                 'valor_total': float(valor_total),
             }
         })
-        
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 
 
 @login_required
