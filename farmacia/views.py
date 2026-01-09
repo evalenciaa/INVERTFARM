@@ -2895,14 +2895,14 @@ def generar_pdf_colectivo(request, colectivo_id):
         if es_colectivo_stock:
             # COLECTIVO DE STOCK - Sin información de paciente
             info_data = [
-                ['INFORMACIÓN DEL COLECTIVO', ''],
+                ['INFO. DEL COLECTIVO', ''],
                 ['Tipo:', 'Colectivo para Stock'],
                 ['Servicio:', colectivo.servicio or 'N/A'],
                 ['Número de Cama:', colectivo.numero_cama or 'N/A'],
                 ['', ''],
                 ['FECHAS Y RESPONSABLES', ''],
-                ['Fecha de Solicitud:', colectivo.fecha_solicitud.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_solicitud else 'N/A'],
-                ['Fecha de Surtido:', colectivo.fecha_completado.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
+                ['Fecha de Solicitud:', timezone.localtime(colectivo.fecha_solicitud).strftime('%d/%m/%Y %H:%M') if colectivo.fecha_solicitud else 'N/A'],
+                ['Fecha de Surtido:', timezone.localtime(colectivo.fecha_completado).strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
                 ['Enfermero(a) Solicitante:', colectivo.enfermero_solicitante.get_full_name() or colectivo.enfermero_solicitante.username if colectivo.enfermero_solicitante else 'N/A'],
                 ['Farmacéutico(a) Asignado:', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
             ]
@@ -2916,9 +2916,9 @@ def generar_pdf_colectivo(request, colectivo_id):
                 ['Número de Cama:', colectivo.numero_cama or 'N/A'],
                 ['Servicio:', colectivo.servicio or 'N/A'],
                 ['', ''],
-                ['INFORMACIÓN DEL COLECTIVO', ''],
-                ['Fecha de Solicitud:', colectivo.fecha_solicitud.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_solicitud else 'N/A'],
-                ['Fecha de Surtido:', colectivo.fecha_completado.strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
+                ['INFO. DEL COLECTIVO', ''],
+                ['Fecha de Solicitud:', timezone.localtime(colectivo.fecha_solicitud).strftime('%d/%m/%Y %H:%M') if colectivo.fecha_solicitud else 'N/A'],
+                ['Fecha de Surtido:', timezone.localtime(colectivo.fecha_completado).strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
                 ['Enfermero(a):', colectivo.enfermero_solicitante.get_full_name() or colectivo.enfermero_solicitante.username if colectivo.enfermero_solicitante else 'N/A'],
                 ['Farmacéutico(a):', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
             ]

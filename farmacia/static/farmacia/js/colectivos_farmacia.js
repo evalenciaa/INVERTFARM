@@ -1,7 +1,5 @@
 // ===== COLECTIVOS_FARMACIA.JS =====
 
-console.log('🏥 Script de colectivos farmacia cargado');
-
 
 // ===== CONFIGURAR MODALES =====
 function configurarModales() {
@@ -33,7 +31,6 @@ function configurarModales() {
 
 // ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Inicializando gestión de colectivos en farmacia...');
     
     // Configurar checkboxes de disponibilidad
     configurarCheckboxDisponibilidad();
@@ -152,7 +149,6 @@ function filtrarColectivosPorEstado(estado) {
 let autoRefreshFarmaciaInterval;
 
 function iniciarAutoRefreshFarmacia(segundos) {
-    console.log(`🔄 Auto-refresh farmacia activado cada ${segundos} segundos`);
     
     autoRefreshFarmaciaInterval = setInterval(() => {
         // Solo refrescar si hay pendientes o en revisión
@@ -167,7 +163,6 @@ function iniciarAutoRefreshFarmacia(segundos) {
 function detenerAutoRefreshFarmacia() {
     if (autoRefreshFarmaciaInterval) {
         clearInterval(autoRefreshFarmaciaInterval);
-        console.log('⏸️ Auto-refresh farmacia detenido');
     }
 }
 

@@ -729,16 +729,16 @@ def generar_pdf_colectivo(request, colectivo_id):
         
         # Información del paciente
         info_data = [
-            ['INFORMACIÓN DEL PACIENTE', ''],
+            ['INFO. DEL PACIENTE', ''],
             ['Nombre:', colectivo.paciente.nombre_completo],
             ['CURP:', colectivo.paciente.curp or 'N/A'],
             ['Fecha de Nacimiento:', colectivo.paciente.fecha_nacimiento.strftime('%d/%m/%Y')],
             ['Número de Cama:', colectivo.numero_cama],
             ['Servicio:', colectivo.servicio],
             ['', ''],
-            ['INFORMACIÓN DEL COLECTIVO', ''],
-            ['Fecha de Solicitud:', colectivo.fecha_solicitud.strftime('%d/%m/%Y %H:%M')],
-            ['Fecha de Surtido:', colectivo.fecha_completado.strftime('%d/%m/%Y %H:%M')],
+            ['INFO. DEL COLECTIVO', ''],
+            ['Fecha de Solicitud:', timezone.localtime(colectivo.fecha_solicitud).strftime('%d/%m/%Y %H:%M') if colectivo.fecha_solicitud else 'N/A'],
+            ['Fecha de Surtido:', timezone.localtime(colectivo.fecha_completado).strftime('%d/%m/%Y %H:%M') if colectivo.fecha_completado else 'N/A'],
             ['Enfermero(a):', colectivo.enfermero_solicitante.get_full_name() or colectivo.enfermero_solicitante.username],
             ['Farmacéutico(a):', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
         ]
