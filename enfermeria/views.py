@@ -104,12 +104,34 @@ def crear_colectivo(request):
         print("📥 DATOS RECIBIDOS DEL FORMULARIO:")
         print(f"   tipo_colectivo: {request.POST.get('tipo_colectivo')}")
         print(f"   paciente: {request.POST.get('paciente')}")
+        print(f"   paciente_input: {request.POST.get('paciente-input')}")
         print(f"   numero_cama: {request.POST.get('numero_cama')}")
         print(f"   turno: {request.POST.get('turno')}")
         print(f"   servicio: {request.POST.get('servicio')}")
         print("=" * 50)
         
-        form = ColectivoForm(request.POST)
+        # ✅ MANEJAR CREACIÓN DE PACIENTE NUEVO
+        post_data = request.POST.copy()  # Copiar para poder modificar
+        tipo_colectivo = post_data.get('tipo_colectivo')
+        
+        if tipo_colectivo == 'PACIENTE':
+            paciente_id = post_data.get('paciente')
+            paciente_nombre = post_data.get('paciente-input', '').strip()
+            
+            # Si no hay ID pero sí hay nombre, crear el paciente nuevo
+            if not paciente_id and paciente_nombre:
+                try:
+                    paciente_nuevo = Paciente.objects.create(
+                        nombre_completo=paciente_nombre
+                    )
+                    post_data['paciente'] = paciente_nuevo.id  # ← Actualizar datos POST
+                    print(f"✅ Paciente nuevo creado: {paciente_nuevo.nombre_completo} (ID: {paciente_nuevo.id})")
+                except Exception as e:
+                    messages.error(request, f'Error al crear paciente: {str(e)}')
+                    print(f"❌ ERROR al crear paciente: {e}")
+        
+        # Crear formulario con los datos actualizados
+        form = ColectivoForm(post_data)
         
         # Obtener medicamentos
         medicamentos_ids = request.POST.getlist('medicamento_id[]')
@@ -148,6 +170,9 @@ def crear_colectivo(request):
                             )
                         except Medicamento.DoesNotExist:
                             continue
+                        
+                    from enfermeria.models import enviar_notificacion_colectivo
+                    enviar_notificacion_colectivo(colectivo)
                     
                     # Mensaje según el tipo
                     if colectivo.tipo_colectivo == 'PACIENTE':
@@ -181,6 +206,38 @@ def crear_colectivo(request):
         'medicamentos': medicamentos,
         'user': request.user
     })
+    
+    
+
+@require_http_methods(["GET"])
+def buscar_pacientes_autocomplete(request):  # ← Nuevo nombre
+    """
+    API para autocompletar pacientes por nombre o CURP (para crear colectivos)
+    """
+    query = request.GET.get('q', '').strip()
+    
+    if len(query) < 3:
+        return JsonResponse({'results': []})
+    
+    # Buscar por nombre completo o CURP
+    pacientes = Paciente.objects.filter(
+        Q(nombre_completo__icontains=query) | 
+        Q(curp__icontains=query)
+    )[:10]
+    
+    results = []
+    for p in pacientes:
+        result = {
+            'id': p.id,
+            'nombre_completo': p.nombre_completo,  # ← Este campo es el correcto
+            'curp': p.curp if p.curp else '',
+            'fecha_nacimiento': p.fecha_nacimiento.strftime('%d/%m/%Y') if p.fecha_nacimiento else ''
+        }
+        results.append(result)
+    
+    return JsonResponse({'results': results})
+
+
 
 
 

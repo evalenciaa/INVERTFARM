@@ -101,17 +101,40 @@
                     <h3><i class="fas fa-user"></i> Información del Paciente</h3>
                     
                     <div class="form-row">
-                        <div class="form-group">
-                            <label for="{{ form.paciente.id_for_label }}" class="required">
-                                {{ form.paciente.label }}
-                            </label>
-                            {{ form.paciente }}
+                        <div class="form-group autocomplete-container">
+                            <label for="paciente-input" class="required">Paciente</label>
+                            
+                            <!-- Campo visible para el usuario -->
+                            <input 
+                                type="text" 
+                                id="paciente-input" 
+                                name="paciente-input"
+                                class="form-control" 
+                                placeholder="Escribir nombre o CURP del paciente..."
+                                autocomplete="off"
+                            >
+                            
+                            <!-- Campo oculto que guarda el ID del paciente -->
+                            <input 
+                                type="hidden" 
+                                id="paciente-id-hidden" 
+                                name="paciente"
+                            >
+                            
+                            <!-- Resultados del autocompletado -->
+                            <div id="resultados-paciente" class="autocomplete-results"></div>
+                            
+                            <!-- Mensaje de ayuda -->
+                            <div class="form-help">
+                                <i class="fas fa-info-circle"></i> 
+                                Escribe el nombre o CURP. Si el paciente no existe, se creará automáticamente.
+                            </div>
+                            
                             {% if form.paciente.errors %}
-                                <div class="field-error">
-                                    {{ form.paciente.errors }}
-                                </div>
+                                <div class="field-error">{{ form.paciente.errors }}</div>
                             {% endif %}
                         </div>
+
                         
                         <div class="form-group">
                             <label for="{{ form.numero_cama.id_for_label }}" class="required">
@@ -288,36 +311,7 @@
     </div>
 
 
-    <script>
-    // Validación antes de enviar el formulario
-    document.getElementById('form-colectivo').addEventListener('submit', function(e) {
-        const tipo = document.querySelector('input[name="tipo_colectivo"]:checked').value;
-        
-        // ✅ Si es STOCK, limpiar y deshabilitar campos de paciente
-        if (tipo === 'STOCK') {
-            const campoPaciente = document.getElementById('paciente_id');
-            const campoNumeroCama = document.getElementById('numero_cama');
-            
-            if (campoPaciente) {
-                campoPaciente.value = '';
-                campoPaciente.disabled = true;
-            }
-            if (campoNumeroCama) {
-                campoNumeroCama.value = '';
-                campoNumeroCama.disabled = true;
-            }
-        }
-        
-        // ✅ Si es PACIENTE, limpiar y deshabilitar campo de turno
-        if (tipo === 'PACIENTE') {
-            const campoTurno = document.getElementById('turno');
-            if (campoTurno) {
-                campoTurno.value = '';
-                campoTurno.disabled = true;
-            }
-        }
-    });
-    </script>
+
 
 </body>
 </html>

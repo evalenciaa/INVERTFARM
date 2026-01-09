@@ -7,11 +7,134 @@ document.addEventListener('DOMContentLoaded', function() {
     inicializarBuscadorMedicamentos();
     inicializarBotonAgregar();
     inicializarFormulario();
+    inicializarBuscadorPacientes();
+    console.log('✅ Aplicación iniciada');
 });
 
 /**
  * Inicializar buscador de medicamentos
  */
+
+function inicializarBuscadorPacientes() {
+    console.log('🔧 Inicializando buscador de pacientes...');
+    
+    const inputPaciente = document.getElementById('paciente-input');
+    const resultadosPaciente = document.getElementById('resultados-paciente');
+    const hiddenInputPaciente = document.getElementById('paciente-id-hidden');
+    
+    console.log('📋 Elementos encontrados:');
+    console.log('  - Input:', inputPaciente);
+    console.log('  - Resultados:', resultadosPaciente);
+    console.log('  - Hidden:', hiddenInputPaciente);
+    
+    if (!inputPaciente || !resultadosPaciente || !hiddenInputPaciente) {
+        console.error('❌ No se encontraron los elementos necesarios');
+        return;
+    }
+    
+    let timeoutId;
+    let pacienteSeleccionado = false;
+    
+    inputPaciente.addEventListener('input', function() {
+        console.log('⌨️ Usuario escribiendo:', this.value);
+        
+        clearTimeout(timeoutId);
+        const query = this.value.trim();
+        
+        if (pacienteSeleccionado) {
+            hiddenInputPaciente.value = '';
+            pacienteSeleccionado = false;
+        }
+        
+        if (query.length < 3) {
+            resultadosPaciente.innerHTML = '';
+            resultadosPaciente.style.display = 'none';
+            return;
+        }
+        
+        timeoutId = setTimeout(() => {
+            console.log('🔍 Buscando pacientes:', query);
+            
+            // ← CAMBIAR ESTA URL
+            fetch(`/enfermeria/api/buscar-pacientes-autocomplete/?q=${encodeURIComponent(query)}`)
+                .then(response => {
+                    console.log('📡 Respuesta recibida:', response);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('📦 Datos parseados:', data);
+                    mostrarResultadosPacientes(data.results);
+                })
+                .catch(error => {
+                    console.error('❌ Error:', error);
+                    resultadosPaciente.innerHTML = '<div class="autocomplete-error">Error al buscar pacientes</div>';
+                    resultadosPaciente.style.display = 'block';
+                });
+        }, 300);
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!inputPaciente.contains(e.target) && !resultadosPaciente.contains(e.target)) {
+            resultadosPaciente.style.display = 'none';
+        }
+    });
+    
+    function mostrarResultadosPacientes(pacientes) {
+        console.log('📊 Mostrando resultados:', pacientes);
+        
+        if (pacientes.length === 0) {
+            resultadosPaciente.innerHTML = `
+                <div class="autocomplete-no-results">
+                    <i class="fas fa-info-circle"></i> 
+                    No se encontró el paciente. 
+                    <strong>Escribe el nombre completo para crearlo automáticamente.</strong>
+                </div>
+            `;
+            resultadosPaciente.style.display = 'block';
+            return;
+        }
+        
+        const html = pacientes.map(paciente => {
+            console.log('  - Paciente:', paciente);
+            return `
+                <div class="autocomplete-item" data-id="${paciente.id}" data-nombre="${paciente.nombre_completo}">
+                    <div class="paciente-info">
+                        <strong>${paciente.nombre_completo}</strong>
+                        ${paciente.curp ? `<br><small>CURP: ${paciente.curp}</small>` : ''}
+                        ${paciente.fecha_nacimiento ? `<br><small>Nacimiento: ${paciente.fecha_nacimiento}</small>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        resultadosPaciente.innerHTML = html;
+        resultadosPaciente.style.display = 'block';
+        
+        resultadosPaciente.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const nombre = this.getAttribute('data-nombre');
+                
+                console.log('👆 Paciente seleccionado:', id, nombre);
+                
+                inputPaciente.value = nombre;
+                hiddenInputPaciente.value = id;
+                pacienteSeleccionado = true;
+                resultadosPaciente.style.display = 'none';
+            });
+        });
+    }
+    
+    console.log('✅ Buscador de pacientes inicializado');
+}
+
+
+    
+    /**
+     * Mostrar resultados de pacientes
+     */
+
+
 function inicializarBuscadorMedicamentos() {
     const input = document.getElementById('medicamento-input');
     const resultados = document.getElementById('resultados-medicamento');
@@ -214,39 +337,44 @@ function inicializarFormulario() {
         const tipo = document.querySelector('input[name="tipo_colectivo"]:checked').value;
         
         if (tipo === 'PACIENTE') {
-            // Validar campos de paciente
-            const pacienteId = document.getElementById('paciente_id').value;
-            const numeroCama = document.getElementById('numero_cama').value;
+            // Validar campos de paciente (usando los nuevos IDs)
+            const pacienteInput = document.getElementById('paciente-input');  // ← Cambio
+            const pacienteHidden = document.getElementById('paciente-id-hidden');  // ← Cambio
+            const numeroCama = document.getElementById('numero_cama');
             
-            if (!pacienteId) {
-                alert('Selecciona un paciente');
+            if (!pacienteInput || !pacienteInput.value.trim()) {
+                alert('⚠️ Por favor ingrese el nombre del paciente');
+                if (pacienteInput) pacienteInput.focus();
                 return;
             }
             
-            if (!numeroCama) {
-                alert('Ingresa el número de cama');
+            if (!numeroCama || !numeroCama.value) {
+                alert('⚠️ Ingresa el número de cama');
+                if (numeroCama) numeroCama.focus();
                 return;
             }
         } else if (tipo === 'STOCK') {
             // Validar campos de stock
-            const turno = document.getElementById('turno').value;
+            const turno = document.getElementById('turno');
             
-            if (!turno) {
-                alert('Selecciona el turno solicitante');
+            if (!turno || !turno.value) {
+                alert('⚠️ Selecciona el turno solicitante');
+                if (turno) turno.focus();
                 return;
             }
         }
         
         // Validar servicio (común para ambos tipos)
-        const servicio = document.getElementById('servicio').value;
-        if (!servicio) {
-            alert('Selecciona el servicio');
+        const servicio = document.getElementById('servicio');
+        if (!servicio || !servicio.value) {
+            alert('⚠️ Selecciona el servicio');
+            if (servicio) servicio.focus();
             return;
         }
         
         // Validar medicamentos
         if (medicamentosSeleccionados.length === 0) {
-            alert('Agrega al menos un medicamento');
+            alert('⚠️ Agrega al menos un medicamento');
             return;
         }
         
@@ -267,17 +395,24 @@ function inicializarFormulario() {
         
         // ✅ Deshabilitar campos no necesarios según el tipo
         if (tipo === 'STOCK') {
-            document.getElementById('paciente_id').disabled = true;
+            const pacienteInput = document.getElementById('paciente-input');  // ← Cambio
+            const pacienteHidden = document.getElementById('paciente-id-hidden');  // ← Cambio
             const numeroCama = document.getElementById('numero_cama');
+            
+            if (pacienteInput) pacienteInput.disabled = true;
+            if (pacienteHidden) pacienteHidden.disabled = true;
             if (numeroCama) numeroCama.disabled = true;
         } else if (tipo === 'PACIENTE') {
-            document.getElementById('turno').disabled = true;
+            const turno = document.getElementById('turno');
+            if (turno) turno.disabled = true;
         }
         
         // Enviar formulario
+        console.log('✅ Formulario validado, enviando...');  // ← DEBUG
         form.submit();
     });
 }
+
 
 // Exportar funciones globales
 window.eliminarMedicamento = eliminarMedicamento;

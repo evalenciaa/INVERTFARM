@@ -16,4 +16,5 @@ urlpatterns = [
     # APIs
     path('api/buscar-medicamentos/', views.api_buscar_medicamentos, name='api_buscar_medicamentos'),
     path('api/buscar-pacientes/', views.api_buscar_pacientes, name='api_buscar_pacientes'),
+    path('api/buscar-pacientes-autocomplete/', views.buscar_pacientes_autocomplete, name='buscar_pacientes_autocomplete'),
 ]

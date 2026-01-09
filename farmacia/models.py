@@ -11,9 +11,11 @@ from datetime import date
 from django.utils import timezone
 from django.db import transaction
 import uuid
+import html
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMultiAlternatives
+from django.template.loader import render_to_string
 
 
 class Departamento(models.Model):
@@ -231,7 +233,7 @@ class Paciente(models.Model):
     id = models.AutoField(primary_key=True)
     nombre_completo = models.CharField(max_length=200)
     curp = models.CharField(max_length=18, unique=True, blank=True, null=True)
-    fecha_nacimiento = models.DateField()
+    fecha_nacimiento = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return self.nombre_completo
@@ -590,14 +592,241 @@ def sumar_existencia(sender, instance, created, **kwargs):
 
 
 def enviar_alerta_stock(lote, cpm_del_medicamento):
-    asunto = f"⚠️ Alerta: {lote.medicamento.descripcion}"
-    mensaje = f"""📅 Fecha: {now().strftime('%d/%m/%Y %H:%M')}
-    🧾 Lote: {lote.lote_codigo}
-    💊 Medicamento: {lote.medicamento.descripcion}
-    📉 Existencia (del Lote): {lote.existencia} | CPM (del Medicamento): {cpm_del_medicamento}"""
+    # Calcular información adicional útil
+    porcentaje_stock = (lote.existencia / cpm_del_medicamento * 100) if cpm_del_medicamento > 0 else 0
+    dias_restantes = (lote.existencia / (cpm_del_medicamento / 30)) if cpm_del_medicamento > 0 else 0
     
-    # Asegúrate de que tu correo esté correcto, el que me diste en el .py tenía un .com al final
-    send_mail(asunto, mensaje, settings.DEFAULT_FROM_EMAIL, ['valenciaeliu@gmail.com']) 
+    # Determinar nivel de criticidad
+    if lote.existencia <= (cpm_del_medicamento * 0.25):
+        nivel = "CRÍTICO"
+        color = "#dc3545"
+    elif lote.existencia <= (cpm_del_medicamento * 0.5):
+        nivel = "BAJO"
+        color = "#ffc107"
+    else:
+        nivel = "NORMAL"
+        color = "#28a745"
+    
+    # ← ESCAPAR TODOS LOS VALORES DINÁMICOS
+    descripcion_safe = html.escape(lote.medicamento.descripcion)
+    clave_safe = html.escape(lote.medicamento.clave)
+    lote_codigo_safe = html.escape(lote.lote_codigo)
+    presentacion_safe = html.escape(lote.presentacion.nombre if lote.presentacion else 'N/A')
+    
+    asunto = f"⚠️ Stock {nivel}: {lote.medicamento.descripcion}"  # El asunto está bien sin escapar
+    
+    mensaje_texto = f"""
+    ALERTA DE STOCK - {nivel}
+    
+    Fecha: {now().strftime('%d/%m/%Y %H:%M')}
+    
+    INFORMACIÓN DEL MEDICAMENTO:
+    - Clave: {lote.medicamento.clave}
+    - Descripción: {lote.medicamento.descripcion}
+    - Presentación: {lote.presentacion.nombre if lote.presentacion else 'N/A'}
+    
+    INFORMACIÓN DEL LOTE:
+    - Código de Lote: {lote.lote_codigo}
+    - Existencia Actual: {lote.existencia} unidades
+    - Fecha de Caducidad: {lote.fecha_caducidad.strftime('%d/%m/%Y')}
+    
+    ANÁLISIS DE CONSUMO:
+    - CPM (Consumo Promedio Mensual): {cpm_del_medicamento} unidades
+    - Porcentaje de Stock: {porcentaje_stock:.1f}%
+    - Días de Stock Restantes: ~{dias_restantes:.0f} días
+    
+    ACCIÓN REQUERIDA: Revisar inventario y solicitar reabastecimiento
+    
+    ---
+    Sistema de Gestión de Farmacia - Hospital
+    """
+    
+    # ← USAR LAS VERSIONES ESCAPADAS EN EL HTML
+    mensaje_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .header {{
+                background: linear-gradient(135deg, {color} 0%, {color}dd 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 10px 10px 0 0;
+                text-align: center;
+            }}
+            .header h1 {{
+                margin: 0;
+                font-size: 24px;
+            }}
+            .nivel-badge {{
+                display: inline-block;
+                background: rgba(255,255,255,0.3);
+                padding: 5px 15px;
+                border-radius: 20px;
+                margin-top: 10px;
+                font-weight: bold;
+            }}
+            .content {{
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 0 0 10px 10px;
+            }}
+            .info-box {{
+                background: white;
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 8px;
+                border-left: 4px solid {color};
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }}
+            .info-box h3 {{
+                margin-top: 0;
+                color: {color};
+                font-size: 16px;
+            }}
+            .info-row {{
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid #e9ecef;
+            }}
+            .info-row:last-child {{
+                border-bottom: none;
+            }}
+            .label {{
+                font-weight: bold;
+                color: #666;
+            }}
+            .value {{
+                color: #333;
+            }}
+            .alert-box {{
+                background: #fff3cd;
+                border: 1px solid #ffc107;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+                text-align: center;
+            }}
+            .progress-bar {{
+                width: 100%;
+                height: 30px;
+                background: #e9ecef;
+                border-radius: 15px;
+                overflow: hidden;
+                margin: 10px 0;
+            }}
+            .progress-fill {{
+                height: 100%;
+                background: {color};
+                width: {porcentaje_stock}%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+            }}
+            .footer {{
+                text-align: center;
+                margin-top: 20px;
+                color: #666;
+                font-size: 12px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>⚠️ ALERTA DE STOCK</h1>
+            <div class="nivel-badge">NIVEL: {nivel}</div>
+        </div>
+        
+        <div class="content">
+            <p><strong>📅 Fecha:</strong> {now().strftime('%d/%m/%Y a las %H:%M hrs')}</p>
+            
+            <div class="info-box">
+                <h3>💊 INFORMACIÓN DEL MEDICAMENTO</h3>
+                <div class="info-row">
+                    <span class="label">Clave:</span>
+                    <span class="value">{clave_safe}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Descripción:</span>
+                    <span class="value">{descripcion_safe}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Presentación:</span>
+                    <span class="value">{presentacion_safe}</span>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h3>🧾 INFORMACIÓN DEL LOTE</h3>
+                <div class="info-row">
+                    <span class="label">Código de Lote:</span>
+                    <span class="value">{lote_codigo_safe}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Existencia Actual:</span>
+                    <span class="value" style="color: {color}; font-weight: bold;">{lote.existencia} unidades</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Fecha de Caducidad:</span>
+                    <span class="value">{lote.fecha_caducidad.strftime('%d/%m/%Y')}</span>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h3>📊 ANÁLISIS DE CONSUMO</h3>
+                <div class="info-row">
+                    <span class="label">CPM (Consumo Promedio Mensual):</span>
+                    <span class="value">{cpm_del_medicamento} unidades</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Días de Stock Restantes:</span>
+                    <span class="value">~{dias_restantes:.0f} días</span>
+                </div>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <strong>Nivel de Stock:</strong>
+                <div class="progress-bar">
+                    <div class="progress-fill">{porcentaje_stock:.1f}%</div>
+                </div>
+            </div>
+            
+            <div class="alert-box">
+                <strong>⚡ ACCIÓN REQUERIDA</strong><br>
+                Revisar inventario y solicitar reabastecimiento inmediato
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Sistema de Gestión de Farmacia - Hospital<br>
+            Este es un mensaje automático, por favor no responder.</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    msg = EmailMultiAlternatives(
+        asunto, 
+        mensaje_texto, 
+        settings.DEFAULT_FROM_EMAIL, 
+        ['HMICFarmacia@gmail.com']
+    )
+    msg.attach_alternative(mensaje_html, "text/html")
+    msg.send()
+    
+
 
 @receiver(post_save, sender=Lote)
 def verificar_existencia_cpm(sender, instance, **kwargs):
