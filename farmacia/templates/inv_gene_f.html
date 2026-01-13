@@ -12,8 +12,11 @@
     <!-- Barra Superior -->
     <header class="top-bar">
         <div class="top-bar-left">
+            <a href="{% url 'farmacia' %}" class="btn-back">
+                <i class="fas fa-arrow-left"></i> Volver a Farmacia
+            </a>
             <a href="{% url 'farmacia_g' %}" class="btn-back">
-                <i class="fas fa-arrow-left"></i> Volver a Inventario por Lotes
+                <i class="fas fa-barcode"></i> Ver Inventario por Lotes
             </a>
         </div>
         <div class="top-bar-center">
@@ -25,6 +28,7 @@
             </span>
         </div>
     </header>
+
 
     <!-- Contenido Principal -->
     <main class="main-content">

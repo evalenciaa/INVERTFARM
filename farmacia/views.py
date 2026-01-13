@@ -2344,17 +2344,14 @@ def api_reportes_kpis(request):
 def api_reportes_salidas(request):
     """API para obtener datos de salidas para reportes"""
     try:
-        # Obtener rango de fechas (últimos 90 días por defecto)
         fecha_fin = timezone.now().date()
         fecha_inicio = fecha_fin - timedelta(days=90)
         
-        # Parámetros opcionales
         if request.GET.get('fecha_inicio'):
             fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
         if request.GET.get('fecha_fin'):
             fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
         
-        # Consultar salidas
         salidas = RecetaMedicamento.objects.filter(
             receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
         ).select_related(
@@ -2364,10 +2361,8 @@ def api_reportes_salidas(request):
             'lote'
         ).order_by('-receta__fecha_surtido')[:100]
         
-        # Formatear datos
         datos_salidas = []
         for item in salidas:
-            # Manejar fecha_surtido que puede ser DateField o DateTimeField
             if isinstance(item.receta.fecha_surtido, datetime):
                 fecha_str = item.receta.fecha_surtido.strftime('%Y-%m-%d')
                 hora_str = item.receta.fecha_surtido.strftime('%H:%M')
@@ -2375,27 +2370,41 @@ def api_reportes_salidas(request):
                 fecha_str = item.receta.fecha_surtido.strftime('%Y-%m-%d')
                 hora_str = '--:--'
             
-            # Determinar tipo: Colectivo o Receta
             if item.receta.id_folio.startswith('COL-'):
-                tipo = 'Colectivo'
+                tipo = 'Colectivo - Paciente'
                 tipo_badge = 'badge-colectivo'
+            elif item.receta.id_folio.startswith('STK-'):
+                tipo = 'Colectivo - Stock'
+                tipo_badge = 'badge-stock'
             else:
                 tipo = 'Receta'
                 tipo_badge = 'badge-receta'
             
+            paciente_nombre = 'Stock/Servicio'
+            if item.receta.paciente:
+                paciente_nombre = item.receta.paciente.nombre_completo
+            
+            # ✅ MEJORAR: Obtener nombre del responsable
+            responsable_nombre = 'N/A'
+            if item.receta.surtido_por:
+                # Intentar usar first_name y last_name
+                nombre_completo = f"{item.receta.surtido_por.first_name} {item.receta.surtido_por.last_name}".strip()
+                # Si está vacío, usar username
+                responsable_nombre = nombre_completo if nombre_completo else item.receta.surtido_por.username
+            
             datos_salidas.append({
                 'id': item.receta.id,
-                'folio': item.receta.id_folio,  # ← Agregar folio
+                'folio': item.receta.id_folio,
                 'fecha': fecha_str,
                 'hora': hora_str,
                 'medicamento': item.medicamento.descripcion,
                 'cantidad': item.cantidad_surtida,
-                'paciente': item.receta.paciente.nombre_completo if item.receta.paciente else 'N/A',
-                'responsable': f"{item.receta.surtido_por.first_name} {item.receta.surtido_por.last_name}" if item.receta.surtido_por else 'N/A',
+                'paciente': paciente_nombre,
+                'responsable': responsable_nombre,  # ✅ Ahora siempre tendrá un valor
                 'valor': float(item.precio_total or 0),
                 'precio_unitario': float(item.precio_unitario or 0),
-                'tipo': tipo,  # ← NUEVO
-                'tipo_badge': tipo_badge  # ← Para el CSS
+                'tipo': tipo,
+                'tipo_badge': tipo_badge
             })
         
         return JsonResponse({
@@ -2411,6 +2420,8 @@ def api_reportes_salidas(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
 
 
 @login_required
@@ -2690,7 +2701,7 @@ def responder_colectivo(request, colectivo_id):
         return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
 
 
-@never_cache
+
 @login_required(login_url='login')
 @user_passes_test(farmacia_requerida, login_url='principal')
 @require_http_methods(["POST"])
@@ -2734,34 +2745,52 @@ def completar_colectivo(request, colectivo_id):
             print(f"   Tipo: {colectivo.tipo_colectivo}")
             print(f"   Paciente: {colectivo.paciente}")
             
-            # TERCERO: ✅ Crear Receta SOLO si es tipo PACIENTE
+            # TERCERO: ✅ Crear Receta para AMBOS tipos
             receta = None
+
             if colectivo.tipo_colectivo == 'PACIENTE':
                 if not colectivo.paciente:
                     raise ValueError('Colectivo de tipo PACIENTE debe tener un paciente asignado')
                 
                 print("   📝 Creando receta para paciente...")
                 
-                try:
-                    receta = Receta.objects.create(
-                        id_folio=f"{colectivo.folio}",
-                        paciente=colectivo.paciente,
-                        fecha_emision=colectivo.fecha_solicitud.date() if hasattr(colectivo.fecha_solicitud, 'date') else colectivo.fecha_solicitud,
-                        fecha_surtido=timezone.now().date(),
-                        estado='completa',
-                        origen='hospitalizacion_adultos',
-                        surtido_por=request.user
-                    )
-                    print(f"   ✅ Receta creada: {receta.id_folio} (ID: {receta.id})")
-                except Exception as e:
-                    print(f"   ❌ ERROR al crear receta: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    raise
+                receta = Receta.objects.create(
+                    id_folio=f"{colectivo.folio}",
+                    paciente=colectivo.paciente,
+                    fecha_emision=colectivo.fecha_solicitud.date() if hasattr(colectivo.fecha_solicitud, 'date') else colectivo.fecha_solicitud,
+                    fecha_surtido=timezone.now().date(),
+                    estado='completa',
+                    origen='hospitalizacion_adultos',
+                    surtido_por=request.user
+                )
+                print(f"   ✅ Receta creada para paciente: {receta.id_folio} (ID: {receta.id})")
+
+            elif colectivo.tipo_colectivo == 'STOCK':
+                print("   📝 Creando receta para colectivo de STOCK...")
+                
+                # ✅ NUEVO: Crear un paciente genérico para stock SI NO EXISTE
+                paciente_stock, created = Paciente.objects.get_or_create(
+                    curp='STCK000000HDFXXX00',
+                    defaults={
+                        'nombre_completo': f'STOCK - {colectivo.servicio}',
+                        'fecha_nacimiento': date(1900, 1, 1)
+                    }
+                )
+                
+                receta = Receta.objects.create(
+                    id_folio=f"{colectivo.folio}",  # Ya tiene prefijo STK-
+                    paciente=paciente_stock,  # ✅ Usa paciente genérico
+                    fecha_emision=colectivo.fecha_solicitud.date() if hasattr(colectivo.fecha_solicitud, 'date') else colectivo.fecha_solicitud,
+                    fecha_surtido=timezone.now().date(),
+                    estado='completa',
+                    origen='hospitalizacion_adultos',
+                    surtido_por=request.user
+                )
+                print(f"   ✅ Receta creada para STOCK: {receta.id_folio} (ID: {receta.id})")
             else:
                 print("   ℹ️  Colectivo de tipo STOCK - No se genera receta")
             
-            # CUARTO: Descontar del inventario
+            # CUARTO: Descontar del inventario Y CALCULAR PRECIOS
             medicamentos_registrados = 0
             for medicamento in colectivo.medicamentos.all():
                 cantidad_restante = medicamento.cantidad_surtida
@@ -2775,6 +2804,8 @@ def completar_colectivo(request, colectivo_id):
                 ).order_by('fecha_caducidad')
                 
                 lote_usado = None
+                precio_acumulado = Decimal('0.00')  # ✅ NUEVO
+                
                 for lote in lotes:
                     if cantidad_restante <= 0:
                         break
@@ -2782,14 +2813,20 @@ def completar_colectivo(request, colectivo_id):
                     if not lote_usado:
                         lote_usado = lote
                     
+                    # ✅ CALCULAR PRECIO SEGÚN CANTIDAD TOMADA DE ESTE LOTE
                     if lote.existencia >= cantidad_restante:
+                        precio_acumulado += (lote.costo_unitario * cantidad_restante)  # ✅ NUEVO
                         lote.existencia -= cantidad_restante
                         lote.save()
                         cantidad_restante = 0
                     else:
+                        precio_acumulado += (lote.costo_unitario * lote.existencia)  # ✅ NUEVO
                         cantidad_restante -= lote.existencia
                         lote.existencia = 0
                         lote.save()
+                
+                # ✅ CALCULAR PRECIO UNITARIO PROMEDIO
+                precio_unitario_promedio = precio_acumulado / medicamento.cantidad_surtida if medicamento.cantidad_surtida > 0 else Decimal('0.00')
                 
                 # ✅ Crear RecetaMedicamento SOLO si se creó una receta
                 if receta:
@@ -2799,15 +2836,18 @@ def completar_colectivo(request, colectivo_id):
                             medicamento=medicamento.medicamento,
                             lote=lote_usado,
                             cantidad_solicitada=medicamento.cantidad_solicitada,
-                            cantidad_surtida=medicamento.cantidad_surtida
+                            cantidad_surtida=medicamento.cantidad_surtida,
+                            precio_unitario=precio_unitario_promedio,  # ✅ NUEVO
+                            precio_total=precio_acumulado  # ✅ NUEVO
                         )
                         medicamentos_registrados += 1
-                        print(f"   ✅ RecetaMedicamento creado (ID: {receta_med.id})")
+                        print(f"   ✅ RecetaMedicamento creado (ID: {receta_med.id}) - Precio: ${precio_acumulado}")
                     except Exception as e:
                         print(f"   ❌ ERROR al crear RecetaMedicamento: {str(e)}")
                         raise
                 else:
                     print(f"   ⏭️  No se registra en RecetaMedicamento (colectivo de stock)")
+
             
             if receta:
                 print(f"\n✅ TOTAL MEDICAMENTOS REGISTRADOS EN RECETA: {medicamentos_registrados}")

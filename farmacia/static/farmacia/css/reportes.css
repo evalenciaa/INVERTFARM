@@ -691,3 +691,11 @@ body {
   white-space: nowrap;
   margin-left: 12px;  /* separación del texto */
 }
+
+.badge-stock {
+    background-color: #6f42c1;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
