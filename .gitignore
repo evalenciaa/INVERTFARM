@@ -22,3 +22,52 @@ backup_farmacia*
 
 # --- Archivos de IDE (Opcional, por si usas VS Code) ---
 .vscode/
+
+# --- Entorno Virtual y Python (VITAL) ---
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# --- Variables de Entorno (IMPORTANTE: Aquí van tus claves) ---
+.env
+.env.local
+.env.*.local
+
+# --- Archivos Media (Imágenes subidas por usuarios) ---
+media/
+
+# --- Archivos de Sistema Operativo (Basura de Mac/Windows) ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# --- Archivos específicos de tu proyecto (MySQL) ---
+backup_farmacia*
+*.sql
+*.log
+
+# --- Base de datos SQLite (si usas en desarrollo) ---
+db.sqlite3
+*.sqlite3
+
+# --- Archivos de IDE ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- Archivos estáticos recopilados (para producción) ---
+staticfiles/
+static_root/
+
+# --- Otros ---
+.DS_Store
+.coverage
+htmlcov/
