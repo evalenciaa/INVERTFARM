@@ -18,7 +18,7 @@ from enfermeria.models import Colectivo, ColectivoMedicamento
 from .models import Lote, Medicamento, Presentacion, Proveedor, Entrada, Almacen, DetalleEntrada, Institucion, FuenteFinanciamiento, CPMMedicamento, Receta, RecetaMedicamento, Paciente, MedicamentoNoSurtido
 from datetime import timedelta, date, datetime
 from math import ceil
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required, user_passes_test, permission_required
 from django.db.models import Sum, Q, F, Value, IntegerField, Count, Max, DecimalField, ExpressionWrapper
 from django.db.models.functions import Coalesce, TruncMonth
 from .forms import LoteForm, MedicamentoForm, SalidaForm
@@ -45,21 +45,22 @@ from django.conf import settings
 from .forms import CargaMasivaForm
 from decimal import Decimal
 import uuid
+from .decorators import group_required, permission_required_or_superuser
 import logging
+from django.contrib.auth.models import Group, Permission
+from django.contrib.auth import get_user_model
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
 
 # Create your views here.
-@never_cache
 def inicio(request):
     return render(request, 'inicio.html')
 
-@never_cache
 def vista_farmacia(request):
     return render(request, 'farmacia.html')
 
-@never_cache
 def vista_farmacia_g(request):
     """Vista para el inventario por lotes"""
     return render(request, 'farmacia_g.html', {
@@ -285,7 +286,7 @@ def tiene_acceso_farmacia(user):
 
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(tiene_acceso_farmacia)
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def farmacia_g(request):
     if request.method == 'POST':
         medicamento_id = request.POST.get('medicamento')
@@ -377,6 +378,7 @@ def farmacia_g(request):
 
 @csrf_exempt
 @login_required
+@permission_required('farmacia.change_medicamento', raise_exception=True)
 def guardar_descripcion(request):
     if request.method == 'POST':
         medicamento_id = request.POST.get('medicamento_id')
@@ -394,7 +396,8 @@ def guardar_descripcion(request):
     return JsonResponse({'status': 'error', 'message': 'Datos inválidos'})
 
 
-@login_required
+@login_required(login_url='login')
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería', 'Médico')
 def inventario_general(request):
     """Vista de inventario general - suma de existencias por medicamento"""
     busqueda = request.GET.get('busqueda', '').strip()
@@ -476,9 +479,10 @@ def inventario_general(request):
 
 
 
-@require_http_methods(["POST"]) 
+@require_http_methods(['POST'])
 @csrf_exempt
 @login_required
+@permission_required('farmacia.change_cpmmedicamento', raise_exception=True)
 def editar_cpm_medicamento(request):
     if request.method == 'POST':
         try:
@@ -523,7 +527,8 @@ def editar_cpm_medicamento(request):
 
 
 @login_required
-@require_http_methods(["DELETE", "POST"])
+@require_http_methods(['DELETE', 'POST'])
+@permission_required('farmacia.delete_lote', raise_exception=True)
 def eliminar_lote(request, lote_id):
     """
     Elimina un lote del inventario
@@ -576,8 +581,10 @@ def eliminar_lote(request, lote_id):
         }, status=500)
 
 
-@login_required
-@require_http_methods(["GET", "POST"])
+@never_cache
+@login_required(login_url='login')
+@require_http_methods(['GET', 'POST'])
+@permission_required('farmacia.add_medicamento', raise_exception=True)
 def registro_medicamento(request):
     """Vista para registrar un nuevo medicamento - Solo clave y descripción"""
     if request.method == 'POST':
@@ -614,10 +621,9 @@ def registro_medicamento(request):
 
 
 @never_cache
-@login_required
-def entrada_medicamentos(request):
-    
-    
+@login_required(login_url='login')
+@permission_required('farmacia.add_entrada', raise_exception=True)
+def entrada_medicamentos(request): 
     context = {
         'presentaciones': Presentacion.objects.all(),
         'almacenes': Almacen.objects.all(),
@@ -677,6 +683,7 @@ def entrada_medicamentos(request):
 
 # En views.py - agregar esta vista
 @csrf_exempt
+@login_required
 def buscar_medicamentos_autocomplete(request):
     query = request.GET.get('q', '').strip()
     
@@ -699,7 +706,7 @@ def buscar_medicamentos_autocomplete(request):
     
     return JsonResponse(resultados, safe=False)
 
-
+@login_required
 def buscar_medicamentos(request):
     query = request.GET.get('q', '').strip()
     
@@ -1127,7 +1134,9 @@ class LoginAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
     
 
-@login_required
+@never_cache
+@login_required(login_url='login')
+@permission_required('farmacia.create_salida', raise_exception=True)
 def registrar_salida(request):
     if request.method == 'POST':
         
@@ -1325,6 +1334,7 @@ def registrar_salida(request):
 # VISTA 2: DESCARGAR EL PDF (NUEVA)
 # ==================================================
 @login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def descargar_comprobante(request, receta_id):
     try:
         # Buscamos la receta por su folio
@@ -1340,9 +1350,11 @@ def descargar_comprobante(request, receta_id):
     except Exception as e:
         messages.error(request, f"Error al generar el PDF: {e}")
         return redirect('registrar_salida')
+    
 
-@login_required 
-@require_http_methods(["POST"]) # Asumo que recibirás fechas por POST (igual que en entradas)
+@login_required
+@require_http_methods(['POST'])
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def generar_excel_salidas(request):
     """
     Genera un reporte en Excel de todas las salidas (RecetaMedicamento)
@@ -1408,6 +1420,7 @@ def generar_excel_salidas(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
     
 def get_paciente_info_json(request, curp):
     """
@@ -1499,8 +1512,9 @@ def get_paciente_by_name(request, nombre):
     
     return JsonResponse({'error': 'Método no permitido'}, status=405)
 
-@never_cache
+
 @login_required
+@permission_required('farmacia.view_carga_masiva', raise_exception=True)
 def carga_masiva(request):
     """Vista para mostrar el formulario de carga masiva"""
     form = CargaMasivaForm()
@@ -2290,8 +2304,8 @@ def exportar_inventario_general_pdf(request):
     
 # ===== MÓDULO DE REPORTES =====
 
-@never_cache
 @login_required
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def reportes_farmacia(request):
     """Vista principal del módulo de reportes"""
     return render(request, 'reportes.html', {
@@ -2341,6 +2355,7 @@ def api_reportes_kpis(request):
 
 
 @login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def api_reportes_salidas(request):
     """API para obtener datos de salidas para reportes"""
     try:
@@ -2425,6 +2440,7 @@ def api_reportes_salidas(request):
 
 
 @login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def api_reportes_medicamentos_top(request):
     """API para obtener medicamentos más dispensados"""
     try:
@@ -2471,6 +2487,7 @@ def api_reportes_medicamentos_top(request):
 
 
 @login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def api_reportes_pacientes_frecuentes(request):
     """API para obtener pacientes más atendidos"""
     try:
@@ -2528,6 +2545,7 @@ def api_reportes_pacientes_frecuentes(request):
 
 
 @login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def api_reportes_tendencias(request):
     """API para obtener tendencias mensuales"""
     try:
@@ -2568,14 +2586,10 @@ def api_reportes_tendencias(request):
 
 # ===== COLECTIVOS - FARMACIA (AGREGAR AL FINAL) =====
 
-def farmacia_requerida(user):
-    """Verifica que el usuario sea de farmacia"""
-    return user.is_authenticated and (user.rol == 'FARMACIA' or user.is_superuser)
-
 
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(farmacia_requerida, login_url='principal')
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def lista_colectivos_farmacia(request):
     """Vista de lista de colectivos para farmacia"""
     # Obtener todos los colectivos
@@ -2630,7 +2644,7 @@ def lista_colectivos_farmacia(request):
 
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(farmacia_requerida, login_url='principal')
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def detalle_colectivo_farmacia(request, colectivo_id):
     """Vista de detalle de un colectivo para farmacia"""
     colectivo = get_object_or_404(
@@ -2667,8 +2681,8 @@ def detalle_colectivo_farmacia(request, colectivo_id):
 
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(farmacia_requerida, login_url='principal')
-@require_http_methods(["POST"])
+@require_http_methods(['POST'])
+@permission_required('enfermeria.respond_colectivo', raise_exception=True)
 def responder_colectivo(request, colectivo_id):
     """Farmacia responde al colectivo indicando disponibilidad"""
     colectivo = get_object_or_404(Colectivo, id=colectivo_id)
@@ -2702,9 +2716,10 @@ def responder_colectivo(request, colectivo_id):
 
 
 
+@never_cache
 @login_required(login_url='login')
-@user_passes_test(farmacia_requerida, login_url='principal')
-@require_http_methods(["POST"])
+@require_http_methods(['POST'])
+@permission_required('enfermeria.complete_colectivo', raise_exception=True)
 def completar_colectivo(request, colectivo_id):
     """Marca el colectivo como completado y descuenta del inventario"""
     colectivo = get_object_or_404(Colectivo, id=colectivo_id)
@@ -2877,8 +2892,9 @@ def completar_colectivo(request, colectivo_id):
 
 
 
-@never_cache
+
 @login_required(login_url='login')
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería')
 def generar_pdf_colectivo(request, colectivo_id):
     """Genera PDF con la información del colectivo completado"""
     colectivo = get_object_or_404(
@@ -3068,3 +3084,335 @@ def generar_pdf_colectivo(request, colectivo_id):
         return redirect('lista_colectivos_farmacia')
 
 
+"""
+===== ADMINISTRACIÓN DE USUARIOS Y GRUPOS =====
+Vistas para gestionar usuarios y grupos sin usar el admin de Django.
+Solo accesible para usuarios del grupo 'Administrador'.
+"""
+
+
+@login_required
+@group_required('Administrador')
+def admin_usuarios(request):
+    """
+    Vista principal para listar todos los usuarios del sistema.
+    Muestra estadísticas y permite filtrar por grupo y estado.
+    """
+    usuarios = User.objects.all().prefetch_related('groups').order_by('-date_joined')
+    grupos = Group.objects.all().order_by('name')
+    
+    # Calcular estadísticas
+    usuarios_activos = usuarios.filter(is_active=True, is_superuser=False).count()
+    total_grupos = grupos.count()
+    total_admins = usuarios.filter(Q(is_superuser=True) | Q(groups__name='Administrador')).distinct().count()
+    
+    context = {
+        'usuarios': usuarios,
+        'grupos': grupos,
+        'usuarios_activos': usuarios_activos,
+        'total_grupos': total_grupos,
+        'total_admins': total_admins,
+    }
+    
+    return render(request, 'admin_usuarios.html', context)
+
+
+@login_required
+@group_required('Administrador')
+def admin_usuario_detalle(request, user_id):
+    """
+    Vista para ver y editar los detalles de un usuario.
+    Permite cambiar datos básicos, grupos y contraseña.
+    """
+    usuario = get_object_or_404(User, pk=user_id)
+    grupos = Group.objects.all().order_by('name')
+    
+    if request.method == 'POST':
+        try:
+            # 1. ACTUALIZAR DATOS BÁSICOS
+            usuario.username = request.POST.get('username', usuario.username)
+            usuario.email = request.POST.get('email', usuario.email)
+            usuario.first_name = request.POST.get('first_name', usuario.first_name)
+            usuario.last_name = request.POST.get('last_name', usuario.last_name)
+            
+            # 2. ACTUALIZAR ESTADO ACTIVO
+            # Nota: los checkboxes no envían nada si están desmarcados
+            usuario.is_active = request.POST.get('is_active') == 'on'
+            
+            # 3. ACTUALIZAR CONTRASEÑA (solo si se proporcionó)
+            new_password = request.POST.get('new_password')
+            if new_password and new_password.strip():
+                usuario.set_password(new_password)
+            
+            # 4. GUARDAR USUARIO
+            usuario.save()
+            
+            # 5. ACTUALIZAR GRUPOS
+            grupos_seleccionados = request.POST.getlist('groups')
+            usuario.groups.clear()  # Limpiar grupos actuales
+            
+            if grupos_seleccionados:
+                for grupo_id in grupos_seleccionados:
+                    try:
+                        grupo = Group.objects.get(pk=grupo_id)
+                        usuario.groups.add(grupo)
+                    except Group.DoesNotExist:
+                        continue
+            
+            messages.success(request, f'Usuario {usuario.username} actualizado exitosamente')
+            return redirect('admin_usuarios')
+            
+        except Exception as e:
+            messages.error(request, f'Error al actualizar usuario: {str(e)}')
+    
+    # Obtener permisos del usuario (de todos sus grupos)
+    permisos_usuario = usuario.get_all_permissions()
+    
+    context = {
+        'usuario': usuario,
+        'grupos': grupos,
+        'permisos_usuario': sorted(permisos_usuario),
+    }
+    
+    return render(request, 'admin_usuario_detalle.html', context)
+
+
+
+@login_required
+@group_required('Administrador')
+def admin_crear_usuario(request):
+    """
+    Vista para crear un nuevo usuario.
+    Valida que el username sea único y crea el usuario con los grupos seleccionados.
+    """
+    if request.method == 'POST':
+        try:
+            username = request.POST.get('username')
+            email = request.POST.get('email', '')
+            first_name = request.POST.get('first_name', '')
+            last_name = request.POST.get('last_name', '')
+            password = request.POST.get('password')
+            password2 = request.POST.get('password2')
+            
+            # Validaciones
+            if not username or not password:
+                messages.error(request, 'El nombre de usuario y contraseña son obligatorios')
+                return redirect('admin_usuarios')
+            
+            if password != password2:
+                messages.error(request, 'Las contraseñas no coinciden')
+                return redirect('admin_usuarios')
+            
+            if User.objects.filter(username=username).exists():
+                messages.error(request, f'El usuario {username} ya existe')
+                return redirect('admin_usuarios')
+            
+            # Crear usuario
+            usuario = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name
+            )
+            
+            # Asignar grupos
+            grupos_seleccionados = request.POST.getlist('groups')
+            for grupo_id in grupos_seleccionados:
+                grupo = Group.objects.get(pk=grupo_id)
+                usuario.groups.add(grupo)
+            
+            messages.success(request, f'Usuario {username} creado exitosamente')
+            return redirect('admin_usuarios')
+            
+        except Exception as e:
+            messages.error(request, f'Error al crear usuario: {str(e)}')
+            return redirect('admin_usuarios')
+    
+    return redirect('admin_usuarios')
+
+
+@login_required
+@group_required('Administrador')
+@require_http_methods(['POST'])
+def admin_eliminar_usuario(request, user_id):
+    """
+    Vista para eliminar un usuario del sistema.
+    No permite eliminar superusuarios ni el propio usuario.
+    Retorna JSON para AJAX.
+    """
+    try:
+        usuario = get_object_or_404(User, pk=user_id)
+        
+        # Validaciones de seguridad
+        if usuario.is_superuser:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se puede eliminar un superusuario'
+            }, status=403)
+        
+        if usuario.id == request.user.id:
+            return JsonResponse({
+                'success': False,
+                'error': 'No puedes eliminar tu propio usuario'
+            }, status=403)
+        
+        username = usuario.username
+        usuario.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Usuario {username} eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@group_required('Administrador')
+def admin_grupos(request):
+    """
+    Vista para listar todos los grupos del sistema.
+    Muestra cuántos usuarios tiene cada grupo y sus permisos.
+    """
+    grupos = Group.objects.annotate(
+        num_usuarios=Count('user')
+    ).prefetch_related('permissions').order_by('name')
+    
+    context = {
+        'grupos': grupos,
+    }
+    
+    return render(request, 'admin_grupos.html', context)
+
+
+@login_required
+@group_required('Administrador')
+def admin_grupo_detalle(request, grupo_id):
+    """
+    Vista para ver y editar los detalles de un grupo.
+    Permite cambiar nombre, permisos y ver usuarios asignados.
+    """
+    grupo = get_object_or_404(Group, pk=grupo_id)
+    todos_permisos = Permission.objects.filter(
+        content_type__app_label__in=['farmacia', 'enfermeria', 'auth']
+    ).select_related('content_type').order_by('content_type__app_label', 'codename')
+    
+    if request.method == 'POST':
+        try:
+            # Actualizar nombre del grupo
+            nuevo_nombre = request.POST.get('name', grupo.name)
+            if nuevo_nombre != grupo.name:
+                grupo.name = nuevo_nombre
+                grupo.save()
+            
+            # Actualizar permisos
+            # Importante: obtener la lista de permisos seleccionados
+            permisos_seleccionados = request.POST.getlist('permissions')
+            
+            # Limpiar permisos actuales
+            grupo.permissions.clear()
+            
+            # Agregar nuevos permisos
+            if permisos_seleccionados:  # Solo si hay permisos seleccionados
+                for permiso_id in permisos_seleccionados:
+                    try:
+                        permiso = Permission.objects.get(pk=permiso_id)
+                        grupo.permissions.add(permiso)
+                    except Permission.DoesNotExist:
+                        continue
+            
+            messages.success(request, f'Grupo {grupo.name} actualizado exitosamente')
+            return redirect('admin_grupos')
+            
+        except Exception as e:
+            messages.error(request, f'Error al actualizar grupo: {str(e)}')
+    
+    # Usuarios en este grupo
+    usuarios_grupo = User.objects.filter(groups=grupo).order_by('username')
+    
+    # Permisos actuales del grupo
+    permisos_grupo = grupo.permissions.values_list('id', flat=True)
+    
+    context = {
+        'grupo': grupo,
+        'todos_permisos': todos_permisos,
+        'permisos_grupo': list(permisos_grupo),
+        'usuarios_grupo': usuarios_grupo,
+    }
+    
+    return render(request, 'admin_grupo_detalle.html', context)
+
+
+@login_required
+@group_required('Administrador')
+def admin_crear_grupo(request):
+    """
+    Vista para crear un nuevo grupo.
+    Valida que el nombre sea único.
+    """
+    if request.method == 'POST':
+        try:
+            nombre = request.POST.get('name')
+            
+            if not nombre:
+                messages.error(request, 'El nombre del grupo es obligatorio')
+                return redirect('admin_grupos')
+            
+            if Group.objects.filter(name=nombre).exists():
+                messages.error(request, f'El grupo {nombre} ya existe')
+                return redirect('admin_grupos')
+            
+            # Crear grupo
+            grupo = Group.objects.create(name=nombre)
+            
+            # Asignar permisos si se seleccionaron
+            permisos_seleccionados = request.POST.getlist('permissions')
+            for permiso_id in permisos_seleccionados:
+                permiso = Permission.objects.get(pk=permiso_id)
+                grupo.permissions.add(permiso)
+            
+            messages.success(request, f'Grupo {nombre} creado exitosamente')
+            return redirect('admin_grupos')
+            
+        except Exception as e:
+            messages.error(request, f'Error al crear grupo: {str(e)}')
+    
+    return redirect('admin_grupos')
+
+
+@login_required
+@group_required('Administrador')
+@require_http_methods(['POST'])
+def admin_eliminar_grupo(request, grupo_id):
+    """
+    Vista para eliminar un grupo.
+    Retorna JSON para AJAX.
+    """
+    try:
+        grupo = get_object_or_404(Group, pk=grupo_id)
+        nombre = grupo.name
+        
+        # Verificar que no tenga usuarios asignados
+        if grupo.user_set.exists():
+            return JsonResponse({
+                'success': False,
+                'error': f'El grupo {nombre} tiene usuarios asignados. Reasígnalos primero.'
+            }, status=400)
+        
+        grupo.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Grupo {nombre} eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

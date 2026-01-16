@@ -200,6 +200,20 @@ class Colectivo(models.Model):
     def medicamentos_disponibles(self):
         """Medicamentos marcados como disponibles"""
         return self.medicamentos.filter(disponible=True).count()
+    
+    class Meta:
+        ordering = ['-fecha_solicitud']
+        verbose_name = 'Colectivo'
+        verbose_name_plural = 'Colectivos'
+        indexes = [
+            models.Index(fields=['tipo_colectivo', 'estado']),
+            models.Index(fields=['fecha_solicitud']),
+        ]
+        permissions = [
+            ('create_colectivo', 'Puede crear colectivos'),
+            ('respond_colectivo', 'Puede responder colectivos'),
+            ('complete_colectivo', 'Puede completar colectivos'),
+        ]
 
 
 

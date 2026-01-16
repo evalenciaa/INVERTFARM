@@ -23,6 +23,14 @@
         <aside class="sidebar" id="sidebar">
             <nav class="sidebar-nav">
                 <ul style="list-style: none; padding: 0; margin: 0;">
+                    {% if user.is_superuser or 'Administrador' in user.groups.values_list|join:',' %}
+                    <li class="nav-item">
+                        <a href="{% url 'admin_usuarios' %}">
+                            <i class="fas fa-users-cog"></i>
+                            <span>Config. Usuarios</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item active">
                         <a href="{% url 'principal' %}">
                             <i class="fas fa-home"></i>

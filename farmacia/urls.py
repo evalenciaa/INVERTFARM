@@ -67,6 +67,19 @@ urlpatterns = [
     path('colectivos-farmacia/<int:colectivo_id>/responder/', views.responder_colectivo, name='responder_colectivo'),
     path('colectivos-farmacia/<int:colectivo_id>/completar/', views.completar_colectivo, name='completar_colectivo'),
     path('colectivos-farmacia/<int:colectivo_id>/pdf/', views.generar_pdf_colectivo, name='generar_pdf_colectivo'),
+    
+    
+    # ===== ADMINISTRACIÓN DE USUARIOS Y GRUPOS =====
+    path('admin-usuarios/', views.admin_usuarios, name='admin_usuarios'),
+    path('admin-usuarios/crear/', views.admin_crear_usuario, name='admin_crear_usuario'),
+    path('admin-usuarios/<int:user_id>/', views.admin_usuario_detalle, name='admin_usuario_detalle'),
+    path('admin-usuarios/eliminar/<int:user_id>/', views.admin_eliminar_usuario, name='admin_eliminar_usuario'),
+
+    path('admin-grupos/', views.admin_grupos, name='admin_grupos'),
+    path('admin-grupos/crear/', views.admin_crear_grupo, name='admin_crear_grupo'),
+    path('admin-grupos/<int:grupo_id>/', views.admin_grupo_detalle, name='admin_grupo_detalle'),
+    path('admin-grupos/eliminar/<int:grupo_id>/', views.admin_eliminar_grupo, name='admin_eliminar_grupo'),
+
 ]
 
 

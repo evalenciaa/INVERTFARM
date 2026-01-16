@@ -1,24 +1,20 @@
 import os
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required, user_passes_test, permission_required
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q, Count, Sum
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
-from django.contrib.auth.decorators import permission_required
 from django.views.decorators.cache import never_cache
 from datetime import datetime, timedelta
 from .models import Colectivo, ColectivoMedicamento
 from .forms import ColectivoForm
 from farmacia.models import Medicamento, Paciente, Lote
+from farmacia.decorators import group_required
 
-# ===== DECORADOR DE PERMISOS =====
-def enfermeria_requerida(user):
-    """Verifica que el usuario sea de enfermería"""
-    return user.is_authenticated and (user.rol == 'ENFERMERIA' or user.is_superuser)
 
 def farmacia_requerida(user):
     """Verifica que el usuario sea de farmacia"""
@@ -28,7 +24,7 @@ def farmacia_requerida(user):
 # ===== VISTA PRINCIPAL DE ENFERMERÍA =====
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(enfermeria_requerida, login_url='principal')
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
 def enfermeria_principal(request):
     """
     Vista principal del módulo de enfermería
@@ -42,7 +38,7 @@ def enfermeria_principal(request):
 # ===== LISTA DE COLECTIVOS (ENFERMERÍA) =====
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(enfermeria_requerida, login_url='principal')
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
 def lista_colectivos_enfermeria(request):
     """
     Vista de lista de colectivos para enfermería
@@ -92,8 +88,8 @@ def lista_colectivos_enfermeria(request):
 
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(enfermeria_requerida, login_url='principal')
-@require_http_methods(["GET", "POST"])
+@require_http_methods(['GET', 'POST'])
+@permission_required('enfermeria.create_colectivo', raise_exception=True)
 def crear_colectivo(request):
     """
     Formulario para crear un nuevo colectivo (Paciente o Stock)
@@ -209,7 +205,8 @@ def crear_colectivo(request):
     
     
 
-@require_http_methods(["GET"])
+@require_http_methods(['GET'])
+@login_required
 def buscar_pacientes_autocomplete(request):  # ← Nuevo nombre
     """
     API para autocompletar pacientes por nombre o CURP (para crear colectivos)
@@ -244,7 +241,7 @@ def buscar_pacientes_autocomplete(request):  # ← Nuevo nombre
 # ===== VER DETALLE DE COLECTIVO (ENFERMERÍA) =====
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(enfermeria_requerida, login_url='principal')
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
 def detalle_colectivo_enfermeria(request, colectivo_id):
     """
     Vista de detalle de un colectivo para enfermería
@@ -268,8 +265,8 @@ def detalle_colectivo_enfermeria(request, colectivo_id):
 # ===== CANCELAR COLECTIVO =====
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(enfermeria_requerida, login_url='principal')
-@require_http_methods(["POST"])
+@require_http_methods(['POST'])
+@permission_required('enfermeria.delete_colectivo', raise_exception=True)
 def cancelar_colectivo(request, colectivo_id):
     """
     Cancelar un colectivo (solo si está PENDIENTE o RESPONDIDO)
@@ -293,7 +290,8 @@ def cancelar_colectivo(request, colectivo_id):
 # ===== EDITAR Y REENVIAR COLECTIVO =====
 @never_cache
 @login_required(login_url='login')
-@user_passes_test(enfermeria_requerida, login_url='principal')
+@require_http_methods(['POST'])
+@permission_required('enfermeria.change_colectivo', raise_exception=True)
 @require_http_methods(["POST"])
 def editar_colectivo(request, colectivo_id):
     """
@@ -813,6 +811,7 @@ def generar_pdf_colectivo(request, colectivo_id):
         messages.error(request, f'Error al generar PDF: {str(e)}')
         return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
     
+@never_cache
 @login_required
 @permission_required('enfermeria.change_colectivo', raise_exception=True)
 def editar_reenviar_colectivo(request, colectivo_id):

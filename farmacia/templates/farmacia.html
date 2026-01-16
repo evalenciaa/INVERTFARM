@@ -34,7 +34,8 @@
         <main class="main-content">
             <div class="module-header">
                 <h1><i class="fas fa-pills"></i> Módulo de Farmacia</h1>
-                <p class="user-info">Usuario: <strong>{{ request.user.username }}</strong> | Rol: <strong>Farmacéutico</strong></p>
+                <p class="user-info">Usuario: <strong>{{ request.user.username }}</strong> | Rol: <strong><i class="fas {{ request.user.get_rol_icono }}"></i> {{ request.user.get_rol_display }}</strong>
+                </p>
             </div>
 
             <div class="dashboard-grid">

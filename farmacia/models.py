@@ -28,23 +28,74 @@ class Departamento(models.Model):
 class UsuarioPersonalizado(AbstractUser):
     ROLES = (
         ('ADMIN', 'Administrador'),
-        ('FARMACIA', 'Farmacia'),
-        ('ENFERMERIA', 'Enfermería'),
-        ('ROPERIA', 'Ropería'),
+        ('FARMACIA', 'Farmacéutico'),
+        ('ENFERMERIA', 'Enfermero/a'),
+        ('MEDICO', 'Médico/a'),  # ✅ NUEVO
     )
     rol = models.CharField(max_length=20, choices=ROLES)
     departamento = models.ForeignKey(Departamento, on_delete=models.SET_NULL, null=True, blank=True)
     telefono = models.CharField(max_length=15, blank=True)
     
+    class Meta:
+        verbose_name = 'Usuario'
+        verbose_name_plural = 'Usuarios'
+        # ✅ PERMISOS PERSONALIZADOS
+        permissions = [
+            ('view_inventory_readonly', 'Puede ver inventario (solo lectura)'),
+            ('manage_pharmacy', 'Puede administrar farmacia completa'),
+            ('manage_nursing', 'Puede administrar enfermería completa'),
+        ]
+    
     def __str__(self):
         return f"{self.username} ({self.get_rol_display()})"
     
     def check_password(self, raw_password):
-        # Verificación explícita para superusuarios
         if self.is_superuser:
             return super().check_password(raw_password)
-        # Verificación normal para otros usuarios
         return super().check_password(raw_password)
+    
+    def get_rol_display(self):
+        """
+        Retorna el rol del usuario de forma legible.
+        Si es superusuario, retorna 'Administrador'.
+        Si tiene grupos, retorna el primero.
+        Si no tiene grupos, retorna 'Sin rol'.
+        """
+        if self.is_superuser:
+            return 'Administrador'
+        
+        grupos = self.groups.all()
+        if grupos:
+            # Si tiene un solo grupo
+            if grupos.count() == 1:
+                return grupos.first().name
+            # Si tiene múltiples grupos
+            else:
+                return ', '.join([g.name for g in grupos])
+        
+        return 'Sin rol asignado'
+    
+    def get_rol_icono(self):
+        """
+        Retorna el ícono FontAwesome según el rol.
+        """
+        if self.is_superuser:
+            return 'fa-user-shield'
+        
+        grupos = self.groups.values_list('name', flat=True)
+        
+        if 'Jefe de Farmacia' in grupos:
+            return 'fa-user-tie'
+        elif 'Farmacéutico' in grupos or 'Jefe farmacia' in grupos:
+            return 'fa-pills'
+        elif 'Jefe de Enfermería' in grupos or 'Jefe enfermeros' in grupos:
+            return 'fa-user-nurse'
+        elif 'Enfermero/a' in grupos:
+            return 'fa-user-nurse'
+        elif 'Médico' in grupos:
+            return 'fa-user-md'
+        
+        return 'fa-user'
 
 
 class PerfilUsuario(models.Model):
@@ -53,6 +104,44 @@ class PerfilUsuario(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.departamento}"
+    
+
+# ===== MODELO PARA PERMISOS PERSONALIZADOS =====
+class PermisosPersonalizados(models.Model):
+    """
+    Modelo ficticio solo para definir permisos personalizados del sistema.
+    No se crea tabla en la base de datos (managed=False).
+    Los permisos se almacenan en la tabla auth_permission de Django.
+    """
+    
+    class Meta:
+        managed = False  # No crear tabla en BD
+        default_permissions = ()  # No crear permisos automáticos (add, change, delete, view)
+        verbose_name = 'Permiso Personalizado'
+        verbose_name_plural = 'Permisos Personalizados'
+        
+        permissions = [
+            # PERMISOS DE REPORTES
+            ("view_reportes", "Puede ver reportes y estadísticas"),
+            ("export_reportes", "Puede exportar reportes a Excel/PDF"),
+            
+            # PERMISOS DE CARGA MASIVA
+            ("view_carga_masiva", "Puede acceder a carga masiva de Excel"),
+            ("upload_carga_masiva", "Puede subir archivos de carga masiva"),
+            
+            # PERMISOS DE SALIDAS
+            ("view_salidas", "Puede ver historial de salidas"),
+            ("create_salida", "Puede registrar salidas de medicamentos"),
+            
+            # PERMISOS DE INVENTARIO (adicionales)
+            ("view_inventario_completo", "Puede ver todo el inventario"),
+            ("edit_inventario", "Puede editar el inventario"),
+            
+            # PERMISOS DE GESTIÓN
+            ("manage_catalogos", "Puede gestionar catálogos (presentaciones, proveedores)"),
+            ("manage_cpm", "Puede gestionar CPM de medicamentos"),
+        ]
+
 
 class Proveedor(models.Model):
     nombre = models.CharField(max_length=100, verbose_name="Nombre del Proveedor")
@@ -111,6 +200,13 @@ class Medicamento(models.Model):
 
     def __str__(self):
         return f"{self.clave} - {self.descripcion}"
+    
+    class Meta:
+        verbose_name = 'Medicamento'
+        verbose_name_plural = 'Medicamentos'
+        permissions = [
+            ('view_medicamento_readonly', 'Puede ver medicamentos (solo lectura)'),
+        ]
 
     
 
@@ -195,6 +291,14 @@ class Lote(models.Model):
         if self.fecha_caducidad < date.today():
             raise ValidationError("La fecha de caducidad debe ser futura")
     
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['medicamento', 'lote_codigo'], name='unique_medicamento_lote')
+        ]
+        permissions = [
+            ('manage_lotes', 'Puede administrar lotes'),
+        ]
+    
     @classmethod
     def actualizar_inventario(cls, medicamento_id, lote_codigo, cantidad, fecha_caducidad, presentacion_id, costo_unitario=None):
         with transaction.atomic():
@@ -275,6 +379,14 @@ class Receta(models.Model):
 
     def __str__(self):
         return f"Receta {self.id_folio} - {self.paciente.nombre_completo}"
+    
+    class Meta:
+        verbose_name = 'Receta'
+        verbose_name_plural = 'Recetas'
+        permissions = [
+            ('process_receta', 'Puede procesar recetas'),
+            ('view_receta_readonly', 'Puede ver recetas (solo lectura)'),
+        ]
     
 
 class RecetaMedicamento(models.Model):
@@ -457,6 +569,21 @@ class Entrada(models.Model):
     actualizado_en = models.DateTimeField(
         auto_now=True
     )
+    
+    class Meta:
+        verbose_name = 'Entrada de Medicamentos'
+        verbose_name_plural = 'Entradas de Medicamentos'
+        ordering = ['-fecha']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['folio', 'institucion'], 
+                name='folio_por_institucion',
+                condition=models.Q(folio__isnull=False)
+            ),
+        ]
+        permissions = [
+            ('register_entrada', 'Puede registrar entradas'),
+        ]
 
     class Meta:
         verbose_name = "Entrada de Medicamentos"

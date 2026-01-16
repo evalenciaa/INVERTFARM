@@ -1,0 +1,238 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración de Grupos - INVENTFARM</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'farmacia/css/admin_usuarios.css' %}">
+</head>
+<body>
+    <div class="admin-container">
+
+        <script>
+            window.CSRF_TOKEN = '{{ csrf_token }}';
+        </script>
+        <!-- HEADER -->
+        <header class="admin-header">
+            <div class="header-left">
+                <a href="{% url 'admin_usuarios' %}" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <div class="header-info">
+                    <h1><i class="fas fa-layer-group"></i> Administración de Grupos</h1>
+                    <p class="subtitle">Gestiona grupos y permisos del sistema</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-header btn-primary" onclick="abrirModalNuevoGrupo()">
+                    <i class="fas fa-plus"></i> Nuevo Grupo
+                </button>
+            </div>
+        </header>
+
+        <!-- GRUPOS GRID -->
+        <div class="grupos-grid">
+            {% for grupo in grupos %}
+            <div class="grupo-card">
+                <div class="grupo-header">
+                    <div class="grupo-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>{{ grupo.name }}</h3>
+                </div>
+                
+                <div class="grupo-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-user"></i>
+                        <span>{{ grupo.num_usuarios }} usuarios</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>{{ grupo.permissions.count }} permisos</span>
+                    </div>
+                </div>
+                
+                <div class="grupo-actions">
+                    <button class="btn-action btn-edit" onclick="window.location.href='{% url 'admin_grupo_detalle' grupo.id %}'">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    {% if grupo.num_usuarios == 0 %}
+                    <button class="btn-action btn-delete" onclick="confirmarEliminarGrupo('{{ grupo.name }}', {{ grupo.id }})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-center">No hay grupos registrados</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- MODAL NUEVO GRUPO -->
+    <div id="modalNuevoGrupo" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-plus"></i> Nuevo Grupo</h2>
+                <button class="modal-close" onclick="cerrarModalGrupo()">&times;</button>
+            </div>
+            <form method="post" action="{% url 'admin_crear_grupo' %}" class="modal-body">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label><i class="fas fa-layer-group"></i> Nombre del grupo *</label>
+                    <input type="text" name="name" required class="form-input" placeholder="Ej: Auditor, Supervisor...">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="cerrarModalGrupo()">Cancelar</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Crear Grupo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .grupos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        .grupo-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .grupo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .grupo-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .grupo-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #750000 0%, #a00000 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+        }
+
+        .grupo-header h3 {
+            color: #222;
+            font-size: 1.3rem;
+            margin: 0;
+        }
+
+        .grupo-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .stat-item i {
+            color: #750000;
+            width: 20px;
+        }
+
+        .grupo-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .grupo-actions .btn-action {
+            flex: 1;
+            height: 40px;
+            width: auto;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+    </style>
+
+    <script src="{% static 'farmacia/js/admin_usuarios.js' %}"></script>
+    <script>
+        function abrirModalNuevoGrupo() {
+            const modal = document.getElementById('modalNuevoGrupo');
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+
+        function cerrarModalGrupo() {
+            const modal = document.getElementById('modalNuevoGrupo');
+            modal.classList.remove('active');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        function confirmarEliminarGrupo(nombre, grupoId) {
+            if (confirm(`¿Estás seguro de que deseas eliminar el grupo "${nombre}"?\n\nEsta acción no se puede deshacer.`)) {
+                eliminarGrupo(grupoId);
+            }
+        }
+
+        function eliminarGrupo(grupoId) {
+            const csrftoken = getCSRFToken();
+            
+            if (!csrftoken) {
+                mostrarNotificacion('Error: No se pudo obtener el token CSRF', 'error');
+                return;
+            }
+            
+            fetch(`/admin-grupos/eliminar/${grupoId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error al eliminar grupo`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    mostrarNotificacion('Grupo eliminado exitosamente', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    mostrarNotificacion(data.error || 'Error al eliminar grupo', 'error');
+                }
+            })
+            .catch(error => {
+                mostrarNotificacion('Error de conexión', 'error');
+            });
+        }
+    </script>
+</body>
+</html>
