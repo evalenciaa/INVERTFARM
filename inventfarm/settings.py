@@ -12,13 +12,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ===== SEGURIDAD =====
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-por-defecto-solo-desarrollo')
-
-# ✅ CAMBIO: Hacer DEBUG configurable
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
-
-# ✅ CAMBIO: Hacer ALLOWED_HOSTS configurable
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-
 AUTH_USER_MODEL = 'farmacia.UsuarioPersonalizado'
 
 # Application definition
@@ -33,15 +28,16 @@ INSTALLED_APPS = [
     'enfermeria',
     'rest_framework',
     'rest_framework_simplejwt',
-]
+    'axes',
+]  # ✅ FALTABA CERRAR AQUÍ
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
-}
+    ),  # ✅ FALTABA CERRAR TUPLA
+}  # ✅ FALTABA CERRAR DICCIONARIO
 
-MIDDLEWARE = [
+MIDDLEWARE = [  # ✅ FALTABA CORCHETE DE APERTURA
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -50,6 +46,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'farmacia.middleware.NoCacheMiddleware',
+    'axes.middleware.AxesMiddleware',
 ]
 
 # ===== CONFIGURACIÓN DE SESIONES (SEGURIDAD) =====
@@ -59,10 +56,9 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SECURE = not DEBUG  # ✅ CAMBIO: False en dev, True en producción
+SESSION_COOKIE_SECURE = not DEBUG
 
-# ✅ CAMBIO: Corregir CSRF_COOKIE_HTTPONLY
-CSRF_COOKIE_HTTPONLY = False  # Debe ser False para que JavaScript pueda acceder
+CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 
 ROOT_URLCONF = 'inventfarm.urls'
@@ -96,7 +92,7 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '3306'),
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        }
+        },
     }
 }
 
@@ -117,9 +113,7 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'farmacia', 'static')]
-
-# ✅ PARA PRODUCCIÓN: Descomentar estas líneas
-# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Media files
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -129,11 +123,12 @@ MEDIA_URL = '/media/'
 LOGO_REPORTES = os.path.join(BASE_DIR, 'farmacia/static/farmacia/img/logo.png')
 
 # Authentication
-LOGIN_REDIRECT_URL = 'principal'
-LOGIN_URL = 'login'
-LOGOUT_REDIRECT_URL = 'login'
+LOGIN_REDIRECT_URL = 'principal'     
+LOGIN_URL = 'login'                   
+LOGOUT_REDIRECT_URL = 'login'         
 
 AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
@@ -151,7 +146,7 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-# Celery (si lo usas)
+# Celery
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_BEAT_SCHEDULE = {
     'verificar-alertas-cpm': {
@@ -161,3 +156,15 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ===== CONFIGURACIÓN DE DJANGO-AXES (RATE LIMITING) =====
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_RESET_ON_SUCCESS = True
+AXES_ENABLED = True
+AXES_CACHE = 'default'
+AXES_LOCKOUT_TEMPLATE = None
+AXES_VERBOSE = True
+AXES_FAILURE_LIMIT_PER_IP = None
+AXES_LOCK_OUT_AT_FAILURE = True

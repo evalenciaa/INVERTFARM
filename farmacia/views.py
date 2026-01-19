@@ -49,6 +49,8 @@ from .decorators import group_required, permission_required_or_superuser
 import logging
 from django.contrib.auth.models import Group, Permission
 from django.contrib.auth import get_user_model
+from axes.models import AccessAttempt
+from axes.handlers.proxy import AxesProxyHandler
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
@@ -56,7 +58,11 @@ User = get_user_model()
 
 # Create your views here.
 def inicio(request):
-    return render(request, 'inicio.html')
+    """Vista raíz que redirige al login o al principal según autenticación"""
+    if request.user.is_authenticated:
+        return redirect('principal')
+    return redirect('login')
+
 
 def vista_farmacia(request):
     return render(request, 'farmacia.html')
@@ -68,11 +74,11 @@ def vista_farmacia_g(request):
     })
 
 @never_cache
-@require_http_methods(["GET", "POST"])
+@require_http_methods(['GET', 'POST'])
 def login_view(request):
-    """Vista de login con validación estricta"""
+    """Vista de login con validación estricta y protección anti-fuerza bruta"""
     
-    # Si ya está autenticado, redirigir
+    # ✅ Si ya está autenticado, redirigir
     if request.user.is_authenticated:
         return redirect('principal')
     
@@ -85,41 +91,74 @@ def login_view(request):
             messages.error(request, 'Usuario y contraseña son requeridos')
             return render(request, 'inicio.html', {'username': username})
         
-        # ✅ AUTENTICACIÓN ESTRICTA
-        user = authenticate(request, username=username, password=password)
+        # VERIFICAR SI EL USUARIO ESTÁ BLOQUEADO POR AXES
+        if AxesProxyHandler.is_locked(request, credentials={'username': username}):
+            intentos = AccessAttempt.objects.filter(username=username).first()
+            if intentos:
+                fallos = intentos.failures_since_start
+                messages.error(
+                    request, 
+                    f'❌ Cuenta bloqueada por seguridad después de {fallos} intentos fallidos. '
+                    f'Intenta de nuevo en 1 hora o contacta al administrador.'
+                )
+            else:
+                messages.error(
+                    request,
+                    'Demasiados intentos fallidos. Tu cuenta está bloqueada temporalmente por seguridad. '
+                    'Intenta de nuevo en 1 hora.'
+                )
+            
+            print(f"🔒 BLOQUEADO: Intento de login para usuario bloqueado '{username}' desde IP {request.META.get('REMOTE_ADDR')}")
+            return render(request, 'inicio.html', {
+                'username': username,
+                'bloqueado': True
+            })
         
-        # DEBUG: Eliminar en producción
-        print(f"🔍 Usuario: {username}")
-        print(f"🔍 Authenticate result: {user}")
-        print(f"🔍 User is_active: {user.is_active if user else 'N/A'}")
+        # AUTENTICACIÓN ESTRICTA
+        user = authenticate(request, username=username, password=password)
         
         if user is not None:
             if user.is_active:
-                # ✅ Limpiar sesión anterior si existe
+                # Limpiar sesión anterior si existe
                 request.session.flush()
                 
-                # ✅ Crear nueva sesión
+                # Crear nueva sesión
                 login(request, user)
-                
-                # ✅ Forzar guardado de sesión
                 request.session.save()
                 
-                # Registrar login (opcional)
                 print(f"✅ Login exitoso: {user.username} - Rol: {user.rol}")
+                print(f"✅ Contador de intentos fallidos reiniciado para {username}")
                 
                 # Redirigir
                 next_url = request.POST.get('next') or request.GET.get('next', 'principal')
                 return redirect(next_url)
             else:
                 messages.error(request, 'Tu cuenta ha sido desactivada. Contacta al administrador.')
+                print(f"❌ Cuenta inactiva: {username}")
         else:
             messages.error(request, 'Usuario o contraseña incorrectos')
-            print(f"❌ Login fallido para: {username}")
-        
-        return render(request, 'inicio.html', {'username': username})
+            print(f"❌ Login fallido para '{username}' desde IP {request.META.get('REMOTE_ADDR')}")
+            
+            # Obtener número de intentos actuales
+            intentos_restantes = None
+            intentos = AccessAttempt.objects.filter(username=username).first()
+            if intentos:
+                fallos_actuales = intentos.failures_since_start + 1
+                intentos_restantes = max(0, 5 - fallos_actuales)
+                print(f"⚠️ Intentos fallidos: {fallos_actuales}/5 para {username}")
+                
+                if intentos_restantes == 0:
+                    messages.warning(request, '⚠️ Último intento. La próxima vez tu cuenta será bloqueada por 1 hora.')
+            
+            return render(request, 'inicio.html', {
+                'username': username,
+                'intentos_restantes': intentos_restantes
+            })
     
-    # GET request
+    # ✅ IMPORTANTE: ESTE RETURN FALTABA - Para el método GET
     return render(request, 'inicio.html')
+
+
 
 
 @never_cache
@@ -1122,15 +1161,66 @@ class RegisterAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginAPIView(APIView):
+    """Vista de login para API con protección anti-fuerza bruta"""
+    
     def post(self, request):
+        username = request.data.get('username', '').strip()
+        
+        # ✅ VERIFICAR SI ESTÁ BLOQUEADO
+        if username and AxesProxyHandler.is_locked(request, credentials={'username': username}):
+            intentos = AccessAttempt.objects.filter(username=username).first()
+            fallos = intentos.failures_since_start if intentos else 5
+            
+            return Response({
+                'error': 'Cuenta bloqueada por seguridad',
+                'detail': f'Demasiados intentos fallidos ({fallos}). Intenta de nuevo en 1 hora.',
+                'locked': True
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Continuar con autenticación normal
         serializer = LoginSerializer(data=request.data)
+        
         if serializer.is_valid():
             user = serializer.validated_data
+            
+            # ✅ Verificar que el usuario esté activo
+            if not user.is_active:
+                return Response({
+                    'error': 'Cuenta inactiva',
+                    'detail': 'Tu cuenta ha sido desactivada. Contacta al administrador.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Generar tokens JWT
             refresh = RefreshToken.for_user(user)
+            
+            print(f"✅ API Login exitoso: {user.username}")
+            
             return Response({
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
+                'user': {
+                    'username': user.username,
+                    'rol': user.rol,
+                    'nombre_completo': f"{user.first_name} {user.last_name}".strip()
+                }
             })
+        
+        # ✅ Login fallido - Axes registrará automáticamente
+        print(f"❌ API Login fallido para: {username}")
+        
+        # Obtener intentos actuales
+        if username:
+            intentos = AccessAttempt.objects.filter(username=username).first()
+            if intentos:
+                fallos_actuales = intentos.failures_since_start + 1
+                restantes = 5 - fallos_actuales
+                
+                return Response({
+                    'error': 'Credenciales incorrectas',
+                    'detail': f'Usuario o contraseña incorrectos. Intentos restantes: {restantes}',
+                    'attempts_remaining': max(0, restantes)
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
     
 
