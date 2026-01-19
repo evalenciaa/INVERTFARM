@@ -1,67 +1,64 @@
-# --- Variables de Entorno (IMPORTANTE: Aquí van tus claves) ---
-.env
-
-# --- Archivos Media (Imágenes subidas por usuarios) ---
-media/
-
-# --- Archivos de Sistema Operativo (Basura de Mac/Windows) ---
-.DS_Store
-Thumbs.db
-
-# --- Archivos específicos de tu proyecto (MySQL) ---
-# Ignorar backups de tu base de datos MySQL
-backup_farmacia*
-*.sql
-*.log
-
-# --- Archivos de IDE (Opcional, por si usas VS Code) ---
-.vscode/
-
-# --- Entorno Virtual y Python (VITAL) ---
+# ===== ENTORNO VIRTUAL =====
 venv/
 env/
+ENV/
+.venv/
+
+# ===== PYTHON =====
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+*.egg
 *.egg-info/
 dist/
 build/
+.Python
 
-# --- Variables de Entorno (IMPORTANTE: Aquí van tus claves) ---
+# ===== DJANGO =====
+*.log
+db.sqlite3
+db.sqlite3-journal
+/staticfiles/
+/static_root/
+/media/
+
+# ===== VARIABLES DE ENTORNO (CRÍTICO) =====
 .env
 .env.local
 .env.*.local
+*.env
 
-# --- Archivos Media (Imágenes subidas por usuarios) ---
-media/
-
-# --- Archivos de Sistema Operativo (Basura de Mac/Windows) ---
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*~
-
-# --- Archivos específicos de tu proyecto (MySQL) ---
+# ===== BACKUPS =====
+backups/
 backup_farmacia*
 *.sql
-*.log
+*.sql.gz
+*.tar.gz
 
-# --- Base de datos SQLite (si usas en desarrollo) ---
-db.sqlite3
-*.sqlite3
-
-# --- Archivos de IDE ---
+# ===== IDEs =====
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
+*.swp
+*.swo
+*~
 
-# --- Archivos estáticos recopilados (para producción) ---
-staticfiles/
-static_root/
-
-# --- Otros ---
+# ===== SISTEMA OPERATIVO =====
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== TESTING =====
 .coverage
 htmlcov/
+.pytest_cache/
+.tox/
+
+# ===== ARCHIVOS TEMPORALES =====
+*.tmp
+*.bak
+*.cache
+requirements_verificado.txt
+estructura.txt

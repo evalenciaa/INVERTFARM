@@ -7,7 +7,10 @@ from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-from io import BytesIO
+from io import BytesIO, StringIO
+import subprocess
+import glob
+from django.core.management import call_command
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
@@ -3505,4 +3508,583 @@ def admin_eliminar_grupo(request, grupo_id):
         return JsonResponse({
             'success': False,
             'error': str(e)
+        }, status=500)
+
+
+# ===== MÓDULO DE BACKUPS =====
+
+@never_cache
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
+def panel_backups(request):
+    """Vista principal del panel de backups"""
+    backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+    
+    # Crear directorio si no existe
+    if not os.path.exists(backups_dir):
+        os.makedirs(backups_dir)
+    
+    # Obtener lista de backups
+    db_backups = []
+    media_backups = []
+    
+    # Backups de base de datos - CUALQUIER archivo .sql o .sql.gz
+    for filepath in glob.glob(os.path.join(backups_dir, '*.sql*')):
+        # Excluir archivos .tar.gz que no son SQL
+        if not filepath.endswith('.tar.gz') and not filepath.endswith('.tar'):
+            filename = os.path.basename(filepath)
+            size = os.path.getsize(filepath)
+            mtime = os.path.getmtime(filepath)
+            
+            db_backups.append({
+                'filename': filename,
+                'filepath': filepath,
+                'size': size,
+                'size_mb': round(size / (1024 * 1024), 2),
+                'date': datetime.fromtimestamp(mtime),
+                'tipo': 'database'
+            })
+    
+    # Backups de media - archivos .tar o .tar.gz
+    for filepath in glob.glob(os.path.join(backups_dir, '*.tar*')):
+        filename = os.path.basename(filepath)
+        size = os.path.getsize(filepath)
+        mtime = os.path.getmtime(filepath)
+        
+        media_backups.append({
+            'filename': filename,
+            'filepath': filepath,
+            'size': size,
+            'size_mb': round(size / (1024 * 1024), 2),
+            'date': datetime.fromtimestamp(mtime),
+            'tipo': 'media'
+        })
+    
+    # Ordenar por fecha descendente
+    db_backups.sort(key=lambda x: x['date'], reverse=True)
+    media_backups.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Estadísticas
+    total_backups = len(db_backups) + len(media_backups)
+    total_size = sum([b['size'] for b in db_backups + media_backups])
+    total_size_mb = round(total_size / (1024 * 1024), 2)
+    
+    # Espacio en disco disponible
+    import shutil
+    disk_usage = shutil.disk_usage(settings.BASE_DIR)
+    espacio_disponible_gb = round(disk_usage.free / (1024 ** 3), 2)
+    
+    context = {
+        'db_backups': db_backups,
+        'media_backups': media_backups,
+        'total_backups': total_backups,
+        'total_size_mb': total_size_mb,
+        'espacio_disponible_gb': espacio_disponible_gb,
+        'ultimo_backup': db_backups[0] if db_backups else None,
+    }
+    
+    return render(request, 'backups.html', context)
+
+
+
+@never_cache
+@login_required
+@require_http_methods(['POST'])
+@user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
+def crear_backup(request):
+    """Crea un nuevo backup de base de datos usando Python puro (sin mysqldump)"""
+    try:
+        import pymysql
+        import gzip
+        import tarfile
+        from datetime import datetime
+        
+        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+        
+        # Crear directorio si no existe
+        if not os.path.exists(backups_dir):
+            os.makedirs(backups_dir)
+        
+        # Generar nombre de archivo
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        backup_filename = f'backup_{timestamp}.sql.gz'
+        backup_path = os.path.join(backups_dir, backup_filename)
+        
+        # Obtener configuración de base de datos
+        db_config = settings.DATABASES['default']
+        
+        # Conectar a MySQL
+        connection = pymysql.connect(
+            host=db_config['HOST'],
+            port=int(db_config['PORT']),
+            user=db_config['USER'],
+            password=db_config['PASSWORD'],
+            database=db_config['NAME'],
+            charset='utf8mb4'
+        )
+        
+        cursor = connection.cursor()
+        
+        # Abrir archivo comprimido para escribir
+        with gzip.open(backup_path, 'wt', encoding='utf-8') as f:
+            # Header del dump
+            f.write(f"-- MySQL Backup\n")
+            f.write(f"-- Host: {db_config['HOST']}\n")
+            f.write(f"-- Database: {db_config['NAME']}\n")
+            f.write(f"-- Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"-- Generated by: INVENTFARM Backup System\n\n")
+            f.write("SET FOREIGN_KEY_CHECKS=0;\n\n")
+            
+            # Obtener todas las tablas
+            cursor.execute("SHOW TABLES")
+            tables = cursor.fetchall()
+            
+            total_tables = len(tables)
+            print(f"📊 Backup iniciado: {total_tables} tablas encontradas")
+            
+            for idx, (table_name,) in enumerate(tables, 1):
+                print(f"   [{idx}/{total_tables}] Procesando tabla: {table_name}")
+                
+                # Estructura de la tabla
+                f.write(f"\n-- Table structure for `{table_name}`\n")
+                f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n")
+                
+                cursor.execute(f"SHOW CREATE TABLE `{table_name}`")
+                create_table = cursor.fetchone()[1]
+                f.write(f"{create_table};\n\n")
+                
+                # Datos de la tabla
+                cursor.execute(f"SELECT * FROM `{table_name}`")
+                rows = cursor.fetchall()
+                
+                if rows:
+                    f.write(f"-- Data for table `{table_name}` ({len(rows)} rows)\n")
+                    
+                    # Obtener nombres de columnas
+                    cursor.execute(f"SHOW COLUMNS FROM `{table_name}`")
+                    columns = [col[0] for col in cursor.fetchall()]
+                    columns_str = '`, `'.join(columns)
+                    
+                    # Insertar datos en lotes de 100 registros
+                    batch_size = 100
+                    for i in range(0, len(rows), batch_size):
+                        batch = rows[i:i + batch_size]
+                        f.write(f"INSERT INTO `{table_name}` (`{columns_str}`) VALUES\n")
+                        
+                        values_list = []
+                        for row in batch:
+                            # Escapar valores
+                            escaped_values = []
+                            for value in row:
+                                if value is None:
+                                    escaped_values.append('NULL')
+                                elif isinstance(value, (int, float)):
+                                    escaped_values.append(str(value))
+                                elif isinstance(value, bytes):
+                                    # Para campos binarios
+                                    escaped_values.append(f"X'{value.hex()}'")
+                                else:
+                                    # Escapar comillas y caracteres especiales
+                                    escaped_value = str(value).replace('\\', '\\\\').replace("'", "\\'")
+                                    escaped_values.append(f"'{escaped_value}'")
+                            
+                            values_list.append(f"({', '.join(escaped_values)})")
+                        
+                        f.write(',\n'.join(values_list))
+                        f.write(';\n\n')
+            
+            f.write("\nSET FOREIGN_KEY_CHECKS=1;\n")
+            f.write("\n-- Backup completed successfully\n")
+        
+        cursor.close()
+        connection.close()
+        
+        # Verificar que el archivo se creó
+        if not os.path.exists(backup_path):
+            raise Exception('El archivo de backup no se creó')
+        
+        file_size = os.path.getsize(backup_path)
+        
+        # Backup de media
+        media_filename = None
+        try:
+            media_filename = f'media_{timestamp}.tar.gz'
+            media_backup_path = os.path.join(backups_dir, media_filename)
+            
+            with tarfile.open(media_backup_path, 'w:gz') as tar:
+                media_dir = settings.MEDIA_ROOT
+                if os.path.exists(media_dir) and os.listdir(media_dir):
+                    tar.add(media_dir, arcname='media')
+                    print(f"📦 Backup de media creado: {media_filename}")
+        except Exception as e:
+            print(f"⚠️ Error al crear backup de media: {e}")
+        
+        # Limpiar backups antiguos (mantener solo los últimos 10)
+        limpiar_backups_antiguos(backups_dir)
+        
+        # Log de la acción
+        print(f"✅ Backup creado exitosamente por: {request.user.username}")
+        print(f"   Archivo: {backup_filename}")
+        print(f"   Tamaño: {file_size / (1024*1024):.2f} MB")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Backup creado exitosamente',
+            'details': {
+                'database': backup_filename,
+                'size_mb': round(file_size / (1024*1024), 2),
+                'media': media_filename
+            }
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"❌ Error al crear backup: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al crear backup: {str(e)}'
+        }, status=500)
+
+
+def limpiar_backups_antiguos(backups_dir, max_backups=10):
+    """Elimina backups antiguos manteniendo solo los últimos N"""
+    try:
+        import glob
+        
+        # Obtener todos los backups de DB
+        db_backups = glob.glob(os.path.join(backups_dir, 'backup_*.sql*'))
+        db_backups.sort(key=os.path.getmtime, reverse=True)
+        
+        # Eliminar los más antiguos
+        for backup in db_backups[max_backups:]:
+            os.remove(backup)
+            print(f"🗑️ Backup antiguo eliminado: {os.path.basename(backup)}")
+        
+        # Lo mismo para media
+        media_backups = glob.glob(os.path.join(backups_dir, 'media_*.tar*'))
+        media_backups.sort(key=os.path.getmtime, reverse=True)
+        
+        for backup in media_backups[max_backups:]:
+            os.remove(backup)
+            print(f"🗑️ Media backup antiguo eliminado: {os.path.basename(backup)}")
+    
+    except Exception as e:
+        print(f"⚠️ Error al limpiar backups antiguos: {e}")
+
+
+
+@never_cache
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
+def descargar_backup(request, filename):
+    """Descarga un archivo de backup"""
+    backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+    filepath = os.path.join(backups_dir, filename)
+    
+    # Validar que el archivo existe y está en la carpeta correcta
+    if not os.path.exists(filepath) or not filepath.startswith(backups_dir):
+        return HttpResponse('Archivo no encontrado', status=404)
+    
+    # Leer y enviar el archivo
+    with open(filepath, 'rb') as f:
+        response = HttpResponse(f.read(), content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+@never_cache
+@login_required
+@require_http_methods(['POST'])
+@user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
+def eliminar_backup(request, filename):
+    """Elimina un archivo de backup"""
+    try:
+        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+        filepath = os.path.join(backups_dir, filename)
+        
+        # Validar que el archivo existe y está en la carpeta correcta
+        if not os.path.exists(filepath) or not filepath.startswith(backups_dir):
+            return JsonResponse({
+                'success': False,
+                'error': 'Archivo no encontrado'
+            }, status=404)
+        
+        # Eliminar archivo
+        os.remove(filepath)
+        
+        print(f"🗑️ Backup eliminado: {filename} por {request.user.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Backup "{filename}" eliminado correctamente'
+        })
+    
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@never_cache
+@login_required
+@require_http_methods(['POST'])
+@user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
+def restaurar_backup(request):
+    """Restaura un backup de base de datos usando Python puro"""
+    try:
+        import pymysql
+        import gzip
+        import re
+        
+        filename = request.POST.get('filename')
+        
+        if not filename:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se especificó archivo'
+            }, status=400)
+        
+        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+        filepath = os.path.join(backups_dir, filename)
+        
+        if not os.path.exists(filepath):
+            return JsonResponse({
+                'success': False,
+                'error': 'Archivo no encontrado'
+            }, status=404)
+        
+        # ✅ GUARDAR LA SESIÓN ACTUAL ANTES DE RESTAURAR
+        session_key = request.session.session_key
+        session_data = None
+        
+        if session_key:
+            from django.contrib.sessions.models import Session
+            try:
+                current_session = Session.objects.get(session_key=session_key)
+                session_data = {
+                    'session_key': current_session.session_key,
+                    'session_data': current_session.session_data,
+                    'expire_date': current_session.expire_date
+                }
+                print(f"   💾 Sesión actual guardada: {session_key}")
+            except Session.DoesNotExist:
+                print(f"   ⚠️ No se pudo guardar la sesión actual")
+        
+        # Obtener configuración de base de datos
+        db_config = settings.DATABASES['default']
+        
+        # Conectar a MySQL
+        connection = pymysql.connect(
+            host=db_config['HOST'],
+            port=int(db_config['PORT']),
+            user=db_config['USER'],
+            password=db_config['PASSWORD'],
+            database=db_config['NAME'],
+            charset='utf8mb4',
+            autocommit=False
+        )
+        
+        cursor = connection.cursor()
+        
+        print(f"♻️ Iniciando restauración de backup: {filename}")
+        
+        try:
+            # Deshabilitar checks de claves foráneas
+            cursor.execute("SET FOREIGN_KEY_CHECKS=0")
+            print("   ✓ Claves foráneas deshabilitadas")
+            
+            # Leer archivo (comprimido o no)
+            if filename.endswith('.gz'):
+                with gzip.open(filepath, 'rt', encoding='utf-8') as f:
+                    sql_content = f.read()
+            else:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    sql_content = f.read()
+            
+            # Dividir en statements individuales
+            statements = []
+            current_statement = []
+            
+            for line in sql_content.split('\n'):
+                line = line.strip()
+                
+                # Ignorar comentarios y líneas vacías
+                if not line or line.startswith('--'):
+                    continue
+                
+                current_statement.append(line)
+                
+                # Si termina con ;, es el final del statement
+                if line.endswith(';'):
+                    statement = ' '.join(current_statement)
+                    if statement and not statement.startswith('--'):
+                        statements.append(statement)
+                    current_statement = []
+            
+            total = len(statements)
+            print(f"   📊 Total de statements a ejecutar: {total}")
+            
+            executed = 0
+            errors = 0
+            
+            for idx, statement in enumerate(statements, 1):
+                statement = statement.strip()
+                
+                if statement:
+                    try:
+                        cursor.execute(statement)
+                        executed += 1
+                        
+                        # Mostrar progreso cada 50 statements
+                        if idx % 50 == 0:
+                            print(f"   Progreso: {idx}/{total} ({(idx/total*100):.1f}%)")
+                    
+                    except pymysql.err.OperationalError as e:
+                        # Errores aceptables (tabla ya existe, etc.)
+                        if e.args[0] not in [1050, 1062]:
+                            print(f"   ⚠️ Error operacional en statement {idx}: {str(e)[:100]}")
+                            errors += 1
+                    
+                    except Exception as e:
+                        print(f"   ⚠️ Error en statement {idx}: {str(e)[:100]}")
+                        errors += 1
+            
+            # Commit de todos los cambios
+            connection.commit()
+            print(f"   ✓ Transacción confirmada")
+            
+            # ✅ RESTAURAR LA SESIÓN ACTUAL DESPUÉS DE LA RESTAURACIÓN
+            if session_data:
+                try:
+                    # Eliminar la sesión del backup si existe
+                    cursor.execute("DELETE FROM django_session WHERE session_key = %s", (session_data['session_key'],))
+                    
+                    # Insertar la sesión actual
+                    cursor.execute(
+                        "INSERT INTO django_session (session_key, session_data, expire_date) VALUES (%s, %s, %s)",
+                        (session_data['session_key'], session_data['session_data'], session_data['expire_date'])
+                    )
+                    connection.commit()
+                    print(f"   ✅ Sesión actual restaurada correctamente")
+                except Exception as e:
+                    print(f"   ⚠️ Error al restaurar sesión: {e}")
+            
+            # Rehabilitar checks de claves foráneas
+            cursor.execute("SET FOREIGN_KEY_CHECKS=1")
+            print(f"   ✓ Claves foráneas rehabilitadas")
+            
+            print(f"✅ Backup restaurado exitosamente:")
+            print(f"   • Archivo: {filename}")
+            print(f"   • Usuario: {request.user.username}")
+            print(f"   • Statements ejecutados: {executed}/{total}")
+            if errors > 0:
+                print(f"   • Errores menores: {errors} (ignorados)")
+            
+            # ✅ NO INTENTAR GUARDAR LA SESIÓN (ya la restauramos manualmente)
+            request.session.modified = False
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Backup restaurado exitosamente',
+                'details': {
+                    'executed': executed,
+                    'total': total,
+                    'errors': errors
+                }
+            })
+        
+        except Exception as e:
+            # Rollback en caso de error
+            connection.rollback()
+            raise e
+        
+        finally:
+            cursor.close()
+            connection.close()
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"❌ Error al restaurar backup: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al restaurar: {str(e)}'
+        }, status=500)
+
+
+
+@never_cache
+@login_required
+@require_http_methods(['POST'])
+@user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
+def subir_backup(request):
+    """Permite subir un archivo de backup externo"""
+    try:
+        if 'backup_file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se envió ningún archivo'
+            }, status=400)
+        
+        backup_file = request.FILES['backup_file']
+        filename = backup_file.name
+        
+        # Validar extensión
+        allowed_extensions = ['.sql', '.sql.gz', '.tar.gz', '.tar']
+        if not any(filename.endswith(ext) for ext in allowed_extensions):
+            return JsonResponse({
+                'success': False,
+                'error': 'Formato de archivo no válido. Solo se permiten: .sql, .sql.gz, .tar.gz'
+            }, status=400)
+        
+        # Validar tamaño (máximo 500MB)
+        max_size = 500 * 1024 * 1024  # 500MB
+        if backup_file.size > max_size:
+            return JsonResponse({
+                'success': False,
+                'error': f'El archivo es demasiado grande. Máximo permitido: 500MB'
+            }, status=400)
+        
+        # Guardar archivo
+        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+        if not os.path.exists(backups_dir):
+            os.makedirs(backups_dir)
+        
+        filepath = os.path.join(backups_dir, filename)
+        
+        # Si ya existe, agregar timestamp para no sobrescribir
+        if os.path.exists(filepath):
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            name, ext = os.path.splitext(filename)
+            filename = f"{name}_uploaded_{timestamp}{ext}"
+            filepath = os.path.join(backups_dir, filename)
+        
+        # Escribir archivo
+        with open(filepath, 'wb+') as destination:
+            for chunk in backup_file.chunks():
+                destination.write(chunk)
+        
+        file_size = os.path.getsize(filepath)
+        
+        print(f"📤 Backup subido: {filename} por {request.user.username}")
+        print(f"   Tamaño: {file_size / (1024*1024):.2f} MB")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Backup "{filename}" subido exitosamente',
+            'details': {
+                'filename': filename,
+                'size_mb': round(file_size / (1024*1024), 2)
+            }
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"❌ Error al subir backup: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al subir backup: {str(e)}'
         }, status=500)

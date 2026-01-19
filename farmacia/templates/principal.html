@@ -31,6 +31,14 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if user.is_superuser or 'Administrador' in user.groups.values_list|join:',' %}
+                    <li class="nav-item">
+                        <a href="{% url 'panel_backups' %}">
+                            <i class="fas fa-database"></i>
+                            <span>Copias de Seguridad</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item active">
                         <a href="{% url 'principal' %}">
                             <i class="fas fa-home"></i>

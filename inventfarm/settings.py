@@ -1,18 +1,16 @@
 import pymysql
 import os
 pymysql.install_as_MySQLdb()
-
 from pathlib import Path
 from celery.schedules import crontab
 from dotenv import load_dotenv
-
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ===== SEGURIDAD =====
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-clave-por-defecto-solo-desarrollo')
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 AUTH_USER_MODEL = 'farmacia.UsuarioPersonalizado'
 
@@ -29,7 +27,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'axes',
-]  # ✅ FALTABA CERRAR AQUÍ
+    'dbbackup',
+] 
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -84,13 +83,14 @@ WSGI_APPLICATION = 'inventfarm.wsgi.application'
 # ===== DATABASE =====
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.mysql'),
         'NAME': os.getenv('DB_NAME', 'INVENTFARM'),
         'USER': os.getenv('DB_USER', 'root'),
         'PASSWORD': os.getenv('DB_PASSWORD', ''),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '3306'),
         'OPTIONS': {
+            'charset': 'utf8mb4',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
     }
@@ -115,9 +115,28 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'farmacia', 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+if not DEBUG:
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # Media files
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
+
+# SEGURIDAD EN PRODUCCIÓN
+'''if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    
+    # CSRF para producción
+    CSRF_TRUSTED_ORIGINS = [
+        'https://tu-dominio.com',  # Cambiar por tu dominio
+        'http://tu-ip-servidor',    # Cambiar por IP del servidor
+    ]'''
 
 # Logo para reportes
 LOGO_REPORTES = os.path.join(BASE_DIR, 'farmacia/static/farmacia/img/logo.png')
@@ -168,3 +187,61 @@ AXES_LOCKOUT_TEMPLATE = None
 AXES_VERBOSE = True
 AXES_FAILURE_LIMIT_PER_IP = None
 AXES_LOCK_OUT_AT_FAILURE = True
+
+
+# ===== CONFIGURACIÓN DE BACKUPS =====
+# Nota: No usamos django-dbbackup directamente, sino implementación custom
+
+# Directorio donde se guardarán los backups
+DBBACKUP_BACKUP_DIRECTORY = os.path.join(BASE_DIR, 'backups')
+if not os.path.exists(DBBACKUP_BACKUP_DIRECTORY):
+    os.makedirs(DBBACKUP_BACKUP_DIRECTORY)
+
+DBBACKUP_CONNECTORS = {
+    'default': {
+        'CONNECTOR': 'dbbackup.db.mysql.MysqlDumpConnector',
+    }
+}
+
+# Mantener los últimos 10 backups
+DBBACKUP_CLEANUP_KEEP = 10
+DBBACKUP_CLEANUP_KEEP_MEDIA = 10
+DBBACKUP_FILENAME_TEMPLATE = 'backup_{datetime}.{extension}'
+DBBACKUP_MEDIA_FILENAME_TEMPLATE = 'media_{datetime}.{extension}'
+DBBACKUP_COMPRESS_FILE = True
+
+# LOGGING (muy útil en producción)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django_errors.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+
+# Crear carpeta de logs si no existe
+if not os.path.exists(os.path.join(BASE_DIR, 'logs')):
+    os.makedirs(os.path.join(BASE_DIR, 'logs'))

@@ -1,0 +1,214 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Backups - INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/backups.css' %}">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- ===== HEADER ===== -->
+        <div class="admin-header">
+            <div class="header-left">
+                <a href="{% url 'principal' %}" class="back-btn">
+                    ←
+                </a>
+                <div class="header-info">
+                    <h1>
+                        💾 Gestión de Backups
+                    </h1>
+                    <p class="subtitle">Sistema de respaldo y restauración de datos</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-header" onclick="document.getElementById('fileInput').click()">
+                    📤 Subir Backup
+                </button>
+                <button class="btn-header btn-primary" onclick="crearBackup()">
+                    🆕 Crear Nuevo Backup
+                </button>
+                <button class="btn-header" onclick="location.reload()">
+                    🔄 Actualizar
+                </button>
+            </div>
+        </div>
+
+        <!-- Input oculto para seleccionar archivo -->
+        <input type="file" id="fileInput" accept=".sql,.sql.gz,.tar.gz,.tar" style="display: none;" onchange="subirBackup(this.files[0])">
+
+        <!-- ===== ESTADÍSTICAS ===== -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+                    📦
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Total de Backups</span>
+                    <span class="stat-value">{{ total_backups }}</span>
+                    <span class="stat-change positive">
+                        {% if ultimo_backup %}
+                            Último: {{ ultimo_backup.date|date:"d/m/Y H:i" }}
+                        {% else %}
+                            Sin backups
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    💿
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Espacio Utilizado</span>
+                    <span class="stat-value">{{ total_size_mb }} MB</span>
+                    <span class="stat-change">
+                        Almacenados localmente
+                    </span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+                    🗄️
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Espacio Disponible</span>
+                    <span class="stat-value">{{ espacio_disponible_gb }} GB</span>
+                    <span class="stat-change positive">
+                        En disco local
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== BACKUPS DE BASE DE DATOS ===== -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2>🗃️ Backups de Base de Datos</h2>
+                <span class="result-count">
+                    <strong>{{ db_backups|length }}</strong> archivo(s)
+                </span>
+            </div>
+
+            <div class="backups-list">
+                {% if db_backups %}
+                    {% for backup in db_backups %}
+                    <div class="backup-item">
+                        <div class="backup-icon">
+                            📄
+                        </div>
+                        <div class="backup-info">
+                            <h3 class="backup-filename">{{ backup.filename }}</h3>
+                            <div class="backup-meta">
+                                <span class="meta-item">
+                                    📅 {{ backup.date|date:"d/m/Y H:i" }}
+                                </span>
+                                <span class="meta-item">
+                                    💾 {{ backup.size_mb }} MB
+                                </span>
+                                <span class="badge badge-database">Base de Datos</span>
+                            </div>
+                        </div>
+                        <div class="backup-actions">
+                            <button class="btn-action btn-download" onclick="descargarBackup('{{ backup.filename }}')" title="Descargar">
+                                ⬇️
+                            </button>
+                            <button class="btn-action btn-restore" onclick="confirmarRestaurar('{{ backup.filename }}')" title="Restaurar">
+                                ♻️
+                            </button>
+                            <button class="btn-action btn-delete" onclick="confirmarEliminar('{{ backup.filename }}')" title="Eliminar">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <h3>No hay backups de base de datos</h3>
+                        <p>Crea tu primer backup haciendo clic en "Crear Nuevo Backup"</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ===== BACKUPS DE MEDIA ===== -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2>🖼️ Backups de Archivos Media</h2>
+                <span class="result-count">
+                    <strong>{{ media_backups|length }}</strong> archivo(s)
+                </span>
+            </div>
+
+            <div class="backups-list">
+                {% if media_backups %}
+                    {% for backup in media_backups %}
+                    <div class="backup-item">
+                        <div class="backup-icon">
+                            📦
+                        </div>
+                        <div class="backup-info">
+                            <h3 class="backup-filename">{{ backup.filename }}</h3>
+                            <div class="backup-meta">
+                                <span class="meta-item">
+                                    📅 {{ backup.date|date:"d/m/Y H:i" }}
+                                </span>
+                                <span class="meta-item">
+                                    💾 {{ backup.size_mb }} MB
+                                </span>
+                                <span class="badge badge-media">Archivos Media</span>
+                            </div>
+                        </div>
+                        <div class="backup-actions">
+                            <button class="btn-action btn-download" onclick="descargarBackup('{{ backup.filename }}')" title="Descargar">
+                                ⬇️
+                            </button>
+                            <button class="btn-action btn-delete" onclick="confirmarEliminar('{{ backup.filename }}')" title="Eliminar">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <h3>No hay backups de archivos media</h3>
+                        <p>Los backups de media se crean automáticamente junto con los de base de datos</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ===== INFORMACIÓN ADICIONAL ===== -->
+        <div class="info-card">
+            <h3>ℹ️ Información Importante</h3>
+            <ul>
+                <li><strong>Ubicación:</strong> Los backups se almacenan en <code>C:\Users\eliuv_9\inventfarm\backups\</code></li>
+                <li><strong>Retención:</strong> El sistema mantiene automáticamente los últimos 10 backups</li>
+                <li><strong>Formatos aceptados:</strong> .sql, .sql.gz (comprimido), .tar.gz (media)</li>
+                <li><strong>Subir backups:</strong> Puedes cargar backups externos usando el botón "📤 Subir Backup"</li>
+                <li><strong>Backups manuales:</strong> Si copias archivos .sql directamente a la carpeta, aparecerán automáticamente</li>
+                <li><strong>Compresión:</strong> Los backups se comprimen automáticamente para ahorrar espacio</li>
+                <li><strong>Seguridad:</strong> Solo administradores y superusuarios pueden crear/restaurar backups</li>
+                <li><strong>Recomendación:</strong> Descarga y guarda los backups en una ubicación externa periódicamente</li>
+                <li><strong>Restauración:</strong> La restauración sobrescribe TODA la base de datos actual</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- ===== LOADING OVERLAY ===== -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p id="loadingText">Procesando...</p>
+        </div>
+    </div>
+
+    <script src="{% static 'farmacia/js/backups.js' %}"></script>
+</body>
+</html>

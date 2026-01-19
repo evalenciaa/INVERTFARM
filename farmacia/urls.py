@@ -79,7 +79,15 @@ urlpatterns = [
     path('admin-grupos/crear/', views.admin_crear_grupo, name='admin_crear_grupo'),
     path('admin-grupos/<int:grupo_id>/', views.admin_grupo_detalle, name='admin_grupo_detalle'),
     path('admin-grupos/eliminar/<int:grupo_id>/', views.admin_eliminar_grupo, name='admin_eliminar_grupo'),
-
+    
+    
+    # BACKUPS
+    path('backups/', views.panel_backups, name='panel_backups'),
+    path('backups/crear/', views.crear_backup, name='crear_backup'),
+    path('backups/subir/', views.subir_backup, name='subir_backup'),
+    path('backups/descargar/<str:filename>/', views.descargar_backup, name='descargar_backup'),
+    path('backups/eliminar/<str:filename>/', views.eliminar_backup, name='eliminar_backup'),
+    path('backups/restaurar/', views.restaurar_backup, name='restaurar_backup'),
 ]
 
 
