@@ -32,7 +32,7 @@ Sistema integral de gestión de inventario de medicamentos para instituciones de
 # 1. Clonar el repositorio
 
     ```bash
-    git clone https://github.com/tu-usuario/inventfarm.git
+    git clone https://github.com/evalenciaa/inventfarm.git
     cd inventfarm
 
 ### 2. Crear entorno virtual
