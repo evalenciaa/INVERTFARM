@@ -179,7 +179,7 @@ class ProcesadorCargaMasiva:
             
             cantidad = int(row['cantidad'])
             
-            # ===== VALIDACIÓN DE PRECIO =====
+            # ===== VALIDACIÓN DE PRECIO (permite vacíos) =====
             if not self._validar_precio(row['precio']):
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -187,8 +187,20 @@ class ProcesadorCargaMasiva:
                     'error': 'Precio inválido (debe ser número positivo)'
                 })
                 return None
-            
-            precio = float(row['precio'])
+
+            # ⭐ NUEVO: Manejar precios vacíos
+            if pd.isna(row['precio']) or row['precio'] == '' or row['precio'] is None:
+                precio = 0.0
+                # Generar advertencia
+                self.resultados['advertencias'].append({
+                    'tipo': 'precio_vacio',
+                    'fila': index + 2,
+                    'clave': clave,
+                    'lote': str(row['lote']).strip().upper(),
+                    'mensaje': 'Precio vacío, se asignó $0.00'
+                })
+            else:
+                precio = float(row['precio'])
             
             # ===== VALIDACIÓN DE FECHA =====
             fecha_caducidad = self._parsear_fecha(row['caducidad'])
@@ -384,49 +396,91 @@ class ProcesadorCargaMasiva:
             )
     
     def _parsear_fecha(self, fecha):
-        """Parsea la fecha de diferentes formatos incluyendo Excel"""
+        """Parsea la fecha de diferentes formatos incluyendo Excel serial numbers"""
+        from datetime import timedelta
+        
         # Si ya es un objeto date
         if isinstance(fecha, date) and not isinstance(fecha, datetime):
-            return fecha
+            resultado = fecha
+            return resultado
         
         # Si es pandas Timestamp (lo más común al leer Excel)
         if hasattr(fecha, 'date') and callable(fecha.date):
             try:
-                return fecha.date()  # Convierte Timestamp a date
+                resultado = fecha.date()
+                return resultado
             except:
                 pass
         
         # Si es datetime de Python
         if isinstance(fecha, datetime):
-            return fecha.date()
+            resultado = fecha.date()
+            return resultado
         
-        # Si es string, intentar múltiples formatos
+        # ⭐ Si es número (Excel serial date) - PRIORIDAD ALTA
+        if isinstance(fecha, (int, float)) and not pd.isna(fecha):
+            try:
+                # Excel guarda fechas como días desde 1900-01-01
+                fecha_convertida = pd.to_datetime(fecha, unit='D', origin='1899-12-30')
+                resultado = fecha_convertida.date()
+                return resultado
+            except Exception as e:
+                print(f"❌ Error convirtiendo fecha serial {fecha}: {e}")
+                # NO retornar None aquí, intentar otros métodos
+        
+        # ⭐ Si es string, intentar múltiples formatos
         if isinstance(fecha, str):
             fecha = fecha.strip()
+            
+            # Si parece número en string (ej: "46568")
+            if fecha.replace('.', '', 1).isdigit():  # Permite decimales
+                try:
+                    fecha_num = float(fecha)
+                    fecha_convertida = pd.to_datetime(fecha_num, unit='D', origin='1899-12-30')
+                    resultado = fecha_convertida.date()
+                    return resultado
+                except Exception as e:
+                    print(f"⚠️ No se pudo convertir string numérico: {e}")
+            
+            # Formatos de texto comunes
             formatos = [
-                '%d/%m/%Y',   # 30/08/2026
-                '%Y-%m-%d',   # 2026-08-30
-                '%d-%m-%Y',   # 30-08-2026
-                '%Y/%m/%d',   # 2026/08/30
-                '%d/%m/%y',   # 30/08/26
-                '%d%m%Y',     # 30082026 (sin separadores)
+                '%d/%m/%Y',   # 31/05/2027 ← TU CASO
+                '%Y-%m-%d',   # 2027-05-31
+                '%d-%m-%Y',   # 31-05-2027
+                '%Y/%m/%d',   # 2027/05/31
+                '%d/%m/%y',   # 31/05/27
+                '%d%m%Y',     # 31052027 (sin separadores)
+                '%Y%m%d',     # 20270531
             ]
             
             for formato in formatos:
                 try:
-                    return datetime.strptime(fecha, formato).date()
+                    resultado = datetime.strptime(fecha, formato).date()
+                    return resultado
                 except ValueError:
                     continue
+            
+            # Si ningún formato manual funcionó, intentar pandas
+            try:
+                # pandas.to_datetime es muy flexible
+                resultado = pd.to_datetime(fecha, dayfirst=True).date()
+                return resultado
+            except Exception as e:
+                print(f"⚠️ Pandas no pudo parsear string: {fecha} - {e}")
         
-        # Si pandas lee el Excel como Timestamp (método alternativo)
+        # ⭐ Último recurso: forzar conversión con pandas (muy flexible)
         try:
             if pd.notna(fecha):
-                # Convertir a Timestamp y luego a date
-                return pd.to_datetime(fecha).date()
-        except:
-            pass
+                # dayfirst=True asume DD/MM/YYYY (común en México)
+                resultado = pd.to_datetime(fecha, dayfirst=True).date()
+                return resultado
+        except Exception as e:
+            print(f"❌ FALLO TOTAL al convertir fecha: {fecha} (tipo: {type(fecha)}) - {e}")
         
+        print(f"❌ Fecha no reconocida: {fecha}")
         return None
+
+
         
     def _validar_cantidad(self, cantidad):
         """Valida cantidad como entero positivo"""
@@ -439,13 +493,17 @@ class ProcesadorCargaMasiva:
             return False
     
     def _validar_precio(self, precio):
-        """Valida precio como número positivo"""
-        if pd.isna(precio):
-            return False
+        """Valida precio como número positivo (permite vacíos)"""
+        # ⭐ NUEVO: Permitir precios vacíos (se asignará 0)
+        if pd.isna(precio) or precio == '' or precio is None:
+            return True  # Válido (se manejará en _validar_fila)
+        
         try:
-            return float(precio) >= 0
+            precio_float = float(precio)
+            return precio_float >= 0  # Permite 0 y positivos
         except (ValueError, TypeError):
             return False
+
     
     def _validar_columnas(self, df):
         """Valida columnas requeridas"""
