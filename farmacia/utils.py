@@ -367,6 +367,17 @@ class ProcesadorCargaMasiva:
                 # ACTUALIZAR lote existente (SUMAR cantidad)
                 lote = lotes_existentes[(clave, lote_codigo)]
                 lote.existencia += cantidad_total
+                lote.costo_unitario = dato['precio']
+
+                if dato.get('origen'):
+                    lote.origen = dato['origen']
+
+                if dato.get('contrato'):
+                    lote.contrato = dato['contrato']
+                    
+                if dato.get('fuente'):
+                    lote.fuente_financiamiento = dato['fuente']
+
                 lotes_a_actualizar.append(lote)
                 self.resultados['actualizados'] += 1
             else:
@@ -379,7 +390,10 @@ class ProcesadorCargaMasiva:
                     existencia=cantidad_total,
                     costo_unitario=dato['precio'],
                     presentacion=presentacion,
-                    cpm=0
+                    cpm=0,
+                    origen=dato.get('origen') or None,
+                    contrato=dato.get('contrato') or None,
+                    fuente_financiamiento=dato.get('fuente') or None,
                 )
                 lotes_a_crear.append(nuevo_lote)
                 self.resultados['exitosos'] += 1
@@ -391,7 +405,7 @@ class ProcesadorCargaMasiva:
         if lotes_a_actualizar:
             Lote.objects.bulk_update(
                 lotes_a_actualizar, 
-                ['existencia', 'costo_unitario'], 
+                ['existencia', 'costo_unitario', 'origen', 'contrato', 'fuente_financiamiento'], 
                 batch_size=100
             )
     

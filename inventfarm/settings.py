@@ -101,7 +101,8 @@ DATABASES = {
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+     'OPTIONS': {'min_length': 12}},
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
@@ -177,6 +178,15 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ===== SEGURIDAD HTTP (ISO 27001 A.14.1.2 / OWASP) =====
+SECURE_CONTENT_TYPE_NOSNIFF = True      # Evita MIME-type sniffing
+X_FRAME_OPTIONS = 'DENY'               # Previene Clickjacking
+SECURE_BROWSER_XSS_FILTER = True       # Activa filtro XSS del navegador (legacy)
+
+# Límite de tamaño de subida de archivos: 5 MB máximo (previene DoS)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 # ===== CONFIGURACIÓN DE DJANGO-AXES (RATE LIMITING) =====
 AXES_FAILURE_LIMIT = 5

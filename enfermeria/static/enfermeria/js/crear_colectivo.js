@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', function() {
     inicializarBotonAgregar();
     inicializarFormulario();
     inicializarBuscadorPacientes();
-    console.log('✅ Aplicación iniciada');
 });
 
 /**
@@ -16,19 +15,12 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 
 function inicializarBuscadorPacientes() {
-    console.log('🔧 Inicializando buscador de pacientes...');
-    
     const inputPaciente = document.getElementById('paciente-input');
     const resultadosPaciente = document.getElementById('resultados-paciente');
     const hiddenInputPaciente = document.getElementById('paciente-id-hidden');
     
-    console.log('📋 Elementos encontrados:');
-    console.log('  - Input:', inputPaciente);
-    console.log('  - Resultados:', resultadosPaciente);
-    console.log('  - Hidden:', hiddenInputPaciente);
-    
     if (!inputPaciente || !resultadosPaciente || !hiddenInputPaciente) {
-        console.error('❌ No se encontraron los elementos necesarios');
+        console.error('❌ No se encontraron los elementos necesarios para el buscador de pacientes');
         return;
     }
     
@@ -36,8 +28,6 @@ function inicializarBuscadorPacientes() {
     let pacienteSeleccionado = false;
     
     inputPaciente.addEventListener('input', function() {
-        console.log('⌨️ Usuario escribiendo:', this.value);
-        
         clearTimeout(timeoutId);
         const query = this.value.trim();
         
@@ -53,20 +43,13 @@ function inicializarBuscadorPacientes() {
         }
         
         timeoutId = setTimeout(() => {
-            console.log('🔍 Buscando pacientes:', query);
-            
-            // ← CAMBIAR ESTA URL
             fetch(`/enfermeria/api/buscar-pacientes-autocomplete/?q=${encodeURIComponent(query)}`)
-                .then(response => {
-                    console.log('📡 Respuesta recibida:', response);
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    console.log('📦 Datos parseados:', data);
                     mostrarResultadosPacientes(data.results);
                 })
                 .catch(error => {
-                    console.error('❌ Error:', error);
+                    console.error('❌ Error al buscar pacientes:', error);
                     resultadosPaciente.innerHTML = '<div class="autocomplete-error">Error al buscar pacientes</div>';
                     resultadosPaciente.style.display = 'block';
                 });
@@ -80,8 +63,6 @@ function inicializarBuscadorPacientes() {
     });
     
     function mostrarResultadosPacientes(pacientes) {
-        console.log('📊 Mostrando resultados:', pacientes);
-        
         if (pacientes.length === 0) {
             resultadosPaciente.innerHTML = `
                 <div class="autocomplete-no-results">
@@ -94,9 +75,7 @@ function inicializarBuscadorPacientes() {
             return;
         }
         
-        const html = pacientes.map(paciente => {
-            console.log('  - Paciente:', paciente);
-            return `
+        const html = pacientes.map(paciente => `
                 <div class="autocomplete-item" data-id="${paciente.id}" data-nombre="${paciente.nombre_completo}">
                     <div class="paciente-info">
                         <strong>${paciente.nombre_completo}</strong>
@@ -104,8 +83,7 @@ function inicializarBuscadorPacientes() {
                         ${paciente.fecha_nacimiento ? `<br><small>Nacimiento: ${paciente.fecha_nacimiento}</small>` : ''}
                     </div>
                 </div>
-            `;
-        }).join('');
+            `).join('');
         
         resultadosPaciente.innerHTML = html;
         resultadosPaciente.style.display = 'block';
@@ -114,9 +92,6 @@ function inicializarBuscadorPacientes() {
             item.addEventListener('click', function() {
                 const id = this.getAttribute('data-id');
                 const nombre = this.getAttribute('data-nombre');
-                
-                console.log('👆 Paciente seleccionado:', id, nombre);
-                
                 inputPaciente.value = nombre;
                 hiddenInputPaciente.value = id;
                 pacienteSeleccionado = true;
@@ -124,8 +99,6 @@ function inicializarBuscadorPacientes() {
             });
         });
     }
-    
-    console.log('✅ Buscador de pacientes inicializado');
 }
 
 
@@ -407,8 +380,6 @@ function inicializarFormulario() {
             if (turno) turno.disabled = true;
         }
         
-        // Enviar formulario
-        console.log('✅ Formulario validado, enviando...');  // ← DEBUG
         form.submit();
     });
 }

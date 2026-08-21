@@ -1,5 +1,5 @@
 from django import forms
-from .models import Lote, Receta, RecetaMedicamento, Medicamento, Proveedor
+from .models import Lote, Receta, RecetaMedicamento, Medicamento, Proveedor, Institucion
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -137,6 +137,15 @@ class SalidaForm(forms.Form):
                 raise forms.ValidationError("El lote seleccionado no existe.")
         return cleaned_data
 
+class SalidaTransferenciaForm(forms.Form):
+    institucion_destino = forms.ModelChoiceField(
+        queryset=Institucion.objects.filter(activo=True),
+        label="Institución Destino",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    observaciones = forms.CharField(
+        required=False, widget=forms.Textarea(attrs={'rows': 2, 'class': 'form-control'})
+    )
 
 class CargaMasivaForm(forms.Form):
     archivo = forms.FileField(

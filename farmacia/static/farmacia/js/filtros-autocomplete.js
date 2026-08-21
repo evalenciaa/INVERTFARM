@@ -105,17 +105,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Funciones de filtrado
     function filtrarTabla() {
-        console.log('🎯 Aplicando filtros...');
-        
         const filtroTexto = filtroMedicamentoInput.value.toLowerCase();
         const filtroId = filtroMedicamentoId.value;
         const filtroColorValor = filtroColor ? filtroColor.value : '';
-        
-        console.log('Filtros activos:', {
-            texto: filtroTexto,
-            id: filtroId,
-            color: filtroColorValor
-        });
 
         const filas = document.querySelectorAll('.medicamentos-table tbody tr');
         let filasVisibles = 0;
@@ -127,17 +119,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             let mostrar = true;
 
-            // Filtro por texto (nombre del medicamento)
             if (filtroTexto && !textoFila.includes(filtroTexto)) {
                 mostrar = false;
             }
 
-            // Filtro por ID (si se seleccionó uno específico)
             if (filtroId && idMedicamento !== filtroId) {
                 mostrar = false;
             }
 
-            // Filtro por color
             if (filtroColorValor && colorFila !== filtroColorValor) {
                 mostrar = false;
             }
@@ -145,8 +134,6 @@ document.addEventListener('DOMContentLoaded', function() {
             fila.style.display = mostrar ? '' : 'none';
             if (mostrar) filasVisibles++;
         });
-
-        console.log(`✅ Filtrado completado: ${filasVisibles}/${filas.length} filas visibles`);
     }
 
     function limpiarFiltros() {
@@ -159,17 +146,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof filtrarTabla === 'function') filtrarTabla();
     }
 
-        // Hacer funciones disponibles globalmente
         window.filtrarTabla = filtrarTabla;
         window.limpiarFiltros = limpiarFiltros;
-
-        console.log('🎉 Sistema de autocompletado para filtros inicializado');
     });
 
 // En filtros.js - Actualizar la función guardarFila
 function guardarFila(loteId) {
-    console.log('Guardando lote:', loteId);
-    
     const fila = document.querySelector(`tr[data-id="${loteId}"]`);
     if (!fila) {
         alert('Error: No se encontró la fila con ID ' + loteId);
@@ -181,11 +163,9 @@ function guardarFila(loteId) {
         existencia: fila.querySelector(`input[name="existencia_${loteId}"]`).value,
         cpm: fila.querySelector(`input[name="cpm_${loteId}"]`).value,
         presentacion: fila.querySelector(`select[name="presentacion_${loteId}"]`).value,
-        fecha_caducidad: fila.querySelector(`input[name="fecha_caducidad_${loteId}"]`).value, // NUEVO
+        fecha_caducidad: fila.querySelector(`input[name="fecha_caducidad_${loteId}"]`).value,
         csrfmiddlewaretoken: document.querySelector('[name=csrfmiddlewaretoken]').value
     };
-
-    console.log('Datos a enviar:', datos);
 
     fetch(`/editar_lote/${loteId}/`, {
         method: 'POST',

@@ -296,8 +296,6 @@ function guardarEntradas() {
         }
     }
 
-    console.log('Datos a enviar:', datos); // Para depuración
-
     fetch('/api/entradas/guardar/', {
         method: 'POST',
         headers: {

@@ -1,9 +1,7 @@
 // ===== DETALLE_COLECTIVO.JS =====
-console.log('Script de detalle de colectivo cargado');
 
 // ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Inicializando vista de detalle...');
     
     // Configurar modales
     configurarModales();
@@ -108,23 +106,9 @@ function actualizarContadorCaracteres(e) {
 function validarFormularioEdicion(e) {
     const form = e.target;
     
-    // ✅ Obtener TODOS los medicamento_id[] y cantidad[]
-    const medicamentosIds = form.querySelectorAll('input[name="medicamento_id[]"]');
-    const cantidades = form.querySelectorAll('input[name="cantidad[]"]');
-    
-    console.log('🔍 DEBUGGING - Inputs encontrados:');
-    console.log('Total medicamento_id[]:', medicamentosIds.length);
-    console.log('Total cantidad[]:', cantidades.length);
-    
-    // Listar todos
-    medicamentosIds.forEach((input, index) => {
-        const cantidad = cantidades[index];
-        console.log(`  [${index}] ID=${input.value}, Cantidad=${cantidad ? cantidad.value : 'N/A'}, Disabled=${input.disabled}`);
-    });
-    
     // ✅ Contar medicamentos válidos (no deshabilitados y con ID)
-    const medicamentosActivos = [];
-    
+    const medicamentosActivos = []
+
     // Medicamentos existentes (no eliminados)
     const existentes = form.querySelectorAll('.medicamento-edit-item:not(.medicamento-agregado):not(.nuevo-medicamento):not(.medicamento-temporal)');
     existentes.forEach(item => {
@@ -142,16 +126,10 @@ function validarFormularioEdicion(e) {
     
     // Medicamentos agregados (nuevos permanentes)
     const agregados = form.querySelectorAll('.medicamento-agregado');
-    console.log('🟢 Medicamentos agregados encontrados:', agregados.length);
     
     agregados.forEach(item => {
         const medId = item.querySelector('input[name="medicamento_id[]"]');
         const cantidad = item.querySelector('input[name="cantidad[]"]');
-        
-        console.log('  Agregado:', {
-            medId: medId ? medId.value : 'NO ENCONTRADO',
-            cantidad: cantidad ? cantidad.value : 'NO ENCONTRADO'
-        });
         
         if (medId && cantidad && medId.value && cantidad.value) {
             medicamentosActivos.push({
@@ -161,8 +139,6 @@ function validarFormularioEdicion(e) {
             });
         }
     });
-    
-    console.log('📋 Medicamentos válidos a enviar:', medicamentosActivos);
     
     // Validar que haya al menos uno
     if (medicamentosActivos.length === 0) {
@@ -460,54 +436,8 @@ function agregarMedicamentoAlFormulario(id) {
         return;
     }
     
-    console.log('📦 Agregando medicamento:', {
-        id: medIdTemp.value,
-        nombre: inputText.value,
-        cantidad: cantidadTemp.value
-    });
-    
-    // ✅ Buscar o crear el contenedor de medicamentos agregados
-    let listaPermanente = document.getElementById('medicamentos-agregados-lista');
-    
-    if (!listaPermanente) {
-        console.error('❌ No se encontró el contenedor medicamentos-agregados-lista');
-        alert('Error: No se encontró el contenedor para agregar medicamentos');
-        return;
-    }
-    
-    // ✅ Crear el medicamento permanente con ID único
-    const timestampId = Date.now();
-    const medicamentoPermanenteHTML = `
-        <div class="medicamento-edit-item medicamento-agregado" id="agregado-${timestampId}">
-            <input type="hidden" name="medicamento_id[]" value="${medIdTemp.value}">
-            
-            <div class="med-info" style="flex: 3;">
-                <strong>${inputText.value}</strong>
-            </div>
-            
-            <div class="med-cantidad">
-                <label>Cantidad</label>
-                <input type="number" 
-                       name="cantidad[]" 
-                       value="${cantidadTemp.value}" 
-                       min="1" max="9999" 
-                       required
-                       class="cantidad-input">
-            </div>
-            
-            <button type="button" 
-                    class="btn-eliminar-med" 
-                    onclick="eliminarMedicamentoAgregado('agregado-${timestampId}')"
-                    title="Eliminar">
-                <i class="fas fa-trash-alt"></i> Eliminar
-            </button>
-        </div>
-    `;
-    
     // ✅ Agregar al contenedor
     listaPermanente.insertAdjacentHTML('beforeend', medicamentoPermanenteHTML);
-    
-    console.log(`✅ Medicamento agregado: agregado-${timestampId}`);
     
     // ✅ Eliminar el formulario temporal
     if (container) {

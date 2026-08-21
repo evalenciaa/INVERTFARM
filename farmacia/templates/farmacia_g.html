@@ -194,14 +194,17 @@
                 <div class="table-container">
                     <table class="lotes-table" id="tabla-lotes">
                             <colgroup>
-                                <col style="width:170px;">  <!-- Clave -->
-                                <col style="width:380px;">  <!-- Descripción -->
-                                <col style="width:140px;">  <!-- Lote -->
-                                <col style="width:140px;">  <!-- Presentación -->
-                                <col style="width:120px;">  <!-- Existencia -->
-                                <col style="width:170px;">  <!-- Caducidad -->
-                                <col style="width:170px;">  <!-- Costo total -->
-                                <col style="width:170px;">  <!-- Acciones -->
+                                <col style="width: 165px;">  <!-- Clave -->
+                                <col style="width: 360px;">  <!-- Descripción -->
+                                <col style="width: 130px;">  <!-- Lote -->
+                                <col style="width: 130px;">  <!-- Presentación -->
+                                <col style="width: 120px;">  <!-- Existencia -->
+                                <col style="width: 150px;">  <!-- Caducidad -->
+                                <col style="width: 170px;">  <!-- Tipo de entrada -->
+                                <col style="width: 180px;">  <!-- No. contrato -->
+                                <col style="width: 280px;">  <!-- Fuente de Financiamiento -->
+                                <col style="width: 155px;">  <!-- Costo total -->
+                                <col style="width: 170px;">  <!-- Acciones -->
                             </colgroup>
                         <thead>
                             <tr>
@@ -211,6 +214,9 @@
                                 <th><i class="fas fa-capsules"></i> Presentación</th>
                                 <th><i class="fas fa-cubes"></i> Existencia</th>
                                 <th><i class="fas fa-calendar-alt"></i> Caducidad</th>
+                                <th><i class="fas fa-file-import"></i> Tipo de entrada</th>
+                                <th><i class="fas fa-file-signature"></i> No. contrato</th>
+                                <th><i class="fas fa-hand-holding-usd"></i> Fuente de financiamiento</th>
                                 <th><i class="fas fa-dollar-sign"></i> Costo total</th>
                                 <th><i class="fas fa-cogs"></i> Acciones</th>
                             </tr>
@@ -270,6 +276,26 @@
                                     <small class="dias-restantes">({{ lote.dias_para_caducidad }} días)</small>
                                 </td>
 
+                                <td class="origen-cell">
+                                    <span class="badge badge-origen">
+                                        <i class="fas fa-file-import"></i>
+                                        {{ lote.origen|default:"N/A" }}
+                                    </span>
+                                </td>
+
+                                <td class="contrato-cell">
+                                    <span class="badge badge-contrato">
+                                        {{ lote.contrato|default:"N/A" }}
+                                    </span>
+                                </td>
+
+                                <td class="fuente-cell">
+                                    <span class="badge badge-fuente">
+                                        <i class="fas fa-hand-holding-usd"></i>
+                                        {{ lote.fuente_financiamiento|default:"N/A" }}
+                                    </span>
+                                </td>
+
                                 <td class="costo-total-cell">
                                 <div class="costo-badge">
                                     <div class="costo-total">
@@ -309,7 +335,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="8" class="empty-state">
+                                <td colspan="11" class="empty-state">
                                     <div class="empty-content">
                                         <i class="fas fa-inbox"></i>
                                         <p>No se encontraron lotes en inventario</p>
@@ -377,6 +403,9 @@
                     </button>
                     <button class="btn btn-danger btn-exportar" onclick="descargarPDF()">
                         <i class="fas fa-file-pdf"></i> Descargar PDF
+                    </button>
+                    <button class="btn btn-warning btn-exportar" onclick="descargarPDFProximosCaducar()">
+                        <i class="fas fa-exclamation-triangle"></i> PDF Próximos a Caducar
                     </button>
                 </div>
             </div>
@@ -719,6 +748,9 @@
             window.location.href = '/exportar/pdf/';
         }
 
+        function descargarPDFProximosCaducar() {
+            window.location.href = '/exportar/pdf/proximos-caducar/';
+        }
 
         let loteAEliminar = null;
 

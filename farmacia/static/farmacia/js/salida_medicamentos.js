@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let medicamentosFaltantes = [];
     let loteEscaneadoActual = null;
 
+    const institucionInput = document.getElementById('institucion-input');
+    const institucionHidden = document.getElementById('institucion-id-hidden');
+
     // Selectores - Paso 1: Datos del Paciente
     const formPaciente = document.getElementById('form-salida-final');
     const curpInput = document.getElementById('id_paciente_curp');
@@ -48,6 +51,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 2. PASO 1: BÚSQUEDA DE PACIENTE
     // ============================================
     
+    inicializarBuscadorInstitucion();
+
+
     // Búsqueda por CURP
     curpInput.addEventListener('change', function() {
         const curp = this.value.toUpperCase().trim();
@@ -247,66 +253,87 @@ document.addEventListener('DOMContentLoaded', function() {
     
     formPaciente.addEventListener('submit', async function(e) {
         e.preventDefault();
-        
-        if (itemsParaSalida.length === 0 && medicamentosFaltantes.length === 0) {
-            alert('Error: No hay medicamentos en la lista de salida ni medicamentos faltantes registrados.');
-            return;
+
+        const tipo = document.querySelector('input[name="tiposalida"]:checked').value;
+
+        if (tipo === 'RECETA') {
+            if (itemsParaSalida.length === 0 && medicamentosFaltantes.length === 0) {
+                alert('Error: No hay medicamentos en la lista de salida ni medicamentos faltantes registrados.');
+                return;
+            }
+        } else if (tipo === 'TRANSFERENCIA') {
+            const institucion = document.getElementById('institucion-input').value.trim();
+            if (!institucion) {
+                alert('Escribe el nombre de la Institución destino.');
+                return;
+            }
+            if (itemsParaSalida.length === 0 && medicamentosFaltantes.length === 0) {
+                alert('Error: No hay medicamentos transferidos ni medicamentos no disponibles registrados.');
+                return;
+            }
         }
-        
+
         btnFinalizar.disabled = true;
         btnFinalizar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-        
+
         const formData = new FormData(formPaciente);
-        
-        // Agregar items surtidos
+        const urlDestino = tipo === 'RECETA'
+            ? formPaciente.dataset.urlReceta
+            : formPaciente.dataset.urlTransferencia;
+
         itemsParaSalida.forEach((item, index) => {
             formData.append(`item_lote_${index}`, item.lote_id);
             formData.append(`item_cantidad_${index}`, item.cantidad);
         });
-        
-        // Agregar medicamentos faltantes
-        medicamentosFaltantes.forEach((faltante, index) => {
-            formData.append(`faltante_desc_${index}`, faltante.descripcion);
-            formData.append(`faltante_cant_${index}`, faltante.cantidad);
-            formData.append(`faltante_motivo_${index}`, faltante.motivo);
-        });
-        
+
+        if (tipo === 'TRANSFERENCIA') {
+            formData.append('institucion_destino_nombre', document.getElementById('institucion-input').value.trim());
+        }
+
+        if (tipo === 'RECETA' || tipo === 'TRANSFERENCIA') {
+            medicamentosFaltantes.forEach((faltante, index) => {
+                formData.append(`faltante_desc_${index}`, faltante.descripcion);
+                formData.append(`faltante_cant_${index}`, faltante.cantidad);
+                formData.append(`faltante_motivo_${index}`, faltante.motivo);
+            });
+        }
+
         try {
-            const response = await fetch(formPaciente.action, {
+            const response = await fetch(urlDestino, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'X-CSRFToken': formData.get('csrfmiddlewaretoken')
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (!response.ok) {
                 throw new Error(data.error || 'Error desconocido del servidor.');
             }
-            
-            // Mostrar mensaje según el estado
-            let mensaje = '✓ Salida registrada exitosamente!';
-            if (data.estado === 'parcial') {
-                mensaje += '\n⚠ Surtido PARCIAL: Algunos medicamentos no estaban disponibles.';
-            } else if (data.estado === 'no_surtida') {
-                mensaje += '\n✗ NINGÚN medicamento pudo ser surtido.';
+
+            let mensaje = tipo === 'RECETA'
+                ? '✓ Salida registrada exitosamente!'
+                : '✓ Transferencia registrada exitosamente!';
+
+            if (tipo === 'RECETA') {
+                if (data.estado === 'parcial') {
+                    mensaje += '\n⚠ Surtido PARCIAL: Algunos medicamentos no estaban disponibles.';
+                } else if (data.estado === 'no_surtida') {
+                    mensaje += '\n✗ NINGÚN medicamento pudo ser surtido.';
+                }
             }
             mensaje += '\n\nEl comprobante se está descargando...';
-            
+
             alert(mensaje);
-            
-            // Resetear formulario
             resetFormularioCompleto();
             medicamentosFaltantes = [];
             actualizarTablaFaltantes();
-            
-            // Descargar PDF
             window.location.href = data.pdf_url;
-            
+
         } catch (error) {
-            console.error('Error al finalizar la salida:', error);
+            console.error('Error al finalizar:', error);
             alert('Error: ' + error.message);
         } finally {
             btnFinalizar.disabled = false;
@@ -428,5 +455,123 @@ document.addEventListener('DOMContentLoaded', function() {
         actualizarTablaYFormulario();
         curpInput.focus();
     }
+
+function seleccionarTipoSalida(tipo) {
+    document.getElementById('tipo-receta').checked = (tipo === 'RECETA');
+    document.getElementById('tipo-transferencia').checked = (tipo === 'TRANSFERENCIA');
+
+    document.getElementById('card-receta').classList.toggle('selected', tipo === 'RECETA');
+    document.getElementById('card-transferencia').classList.toggle('selected', tipo === 'TRANSFERENCIA');
+
+    document.getElementById('seccion-receta').classList.toggle('seccion-visible', tipo === 'RECETA');
+    document.getElementById('seccion-receta').classList.toggle('seccion-oculta', tipo !== 'RECETA');
+
+    document.getElementById('seccion-transferencia').classList.toggle('seccion-visible', tipo === 'TRANSFERENCIA');
+    document.getElementById('seccion-transferencia').classList.toggle('seccion-oculta', tipo !== 'TRANSFERENCIA');
+
+    const nombreInput = document.getElementById('id_paciente_nombre');
+    const nacimientoInput = document.getElementById('id_paciente_nacimiento');
+    const origenSelect = document.getElementById('id_receta_origen');
+    const institucionInput = document.getElementById('institucion-input');
+    const institucionHidden = document.getElementById('institucion-id-hidden');
+
+    if (tipo === 'TRANSFERENCIA') {
+        nombreInput.required = false;
+        nombreInput.disabled = true;
+        nacimientoInput.required = false;
+        nacimientoInput.disabled = true;
+        origenSelect.required = false;
+        origenSelect.disabled = true;
+        institucionInput.required = true;
+        institucionInput.disabled = false;
+    } else {
+        nombreInput.required = true;
+        nombreInput.disabled = false;
+        nacimientoInput.required = true;
+        nacimientoInput.disabled = false;
+        origenSelect.required = true;
+        origenSelect.disabled = false;
+        institucionInput.required = false;
+        institucionInput.disabled = true;
+        institucionInput.value = '';
+        institucionHidden.value = '';
+    }
+}
+
+window.seleccionarTipoSalida = seleccionarTipoSalida;
+
+
+function inicializarBuscadorInstitucion() {
+    const inputInstitucion = document.getElementById('institucion-input');
+    const resultadosInstitucion = document.getElementById('resultados-institucion');
+    const hiddenInputInstitucion = document.getElementById('institucion-id-hidden');
+    if (!inputInstitucion || !resultadosInstitucion || !hiddenInputInstitucion) return;
+
+    let timeoutId;
+    let institucionSeleccionada = false;
+
+    inputInstitucion.addEventListener('input', function() {
+        clearTimeout(timeoutId);
+        const query = this.value.trim();
+        if (institucionSeleccionada) {
+            hiddenInputInstitucion.value = '';
+            institucionSeleccionada = false;
+        }
+        if (query.length < 2) {
+            resultadosInstitucion.innerHTML = '';
+            resultadosInstitucion.style.display = 'none';
+            return;
+        }
+        timeoutId = setTimeout(() => {
+            fetch(`/api/buscar-instituciones-autocomplete/?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => mostrarResultadosInstituciones(data.results))
+                .catch(error => {
+                    console.error('Error al buscar instituciones:', error);
+                    resultadosInstitucion.innerHTML = '<div class="autocomplete-error">Error al buscar</div>';
+                    resultadosInstitucion.style.display = 'block';
+                });
+        }, 300);
+    });
+
+    function mostrarResultadosInstituciones(instituciones) {
+        if (instituciones.length === 0) {
+            resultadosInstitucion.innerHTML = `
+                <div class="autocomplete-no-results">
+                    <i class="fas fa-info-circle"></i> No se encontró la institución.
+                    <strong>Escribe el nombre completo para crearla automáticamente.</strong>
+                </div>`;
+            resultadosInstitucion.style.display = 'block';
+            return;
+        }
+        const html = instituciones.map(inst => `
+            <div class="autocomplete-item" data-id="${inst.id}" data-nombre="${inst.nombre}">
+                <div class="paciente-info">
+                    <strong>${inst.nombre}</strong>
+                    <br><small>${inst.tipo} · ${inst.codigo}</small>
+                </div>
+            </div>
+        `).join('');
+        resultadosInstitucion.innerHTML = html;
+        resultadosInstitucion.style.display = 'block';
+
+        resultadosInstitucion.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const nombre = this.getAttribute('data-nombre');
+                inputInstitucion.value = nombre;
+                hiddenInputInstitucion.value = id;
+                institucionSeleccionada = true;
+                resultadosInstitucion.style.display = 'none';
+            });
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!inputInstitucion.contains(e.target) && !resultadosInstitucion.contains(e.target)) {
+            resultadosInstitucion.style.display = 'none';
+        }
+    });
+}
     
 }); // Fin de DOMContentLoaded

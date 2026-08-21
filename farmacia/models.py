@@ -258,13 +258,10 @@ class Lote(models.Model):
     alerta_stock_enviada = models.BooleanField(default=False)
     presentacion = models.ForeignKey(Presentacion, on_delete=models.CASCADE, null=True, blank=True)
     cpm = models.PositiveIntegerField(default=0, verbose_name="Consumo Promedio Mensual")
-    costo_unitario = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0.00,
-        validators=[MinValueValidator(0)],
-        verbose_name="Costo unitario (lote)"
-    )
+    costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[MinValueValidator(0)], verbose_name="Costo unitario (lote)")
+    origen = models.CharField(max_length=100, blank=True, null=True, verbose_name="Tipo de entrada")
+    contrato = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de contrato")
+    fuente_financiamiento = models.CharField(max_length=100, null=True, blank=True,verbose_name="Fuente de Financiamiento")
 
 
     def __str__(self):
@@ -488,6 +485,48 @@ class Institucion(models.Model):
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"
 
+class SalidaTransferencia(models.Model):
+    folio = models.CharField(max_length=20, unique=True)
+    institucion_destino = models.ForeignKey(
+        Institucion, on_delete=models.PROTECT,
+        related_name='transferencias_recibidas',
+        verbose_name="Institución Destino"
+    )
+    fecha = models.DateTimeField(auto_now_add=True)
+    autorizado_por = models.ForeignKey(
+        UsuarioPersonalizado, on_delete=models.SET_NULL,
+        null=True, related_name='transferencias_autorizadas'
+    )
+    observaciones = models.TextField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Salida por Transferencia"
+        verbose_name_plural = "Salidas por Transferencia"
+        ordering = ['-fecha']
+        permissions = [
+            ('create_transferencia', 'Puede registrar salidas por transferencia'),
+            ('view_transferencia', 'Puede ver historial de transferencias'),
+        ]
+
+    def __str__(self):
+        return f"{self.folio} → {self.institucion_destino.nombre}"
+
+
+class DetalleSalidaTransferencia(models.Model):
+    transferencia = models.ForeignKey(
+        SalidaTransferencia, on_delete=models.CASCADE, related_name='detalles'
+    )
+    lote = models.ForeignKey(Lote, on_delete=models.PROTECT)
+    cantidad = models.PositiveIntegerField()
+    costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    @property
+    def total(self):
+        return self.cantidad * self.costo_unitario
+
+    def __str__(self):
+        return f"{self.lote.medicamento.descripcion} x{self.cantidad}"
+
 class FuenteFinanciamiento(models.Model):
     codigo = models.CharField(max_length=20, unique=True, verbose_name="Código")
     nombre = models.CharField(max_length=100, verbose_name="Nombre")
@@ -682,6 +721,29 @@ class Salida(models.Model):
 
     def __str__(self):
         return f"Salida {self.id} - Lote {self.lote.id}"
+    
+class MedicamentoNoDisponibleTransferencia(models.Model):
+    transferencia = models.ForeignKey(
+        SalidaTransferencia,
+        on_delete=models.CASCADE,
+        related_name='medicamentos_no_disponibles'
+    )
+    medicamento_descripcion = models.CharField(max_length=200)
+    cantidad_solicitada = models.IntegerField()
+    motivo = models.TextField()
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['medicamento_descripcion']
+
+    def __str__(self):
+        return f"{self.medicamento_descripcion} - {self.transferencia.folio}"
     
 
 # Señales

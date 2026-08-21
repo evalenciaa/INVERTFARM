@@ -5,6 +5,7 @@
 
 {% block extra_css %}
 <!-- Estilo simple para la fila de la tabla vacía -->
+<link rel="stylesheet" href="{% static 'farmacia/css/tipo_salida.css' %}">
 <style>
     #fila-vacia td {
         padding: 20px;
@@ -23,12 +24,38 @@
       Este es el formulario principal que enviará TODO al final. 
       Lo llenaremos con JavaScript.
     -->
-    <form method="POST" id="form-salida-final" action="{% url 'registrar_salida' %}">
+    <form method="POST" id="form-salida-final" 
+      action="{% url 'registrar_salida' %}"
+      data-url-receta="{% url 'registrar_salida' %}"
+      data-url-transferencia="{% url 'registrar_salida_transferencia' %}">
         {% csrf_token %}
         
         <!-- ============================================= -->
         <!-- PASO 1: DATOS DEL PACIENTE Y RECETA -->
         <!-- ============================================= -->
+
+        <div class="form-section">
+            <h3><i class="fas fa-clipboard-list"></i> Tipo de Salida</h3>
+                <div class="tipo-selector">
+                    <div class="tipo-card selected" id="card-receta" onclick="seleccionarTipoSalida('RECETA')">
+                        <input type="radio" name="tiposalida" value="RECETA" id="tipo-receta" checked>
+                        <div class="tipo-icon"><i class="fas fa-file-medical"></i></div>
+                        <div class="tipo-content">
+                            <h4>Salida por Receta</h4>
+                            <p>Surtir medicamentos para un paciente con receta médica</p>
+                        </div>
+                    </div>
+                    <div class="tipo-card" id="card-transferencia" onclick="seleccionarTipoSalida('TRANSFERENCIA')">
+                        <input type="radio" name="tiposalida" value="TRANSFERENCIA" id="tipo-transferencia">
+                        <div class="tipo-icon"><i class="fas fa-truck"></i></div>
+                        <div class="tipo-content">
+                            <h4>Salida por Transferencia</h4>
+                            <p>Enviar medicamentos a otra institución u hospital</p>
+                        </div>
+                    </div>
+                </div>
+
+        <div class="form-section seccion-visible" id="seccion-receta">
         <div class="card shadow mb-4">
             <div class="card-header bg-primary text-white">
                 <h5><i class="fas fa-user-edit"></i> 1. Datos del Paciente y Receta</h5>
@@ -70,6 +97,33 @@
                     <div class="col-md-6 form-group">
                         <label for="id_receta_folio">Folio de Receta (Opcional):</label>
                         <input type="text" name="receta_folio" class="form-control" id="id_receta_folio" placeholder="Folio de receta física si existe">
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <div class="form-section seccion-oculta" id="seccion-transferencia">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="fas fa-hospital"></i> 1. Institución Destino</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6 form-group autocomplete-container">
+                            <label for="institucion-input">Institución:</label>
+                            <input type="text" id="institucion-input" class="form-control" placeholder="Escribir nombre de la institución..." autocomplete="off" disabled>
+                            <input type="hidden" id="institucion-id-hidden" name="institucion_destino">
+                            <div id="resultados-institucion" class="autocomplete-results"></div>
+                            <div class="form-help">
+                                <i class="fas fa-info-circle"></i> Si la institución no existe, se creará automáticamente.
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 form-group">
+                            <label for="observaciones-transferencia">Observaciones:</label>
+                            <input type="text" id="observaciones-transferencia" name="observaciones" class="form-control" placeholder="Opcional">
+                        </div>
                     </div>
                 </div>
             </div>
