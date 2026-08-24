@@ -36,7 +36,9 @@ logger = logging.getLogger(__name__)
 @login_required(login_url='login')
 @permission_required('farmacia.create_salida', raise_exception=True)
 def registrar_salida(request):
+
     if request.method == 'POST':
+
         curp = request.POST.get('paciente_curp', '').strip().upper()
         nombre = request.POST.get('paciente_nombre')
         nacimiento_str = request.POST.get('paciente_nacimiento')
@@ -48,58 +50,90 @@ def registrar_salida(request):
         while True:
             lote_id = request.POST.get(f'item_lote_{index}')
             cantidad_str = request.POST.get(f'item_cantidad_{index}')
+
             if not lote_id or not cantidad_str:
                 break
+
             try:
                 lote = Lote.objects.get(id=lote_id)
                 cantidad = int(cantidad_str)
+
                 if cantidad <= 0:
                     raise Exception(f"Cantidad inválida para {lote.lote_codigo}")
+
                 if cantidad > lote.existencia:
                     raise Exception(f"Stock insuficiente para {lote.lote_codigo}")
-                items_para_guardar.append({'lote': lote, 'cantidad': cantidad})
+
+                items_para_guardar.append({
+                    'lote': lote,
+                    'cantidad': cantidad
+                })
                 index += 1
+
             except (Lote.DoesNotExist, ValueError, Exception) as e:
+                print("ERROR 4.x leyendo items:", str(e))
                 return JsonResponse({"success": False, "error": str(e)}, status=400)
 
-            medicamentos_faltantes = []
-            index = 0
-            while True:
-                faltante_desc = request.POST.get(f'faltante_desc_{index}')
-                faltante_cant_str = request.POST.get(f'faltante_cant_{index}')
-                faltante_motivo = request.POST.get(f'faltante_motivo_{index}')
-                if not faltante_desc or not faltante_cant_str or not faltante_motivo:
-                    break
-                try:
-                    medicamentos_faltantes.append({
-                        'descripcion': faltante_desc,
-                        'cantidad': int(faltante_cant_str),
-                        'motivo': faltante_motivo
-                    })
-                    index += 1
-                except ValueError as e:
-                    return JsonResponse({
-                        "success": False,
-                        "error": f"Cantidad inválida para medicamento faltante: {str(e)}"
-                    }, status=400)
+
+        medicamentos_faltantes = []
+        index = 0
+        while True:
+            faltante_desc = request.POST.get(f'faltante_desc_{index}')
+            faltante_cant_str = request.POST.get(f'faltante_cant_{index}')
+            faltante_motivo = request.POST.get(f'faltante_motivo_{index}')
+
+            if not faltante_desc or not faltante_cant_str or not faltante_motivo:
+                break
+
+
+            try:
+                medicamentos_faltantes.append({
+                    'descripcion': faltante_desc,
+                    'cantidad': int(faltante_cant_str),
+                    'motivo': faltante_motivo
+                })
+                index += 1
+
+            except ValueError as e:
+                print("ERROR 6.x leyendo faltantes:", str(e))
+                return JsonResponse({
+                    "success": False,
+                    "error": f"Cantidad inválida para medicamento faltante: {str(e)}"
+                }, status=400)
+
 
         if not items_para_guardar and not medicamentos_faltantes:
-            return JsonResponse({"success": False, "error": "No hay medicamentos en la lista ni medicamentos faltantes registrados."}, status=400)
+            print("ERROR 7.x: no hay items ni faltantes")
+            return JsonResponse({
+                "success": False,
+                "error": "No hay medicamentos en la lista ni medicamentos faltantes registrados."
+            }, status=400)
 
         try:
             with transaction.atomic():
+
                 try:
                     nacimiento_obj = datetime.strptime(nacimiento_str, '%Y-%m-%d').date()
                 except (ValueError, TypeError):
-                    return JsonResponse({"success": False, "error": "Fecha de nacimiento inválida."}, status=400)
+                    print("ERROR 9.x: fecha de nacimiento inválida")
+                    return JsonResponse({
+                        "success": False,
+                        "error": "Fecha de nacimiento inválida."
+                    }, status=400)
 
                 if curp:
                     paciente, _ = Paciente.objects.update_or_create(
-                        curp=curp, defaults={'nombre_completo': nombre, 'fecha_nacimiento': nacimiento_obj}
+                        curp=curp,
+                        defaults={
+                            'nombre_completo': nombre,
+                            'fecha_nacimiento': nacimiento_obj
+                        }
                     )
                 else:
                     paciente, _ = Paciente.objects.get_or_create(
-                        nombre_completo=nombre, fecha_nacimiento=nacimiento_obj, defaults={'curp': None}
+                        nombre_completo=nombre,
+                        fecha_nacimiento=nacimiento_obj,
+                        defaults={'curp': None}
                     )
 
                 if medicamentos_faltantes and items_para_guardar:
@@ -109,40 +143,60 @@ def registrar_salida(request):
                 else:
                     estado_receta = 'completa'
 
+
                 if not folio:
                     fecha_str = timezone.now().strftime('%Y%m%d')
-                    ultimo = Receta.objects.filter(id_folio__startswith=f'REC-{fecha_str}').order_by('-id_folio').first()
+                    ultimo = Receta.objects.filter(
+                        id_folio__startswith=f'REC-{fecha_str}'
+                    ).order_by('-id_folio').first()
+
                     if ultimo:
                         ultimo_num = int(ultimo.id_folio.split('-')[-1])
                         folio = f"REC-{fecha_str}-{ultimo_num + 1:04d}"
                     else:
                         folio = f"REC-{fecha_str}-0001"
 
+
                 receta_salida = Receta.objects.create(
-                    id_folio=folio, paciente=paciente,
-                    fecha_emision=timezone.now().date(), fecha_surtido=timezone.now().date(),
-                    estado=estado_receta, origen=origen, surtido_por=request.user
+                    id_folio=folio,
+                    paciente=paciente,
+                    fecha_emision=timezone.now().date(),
+                    fecha_surtido=timezone.now().date(),
+                    estado=estado_receta,
+                    origen=origen,
+                    surtido_por=request.user
                 )
 
-                for item in items_para_guardar:
+                for i, item in enumerate(items_para_guardar):
                     lote = item['lote']
                     cantidad = item['cantidad']
-                    precio_unitario = (lote.costo_unitario if lote else Decimal('0.00'))
+                    precio_unitario = lote.costo_unitario if lote else Decimal('0.00')
                     precio_total = Decimal(cantidad) * precio_unitario
+
                     RecetaMedicamento.objects.create(
-                        receta=receta_salida, medicamento=lote.medicamento,
-                        lote=lote, cantidad_solicitada=cantidad, cantidad_surtida=cantidad,
-                        precio_unitario=precio_unitario, precio_total=precio_total,
+                        receta=receta_salida,
+                        medicamento=lote.medicamento,
+                        lote=lote,
+                        cantidad_solicitada=cantidad,
+                        cantidad_surtida=cantidad,
+                        precio_unitario=precio_unitario,
+                        precio_total=precio_total,
                     )
+
                     lote.existencia -= cantidad
                     lote.save(update_fields=['existencia'])
 
-                for faltante in medicamentos_faltantes:
+
+                for i, faltante in enumerate(medicamentos_faltantes):
+
                     MedicamentoNoSurtido.objects.create(
-                        receta=receta_salida, medicamento_descripcion=faltante['descripcion'],
-                        cantidad_solicitada=faltante['cantidad'], motivo=faltante['motivo'],
+                        receta=receta_salida,
+                        medicamento_descripcion=faltante['descripcion'],
+                        cantidad_solicitada=faltante['cantidad'],
+                        motivo=faltante['motivo'],
                         registrado_por=request.user
                     )
+
 
             pdf_url = reverse('descargar_comprobante', args=[receta_salida.pk])
             mensaje_estado = {
@@ -150,10 +204,15 @@ def registrar_salida(request):
                 'parcial': '⚠ Surtido parcial. Algunos medicamentos no estaban disponibles.',
                 'no_surtida': '✗ Ningún medicamento pudo ser surtido.'
             }
+
             return JsonResponse({
-                "success": True, "message": f"Salida registrada: {folio}", "pdf_url": pdf_url,
-                "estado": estado_receta, "mensaje_estado": mensaje_estado.get(estado_receta, ''),
-                "items_surtidos": len(items_para_guardar), "items_faltantes": len(medicamentos_faltantes)
+                "success": True,
+                "message": f"Salida registrada: {folio}",
+                "pdf_url": pdf_url,
+                "estado": estado_receta,
+                "mensaje_estado": mensaje_estado.get(estado_receta, ''),
+                "items_surtidos": len(items_para_guardar),
+                "items_faltantes": len(medicamentos_faltantes)
             })
 
         except Exception as e:
@@ -167,7 +226,6 @@ def registrar_salida(request):
         'titulo_pagina': 'Registro de Salidas'
     }
     return render(request, 'salida_medicamentos.html', context)
-
 
 @login_required
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')

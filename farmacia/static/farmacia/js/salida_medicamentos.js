@@ -298,6 +298,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        console.log('tipo:', tipo);
+        console.log('urlDestino:', urlDestino);
+        console.log('paciente_curp:', formData.get('paciente_curp'));
+        console.log('paciente_nombre:', formData.get('paciente_nombre'));
+        console.log('paciente_nacimiento:', formData.get('paciente_nacimiento'));
+        console.log('receta_origen:', formData.get('receta_origen'));
+        console.log('receta_folio:', formData.get('receta_folio'));
+        console.log('csrfmiddlewaretoken:', formData.get('csrfmiddlewaretoken'));
+
+
         try {
             const response = await fetch(urlDestino, {
                 method: 'POST',
@@ -308,6 +318,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             const data = await response.json();
+            console.log('STATUS:', response.status);
+            console.log('RESPUESTA BACKEND:', data);
 
             if (!response.ok) {
                 throw new Error(data.error || 'Error desconocido del servidor.');

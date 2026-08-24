@@ -7,12 +7,51 @@ let charts = {};
 // ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', function() {
     initializeTabs();
-    loadData();
     initializeEventListeners();
     setDefaultDates();
+
+    const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+    const fechaFin = document.getElementById('fechaFin')?.value || '';
+    loadData(fechaInicio, fechaFin);
 });
 
-// ===== GESTIÓN DE TABS =====
+
+// ===== CARGAR DATOS =====
+
+async function loadData(fechaInicio = '', fechaFin = '') {
+    try {
+        const params = new URLSearchParams();
+        if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+        if (fechaFin) params.append('fecha_fin', fechaFin);
+
+        const query = params.toString() ? `?${params.toString()}` : '';
+
+        const responseKPIs = await fetch(`/api/reportes/kpis/${query}`);
+        const dataKPIs = await responseKPIs.json();
+
+        if (dataKPIs.success) {
+            const kpis = dataKPIs.kpis;
+            animateValue('totalSalidas', 0, kpis.total_salidas, 1500);
+            animateValue('totalMedicamentos', 0, kpis.total_medicamentos, 1500);
+            animateValue('totalPacientes', 0, kpis.total_pacientes, 1500);
+            animateValue('valorTotal', 0, kpis.valor_total, 1500, true);
+        }
+
+        const responseSalidas = await fetch(`/api/reportes/salidas/${query}`);
+        const dataSalidas = await responseSalidas.json();
+
+        if (dataSalidas.success) {
+            salidasData = dataSalidas.data;
+            currentPage = 1;
+            loadTabContent('historial');
+        }
+
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        showNotification('Error al cargar los datos', 'error');
+    }
+}
+
 function initializeTabs() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -33,36 +72,6 @@ function initializeTabs() {
             loadTabContent(tabId);
         });
     });
-}
-
-// ===== CARGAR DATOS =====
-async function loadData() {
-    try {
-        // Cargar KPIs
-        const responseKPIs = await fetch('/api/reportes/kpis/');
-        const dataKPIs = await responseKPIs.json();
-        
-        if (dataKPIs.success) {
-            const kpis = dataKPIs.kpis;
-            animateValue('totalSalidas', 0, kpis.total_salidas, 1500);
-            animateValue('totalMedicamentos', 0, kpis.total_medicamentos, 1500);
-            animateValue('totalPacientes', 0, kpis.total_pacientes, 1500);
-            animateValue('valorTotal', 0, kpis.valor_total, 1500, true);
-        }
-        
-        // Cargar salidas
-        const responseSalidas = await fetch('/api/reportes/salidas/');
-        const dataSalidas = await responseSalidas.json();
-        
-        if (dataSalidas.success) {
-            salidasData = dataSalidas.data;
-            loadTabContent('historial');
-        }
-        
-    } catch (error) {
-        console.error('Error cargando datos:', error);
-        showNotification('Error al cargar los datos', 'error');
-    }
 }
 
 // ===== GENERAR DATOS SIMULADOS =====
@@ -676,6 +685,11 @@ function initializeEventListeners() {
     
     // Filtros
     document.getElementById('filtrarFechas').addEventListener('click', filtrarPorFechas);
+
+    const btnDescargarSinMovimiento = document.getElementById('btnDescargarSinMovimiento');
+        if (btnDescargarSinMovimiento) {
+            btnDescargarSinMovimiento.addEventListener('click', descargarMedicamentosSinMovimiento);
+        }
     
     // Botón Exportar PDF
     document.getElementById('exportPDF').addEventListener('click', async function() {
@@ -739,22 +753,17 @@ function initializeEventListeners() {
 }
 
 // ===== FILTRAR POR FECHAS =====
-function filtrarPorFechas() {
+async function filtrarPorFechas() {
     const fechaInicio = document.getElementById('fechaInicio').value;
     const fechaFin = document.getElementById('fechaFin').value;
-    
+
     if (!fechaInicio || !fechaFin) {
         showNotification('Por favor selecciona ambas fechas', 'warning');
         return;
     }
-    
-    const filtered = salidasData.filter(item => {
-        return item.fecha >= fechaInicio && item.fecha <= fechaFin;
-    });
-    
-    currentPage = 1;
-    loadHistorialTable(filtered);
-    showNotification(`Se encontraron ${filtered.length} registros`, 'success');
+
+    await loadData(fechaInicio, fechaFin);
+    showNotification('Reporte filtrado correctamente', 'success');
 }
 
 // ===== EXPORTAR A PDF =====
@@ -807,6 +816,19 @@ function exportToExcel() {
     
     XLSX.writeFile(wb, 'reporte-salidas.xlsx');
     showNotification('Excel exportado correctamente', 'success');
+}
+
+function descargarMedicamentosSinMovimiento() {
+    const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+    const fechaFin = document.getElementById('fechaFin')?.value || '';
+
+    const params = new URLSearchParams();
+
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const url = `/reportes/medicamentos-sin-movimiento/excel/?${params.toString()}`;
+    window.open(url, '_blank');
 }
 
 // ===== UTILIDADES =====
