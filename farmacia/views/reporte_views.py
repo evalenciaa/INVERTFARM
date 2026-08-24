@@ -5,7 +5,7 @@ Vistas para reportes estadísticos y exportación de inventarios a PDF y Excel.
 import os
 from datetime import datetime, timedelta
 from io import BytesIO
-
+from django.urls import reverse
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Sum, Count, Q, F, Value, IntegerField, Max
@@ -929,32 +929,142 @@ def api_reportes_salidas(request):
     try:
         fecha_fin = timezone.now().date()
         fecha_inicio = fecha_fin - timedelta(days=90)
-        if request.GET.get('fecha_inicio'): fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
-        if request.GET.get('fecha_fin'): fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
-        
-        salidas = RecetaMedicamento.objects.filter(receta__fecha_surtido__range=[fecha_inicio, fecha_fin]).select_related('receta__paciente', 'receta__surtido_por', 'medicamento', 'lote').order_by('-receta__fecha_surtido')
-        
+
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(
+                request.GET.get('fecha_inicio'),
+                '%Y-%m-%d'
+            ).date()
+
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(
+                request.GET.get('fecha_fin'),
+                '%Y-%m-%d'
+            ).date()
+
         datos_salidas = []
-        for item in salidas:
+
+        salidas_receta = (
+            RecetaMedicamento.objects
+            .filter(receta__fecha_surtido__range=[fecha_inicio, fecha_fin])
+            .select_related('receta__paciente', 'receta__surtido_por', 'medicamento', 'lote')
+            .order_by('-receta__fecha_surtido')
+        )
+
+        for item in salidas_receta:
             fecha_str = item.receta.fecha_surtido.strftime('%Y-%m-%d')
-            hora_str = item.receta.fecha_surtido.strftime('%H:%M') if isinstance(item.receta.fecha_surtido, datetime) else '--:--'
-            
-            tipo, tipo_badge = 'Receta', 'badge-receta'
-            if item.receta.id_folio.startswith('COL-'): tipo, tipo_badge = 'Colectivo - Paciente', 'badge-colectivo'
-            elif item.receta.id_folio.startswith('STK-'): tipo, tipo_badge = 'Colectivo - Stock', 'badge-stock'
-            
-            paciente_nombre = item.receta.paciente.nombre_completo if item.receta.paciente else 'Stock/Servicio'
-            responsable_nombre = f"{item.receta.surtido_por.first_name} {item.receta.surtido_por.last_name}".strip() if item.receta.surtido_por else 'N/A'
-            if not responsable_nombre and item.receta.surtido_por: responsable_nombre = item.receta.surtido_por.username
-            
+            hora_str = (
+                item.receta.fecha_surtido.strftime('%H:%M')
+                if isinstance(item.receta.fecha_surtido, datetime)
+                else '--:--'
+            )
+
+            tipo = 'Receta'
+            tipo_badge = 'badge-receta'
+
+            if item.receta.id_folio.startswith('COL-'):
+                tipo = 'Colectivo - Paciente'
+                tipo_badge = 'badge-colectivo'
+            elif item.receta.id_folio.startswith('STK-'):
+                tipo = 'Colectivo - Stock'
+                tipo_badge = 'badge-stock'
+
+            paciente_nombre = (
+                item.receta.paciente.nombre_completo
+                if item.receta.paciente else 'Stock/Servicio'
+            )
+
+            responsable_nombre = 'N/A'
+            if item.receta.surtido_por:
+                responsable_nombre = f"{item.receta.surtido_por.first_name} {item.receta.surtido_por.last_name}".strip()
+                if not responsable_nombre:
+                    responsable_nombre = item.receta.surtido_por.username
+
             datos_salidas.append({
-                'id': item.receta.id, 'folio': item.receta.id_folio, 'fecha': fecha_str, 'hora': hora_str,
-                'medicamento': item.medicamento.descripcion, 'cantidad': item.cantidad_surtida,
-                'paciente': paciente_nombre, 'responsable': responsable_nombre,
-                'valor': float(item.precio_total or 0), 'precio_unitario': float(item.precio_unitario or 0),
-                'tipo': tipo, 'tipo_badge': tipo_badge
+                'id': item.receta.id,
+                'folio': item.receta.id_folio,
+                'fecha': fecha_str,
+                'hora': hora_str,
+                'medicamento': item.medicamento.descripcion,
+                'cantidad': item.cantidad_surtida,
+                'paciente': paciente_nombre,
+                'responsable': responsable_nombre,
+                'valor': float(item.precio_total or 0),
+                'precio_unitario': float(item.precio_unitario or 0),
+                'tipo': tipo,
+                'tipo_badge': tipo_badge,
+                'destino': '',
+                'pdf_url': reverse('descargar_comprobante', args=[item.receta.pk]),
             })
-        return JsonResponse({'success': True, 'data': datos_salidas, 'total': len(datos_salidas)})
+
+            salidas_transferencia = (
+                DetalleSalidaTransferencia.objects
+                .filter(
+                    transferencia__fecha__gte=datetime.combine(fecha_inicio, datetime.min.time()),
+                    transferencia__fecha__lte=datetime.combine(fecha_fin, datetime.max.time())
+                )
+                .select_related(
+                    'transferencia__institucion_destino',
+                    'transferencia__autorizado_por',
+                    'lote__medicamento'
+                )
+                .order_by('-transferencia__fecha')
+            )
+        
+        print("FECHA INICIO:", fecha_inicio)
+        print("FECHA FIN:", fecha_fin)
+
+        print("RECETAS ENCONTRADAS:", salidas_receta.count())
+
+        print("TRANSFERENCIAS QUERY:", salidas_transferencia.count())
+        for t in salidas_transferencia:
+            print(
+                "TRF =>",
+                t.transferencia.folio,
+                t.transferencia.fecha,
+                t.lote.medicamento.descripcion if t.lote and t.lote.medicamento else "SIN MEDICAMENTO",
+                t.cantidad
+            )
+
+        for item in salidas_transferencia:
+            fecha_str = item.transferencia.fecha.strftime('%Y-%m-%d')
+            hora_str = item.transferencia.fecha.strftime('%H:%M')
+
+            responsable_nombre = 'N/A'
+            if item.transferencia.autorizado_por:
+                responsable_nombre = f"{item.transferencia.autorizado_por.first_name} {item.transferencia.autorizado_por.last_name}".strip()
+                if not responsable_nombre:
+                    responsable_nombre = item.transferencia.autorizado_por.username
+
+            datos_salidas.append({
+                'id': item.transferencia.id,
+                'folio': item.transferencia.folio,
+                'fecha': fecha_str,
+                'hora': hora_str,
+                'medicamento': item.lote.medicamento.descripcion if item.lote and item.lote.medicamento else 'N/A',
+                'cantidad': item.cantidad,
+                'paciente': 'Transferencia',
+                'responsable': responsable_nombre,
+                'valor': float(item.total or 0),
+                'precio_unitario': float(item.costo_unitario or 0),
+                'tipo': 'Transferencia',
+                'tipo_badge': 'badge-transferencia',
+                'destino': item.transferencia.institucion_destino.nombre if item.transferencia.institucion_destino else 'N/A',
+                'pdf_url': reverse('descargar_comprobante_transferencia', args=[item.transferencia.pk]),
+            })
+
+        datos_salidas = sorted(
+            datos_salidas,
+            key=lambda x: f"{x['fecha']} {x['hora']}",
+            reverse=True
+        )
+
+        return JsonResponse({
+            'success': True,
+            'data': datos_salidas,
+            'total': len(datos_salidas)
+        })
+
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 

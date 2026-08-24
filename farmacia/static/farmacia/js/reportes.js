@@ -191,12 +191,12 @@ function loadHistorialTable(filteredData = null) {
             <td>${formatDate(item.fecha)}</td>
             <td><strong>${item.medicamento}</strong></td>
             <td><span class="badge badge-success">${item.cantidad} unidades</span></td>
-            <td>${item.paciente}</td>
+            <td>${item.tipo === 'Transferencia' ? item.destino : item.paciente}</td>
             <td>${item.responsable}</td>
             <td><span class="badge ${item.tipo_badge}">${item.tipo}</span></td>
             <td><strong>$${item.valor.toLocaleString()}</strong></td>
             <td>
-                <button class="btn-action" onclick="verDetalle(${item.id})" title="Ver detalle">
+                <button class="btn-action" onclick="verDetalle('${item.pdf_url}')" title="Ver comprobante">
                     <i class="fas fa-eye"></i>
                 </button>
             </td>
@@ -1528,9 +1528,12 @@ function setDefaultDates() {
     document.getElementById('fechaFin').value = today.toISOString().split('T')[0];
 }
 
-function verDetalle(id) {
-    alert(`Ver detalle de salida #${id}`);
-    // Aquí implementarías la lógica para mostrar el detalle
+function verDetalle(pdfUrl) {
+    if (!pdfUrl) {
+        alert('No hay comprobante disponible para esta salida.');
+        return;
+    }
+    window.open(pdfUrl, '_blank');
 }
 
 function showNotification(message, type) {
