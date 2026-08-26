@@ -445,3 +445,27 @@
     border-left: 4px solid #FFC107;
     color: #856404;
 }
+
+.medicamento-surtir-item {
+    display: grid;
+    grid-template-columns: 2fr 2fr 1fr;
+    gap: 15px;
+    align-items: end;
+}
+
+.med-lote label,
+.med-cantidad label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.lote-select-modal {
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .medicamento-surtir-item {
+        grid-template-columns: 1fr;
+    }
+}

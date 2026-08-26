@@ -96,6 +96,15 @@
                         <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> +10% vs mes anterior</span>
                     </div>
                 </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background: linear-gradient(135deg, #eb3520 0%, #f96d15 100%);">
+                        <i class="fas fa-building"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Instituciones Atendidas</span>
+                        <h3 class="kpi-value" id="totalInstituciones">0</h3>
+                        <span class="kpi-change positive"><i class="fas fa-arrow-up"></i>  Transferencias</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Tabs de Navegación -->
@@ -126,11 +135,8 @@
                                 <button class="btn-filter" id="filtrarFechas">
                                     <i class="fas fa-filter"></i> Filtrar
                                 </button>
-                                <button
-                                    type="button"
-                                    id="btnDescargarSinMovimiento"
-                                    class="btn btn-outline-warning">
-                                    Descargar medicamentos sin salidas
+                                <button class="btn-filter" id="btnExportarSinMovimiento" >
+                                    <i class="fas fa-download"></i> Exportar medicamentos sin salidas
                                 </button>
                             </div>
                         </div>
@@ -140,7 +146,10 @@
                                     <tr>
                                         <th>ID</th>
                                         <th>Fecha</th>
+                                        <th>Clave</th>
                                         <th>Medicamento</th>
+                                        <th>Lote</th>
+                                        <th>Caducidad</th>
                                         <th>Cantidad</th>
                                         <th>Paciente/Destino</th>
                                         <th>Responsable</th>
@@ -269,6 +278,36 @@
             </div>
         </main>
     </div>
+
+        <!-- Modal de Exportación: Medicamentos Sin Movimiento -->
+    <div id="modal-exportar-sin-movimiento" class="modal" style="display: none;">
+        <div class="modal-content modal-exportar">
+            <div class="modal-header">
+                <h3><i class="fas fa-download"></i> Exportar Medicamentos Sin Movimiento</h3>
+                <button class="btn-close" onclick="cerrarModalExportarSinMovimiento()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Selecciona el formato para descargar el reporte de medicamentos sin salidas:</p>
+                <div class="exportar-opciones">
+                    <button class="btn btn-success btn-exportar" onclick="descargarSinMovimientoExcel()">
+                        <i class="fas fa-file-excel"></i> Descargar Excel
+                    </button>
+                    <button class="btn btn-danger btn-exportar" onclick="descargarSinMovimientoPDF()">
+                        <i class="fas fa-file-pdf"></i> Descargar PDF
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModalExportarSinMovimiento()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-overlay-sin-movimiento" style="display: none;" onclick="cerrarModalExportarSinMovimiento()"></div>
 
     <script>
         window.STATIC_LOGO_URL = "{% static 'farmacia/img/logo.jpg' %}";

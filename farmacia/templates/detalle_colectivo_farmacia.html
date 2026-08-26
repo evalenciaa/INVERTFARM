@@ -227,6 +227,7 @@
                         <thead>
                             <tr>
                                 <th>Medicamento</th>
+                                <th style="width: 260px; text-align: center;">Lote sugerido (FEFO)</th>
                                 <th style="width: 120px; text-align: center;">Solicitado</th>
                                 <th style="width: 120px; text-align: center;">Stock</th>
                                 <th style="width: 150px; text-align: center;">Cantidad a Surtir</th>
@@ -239,15 +240,30 @@
                                     <strong>{{ item.item.medicamento.clave }}</strong><br>
                                     <small>{{ item.item.medicamento.descripcion }}</small>
                                 </td>
+
+                                <td style="text-align: center;">
+                                    <select name="lote_id_{{ item.item.id }}" class="form-control lote-select" {% if not item.lotes %}disabled{% endif %}>
+                                        {% for lote in item.lotes %}
+                                        <option value="{{ lote.id }}" {% if forloop.first %}selected{% endif %}>
+                                            {{ lote.lote_codigo|default:lote.id }} | Cad: {{ lote.fecha_caducidad|date:"d/m/Y" }} | Stock: {{ lote.existencia }}
+                                        </option>
+                                        {% empty %}
+                                        <option value="">Sin lotes disponibles</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+
                                 <td style="text-align: center;">{{ item.item.cantidad_solicitada }}</td>
+
                                 <td style="text-align: center;">
                                     <span class="{% if item.suficiente %}stock-suficiente{% else %}stock-insuficiente{% endif %}" style="padding: 5px 10px; border-radius: 5px;">
                                         {{ item.stock_disponible }}
                                     </span>
                                 </td>
+
                                 <td style="text-align: center;">
-                                    <input 
-                                        type="number" 
+                                    <input
+                                        type="number"
                                         name="cantidad_surtida_{{ item.item.id }}"
                                         class="cantidad-surtir-input"
                                         value="{{ item.item.cantidad_solicitada }}"
@@ -367,7 +383,7 @@
                                 <strong>{{ item.item.medicamento.clave }}</strong>
                                 <span>{{ item.item.medicamento.descripcion }}</span>
                                 <small class="stock-info {% if item.suficiente %}suficiente{% else %}insuficiente{% endif %}">
-                                    Stock disponible: {{ item.stock_disponible }} 
+                                    Stock disponible: {{ item.stock_disponible }}
                                     {% if not item.suficiente %}
                                         <i class="fas fa-exclamation-circle"></i> Insuficiente
                                     {% else %}
@@ -375,18 +391,34 @@
                                     {% endif %}
                                 </small>
                             </div>
+
+                            <div class="med-lote">
+                                <label>Lote sugerido (FEFO)</label>
+                                <select name="lote_id_{{ item.item.id }}" class="form-control lote-select-modal" {% if not item.lotes %}disabled{% endif %}>
+                                    {% for lote in item.lotes %}
+                                    <option value="{{ lote.id }}" {% if forloop.first %}selected{% endif %}>
+                                        {{ lote.lote_codigo|default:lote.id }} | Cad: {{ lote.fecha_caducidad|date:"d/m/Y" }} | Stock: {{ lote.existencia }}
+                                    </option>
+                                    {% empty %}
+                                    <option value="">Sin lotes disponibles</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
                             <div class="med-cantidad">
-                                <label>Cantidad a Surtir:</label>
-                                <input 
-                                    type="number" 
-                                    name="cantidad_surtida_{{ item.item.id }}" 
-                                    value="{{ item.item.cantidad_solicitada }}" 
-                                    min="0" 
+                                <label>Cantidad a Surtir</label>
+                                <input
+                                    type="number"
+                                    name="cantidad_surtida_{{ item.item.id }}"
+                                    value="{{ item.item.cantidad_solicitada }}"
+                                    min="0"
                                     max="{{ item.stock_disponible }}"
                                     required
                                     class="cantidad-surtir-input"
                                     data-solicitado="{{ item.item.cantidad_solicitada }}"
                                     data-disponible="{{ item.stock_disponible }}"
+                                    data-stock="{{ item.stock_disponible }}"
+                                    data-medicamento="{{ item.item.medicamento.descripcion }}"
                                 >
                                 <span class="cantidad-solicitada">Solicitado: {{ item.item.cantidad_solicitada }}</span>
                             </div>

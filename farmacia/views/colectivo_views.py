@@ -79,23 +79,38 @@ def lista_colectivos_farmacia(request):
 def detalle_colectivo_farmacia(request, colectivo_id):
     """Vista de detalle de un colectivo para farmacia"""
     colectivo = get_object_or_404(
-        Colectivo.objects.select_related('paciente', 'enfermero_solicitante'), id=colectivo_id
+        Colectivo.objects.select_related('paciente', 'enfermero_solicitante'),
+        id=colectivo_id
     )
+
     if colectivo.estado == 'PENDIENTE':
         colectivo.estado = 'EN_REVISION'
         colectivo.farmaceutico_asignado = request.user
         colectivo.save()
-    
+
     medicamentos = colectivo.medicamentos.select_related('medicamento').all()
     medicamentos_con_stock = []
+
     for item in medicamentos:
-        stock_total = Lote.objects.filter(medicamento=item.medicamento, existencia__gt=0).aggregate(total=Sum('existencia'))['total'] or 0
+        lotes_disponibles = (
+            Lote.objects
+            .filter(medicamento=item.medicamento, existencia__gt=0)
+            .order_by('fecha_caducidad')
+        )
+
+        stock_total = lotes_disponibles.aggregate(total=Sum('existencia'))['total'] or 0
+
         medicamentos_con_stock.append({
-            'item': item, 'stock_disponible': stock_total, 'suficiente': stock_total >= item.cantidad_solicitada
+            'item': item,
+            'stock_disponible': stock_total,
+            'suficiente': stock_total >= item.cantidad_solicitada,
+            'lotes': lotes_disponibles,
         })
-    
+
     return render(request, 'detalle_colectivo_farmacia.html', {
-        'colectivo': colectivo, 'medicamentos_con_stock': medicamentos_con_stock, 'user': request.user
+        'colectivo': colectivo,
+        'medicamentos_con_stock': medicamentos_con_stock,
+        'user': request.user
     })
 
 
@@ -172,29 +187,72 @@ def completar_colectivo(request, colectivo_id):
 
             for medicamento in colectivo.medicamentos.all():
                 cantidad_restante = medicamento.cantidad_surtida
-                lotes = Lote.objects.filter(medicamento=medicamento.medicamento, existencia__gt=0).order_by('fecha_caducidad')
                 lote_usado = None
                 precio_acumulado = Decimal('0.00')
-                for lote in lotes:
-                    if cantidad_restante <= 0: break
-                    if not lote_usado: lote_usado = lote
-                    if lote.existencia >= cantidad_restante:
-                        precio_acumulado += (lote.costo_unitario * cantidad_restante)
-                        lote.existencia -= cantidad_restante
-                        lote.save()
-                        cantidad_restante = 0
-                    else:
-                        precio_acumulado += (lote.costo_unitario * lote.existencia)
-                        cantidad_restante -= lote.existencia
-                        lote.existencia = 0
-                        lote.save()
-                
-                precio_unitario_promedio = precio_acumulado / medicamento.cantidad_surtida if medicamento.cantidad_surtida > 0 else Decimal('0.00')
+
+                lote_elegido_id = request.POST.get(f'lote_id_{medicamento.id}')
+
+                if lote_elegido_id:
+                    lote_preferido = Lote.objects.filter(
+                        id=lote_elegido_id,
+                        medicamento=medicamento.medicamento,
+                        existencia__gt=0
+                    ).first()
+
+                    if lote_preferido and cantidad_restante > 0:
+                        lote_usado = lote_preferido
+
+                        if lote_preferido.existencia >= cantidad_restante:
+                            precio_acumulado += lote_preferido.costo_unitario * cantidad_restante
+                            lote_preferido.existencia -= cantidad_restante
+                            lote_preferido.save()
+                            cantidad_restante = 0
+                        else:
+                            precio_acumulado += lote_preferido.costo_unitario * lote_preferido.existencia
+                            cantidad_restante -= lote_preferido.existencia
+                            lote_preferido.existencia = 0
+                            lote_preferido.save()
+
+                if cantidad_restante > 0:
+                    lotes_restantes = (
+                        Lote.objects
+                        .filter(medicamento=medicamento.medicamento, existencia__gt=0)
+                        .exclude(id=lote_elegido_id)
+                        .order_by('fecha_caducidad')
+                    )
+
+                    for lote in lotes_restantes:
+                        if cantidad_restante <= 0:
+                            break
+
+                        if not lote_usado:
+                            lote_usado = lote
+
+                        if lote.existencia >= cantidad_restante:
+                            precio_acumulado += lote.costo_unitario * cantidad_restante
+                            lote.existencia -= cantidad_restante
+                            lote.save()
+                            cantidad_restante = 0
+                        else:
+                            precio_acumulado += lote.costo_unitario * lote.existencia
+                            cantidad_restante -= lote.existencia
+                            lote.existencia = 0
+                            lote.save()
+
+                precio_unitario_promedio = (
+                    precio_acumulado / medicamento.cantidad_surtida
+                    if medicamento.cantidad_surtida > 0 else Decimal('0.00')
+                )
+
                 if receta:
                     RecetaMedicamento.objects.create(
-                        receta=receta, medicamento=medicamento.medicamento, lote=lote_usado,
-                        cantidad_solicitada=medicamento.cantidad_solicitada, cantidad_surtida=medicamento.cantidad_surtida,
-                        precio_unitario=precio_unitario_promedio, precio_total=precio_acumulado
+                        receta=receta,
+                        medicamento=medicamento.medicamento,
+                        lote=lote_usado,
+                        cantidad_solicitada=medicamento.cantidad_solicitada,
+                        cantidad_surtida=medicamento.cantidad_surtida,
+                        precio_unitario=precio_unitario_promedio,
+                        precio_total=precio_acumulado
                     )
 
             colectivo.estado = 'COMPLETADO'

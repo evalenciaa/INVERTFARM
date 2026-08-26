@@ -35,6 +35,7 @@ async function loadData(fechaInicio = '', fechaFin = '') {
             animateValue('totalMedicamentos', 0, kpis.total_medicamentos, 1500);
             animateValue('totalPacientes', 0, kpis.total_pacientes, 1500);
             animateValue('valorTotal', 0, kpis.valor_total, 1500, true);
+            animateValue('totalInstituciones', 0, kpis.total_instituciones, 1500);
         }
 
         const responseSalidas = await fetch(`/api/reportes/salidas/${query}`);
@@ -189,14 +190,17 @@ function loadHistorialTable(filteredData = null) {
         <tr>
             <td><strong>#${item.id}</strong></td>
             <td>${formatDate(item.fecha)}</td>
+            <td>${item.clave || 'N/A'}</td>
             <td><strong>${item.medicamento}</strong></td>
+            <td>${item.lote || 'N/A'}</td>
+            <td>${item.caducidad && item.caducidad !== 'N/A' ? formatDate(item.caducidad) : 'N/A'}</td>
             <td><span class="badge badge-success">${item.cantidad} unidades</span></td>
             <td>${item.tipo === 'Transferencia' ? item.destino : item.paciente}</td>
             <td>${item.responsable}</td>
             <td><span class="badge ${item.tipo_badge}">${item.tipo}</span></td>
-            <td><strong>$${item.valor.toLocaleString()}</strong></td>
+            <td><strong>$${Number(item.valor || 0).toLocaleString()}</strong></td>
             <td>
-                <button class="btn-action" onclick="verDetalle('${item.pdf_url}')" title="Ver comprobante">
+                <button class="btn-action" onclick="verDetalle('${item.pdf_url || ''}')" title="Ver comprobante">
                     <i class="fas fa-eye"></i>
                 </button>
             </td>
@@ -686,10 +690,10 @@ function initializeEventListeners() {
     // Filtros
     document.getElementById('filtrarFechas').addEventListener('click', filtrarPorFechas);
 
-    const btnDescargarSinMovimiento = document.getElementById('btnDescargarSinMovimiento');
-        if (btnDescargarSinMovimiento) {
-            btnDescargarSinMovimiento.addEventListener('click', descargarMedicamentosSinMovimiento);
-        }
+    const btnExportarSinMovimiento = document.getElementById('btnExportarSinMovimiento');
+    if (btnExportarSinMovimiento) {
+        btnExportarSinMovimiento.addEventListener('click', abrirModalExportarSinMovimiento);
+    }
     
     // Botón Exportar PDF
     document.getElementById('exportPDF').addEventListener('click', async function() {
@@ -818,17 +822,41 @@ function exportToExcel() {
     showNotification('Excel exportado correctamente', 'success');
 }
 
-function descargarMedicamentosSinMovimiento() {
+// ===== MODAL EXPORTAR SIN MOVIMIENTO =====
+function abrirModalExportarSinMovimiento() {
+    document.getElementById('modal-overlay-sin-movimiento').style.display = 'block';
+    document.getElementById('modal-exportar-sin-movimiento').style.display = 'flex';
+}
+
+function cerrarModalExportarSinMovimiento() {
+    document.getElementById('modal-overlay-sin-movimiento').style.display = 'none';
+    document.getElementById('modal-exportar-sin-movimiento').style.display = 'none';
+}
+
+function descargarSinMovimientoExcel() {
     const fechaInicio = document.getElementById('fechaInicio')?.value || '';
     const fechaFin = document.getElementById('fechaFin')?.value || '';
 
     const params = new URLSearchParams();
-
     if (fechaInicio) params.append('fecha_inicio', fechaInicio);
     if (fechaFin) params.append('fecha_fin', fechaFin);
 
     const url = `/reportes/medicamentos-sin-movimiento/excel/?${params.toString()}`;
     window.open(url, '_blank');
+    cerrarModalExportarSinMovimiento();
+}
+
+function descargarSinMovimientoPDF() {
+    const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+    const fechaFin = document.getElementById('fechaFin')?.value || '';
+
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const url = `/reportes/medicamentos-sin-movimiento/pdf/?${params.toString()}`;
+    window.open(url, '_blank');
+    cerrarModalExportarSinMovimiento();
 }
 
 // ===== UTILIDADES =====
@@ -893,79 +921,71 @@ async function exportarHistorialPDF() {
       };
 
       // Construir rows desde salidasData (todos los datos)
-      const rows = (salidasData || []).map(item => ([
-            cleanText(item.id),
+    const rows = salidasData
+        .map(item => [
             formatFechaYMD(item.fecha),
+            cleanText(item.clave),
             cleanText(item.medicamento),
+            cleanText(item.lote),
+            item.caducidad && item.caducidad !== 'N/A' ? formatFechaYMD(item.caducidad) : 'N/A',
             cleanText(item.cantidad),
-            cleanText(item.paciente),
+            cleanText(item.tipo === 'Transferencia' ? (item.destino || 'N/A') : item.paciente),
             cleanText(item.responsable),
-            item.valor !== undefined && item.valor !== null ? `$${Number(item.valor).toLocaleString('es-MX')}` : '$0'
-      ]));
-
-      doc.autoTable({
+            (item.valor !== undefined && item.valor !== null) ? `$${Number(item.valor).toLocaleString('es-MX')}` : '$0'
+        ]);
+        doc.autoTable({
             startY: 55,
             margin: { left: margin, right: margin, top: 10, bottom: 10 },
-            head: [[ 'ID', 'Fecha', 'Medicamento', 'Cant.', 'Paciente', 'Responsable', 'Valor' ]],
+            head: [['Fecha', 'Clave', 'Medicamento', 'Lote', 'Caducidad', 'Cant.', 'Paciente/Destino', 'Responsable', 'Valor']],
             body: rows,
             theme: 'grid',
-
-            // Estilo global
             styles: {
-                  font: 'DejaVuSans',
-                  fontSize: 7,          // base
-                  cellPadding: 2,
-                  overflow: 'linebreak', // CLAVE: wrap como “Paragraph”
-                  valign: 'top',
-                  halign: 'left',
-                  lineWidth: 0.2
+                font: 'DejaVuSans',
+                fontSize: 7,
+                cellPadding: 2,
+                overflow: 'linebreak',
+                valign: 'top',
+                halign: 'left',
+                lineWidth: 0.2
             },
-
-            // Encabezados
             headStyles: {
-                  font: 'DejaVuSans',
-                  fillColor: [139, 0, 0],
-                  textColor: [255, 255, 255],
-                  fontStyle: 'bold',
-                  fontSize: 7,
-                  halign: 'center',
-                  valign: 'middle',
-                  cellPadding: 2
+                font: 'DejaVuSans',
+                fillColor: [139, 0, 0],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 7,
+                halign: 'center',
+                valign: 'middle',
+                cellPadding: 2
             },
-
-            // Ajustes por columna (suman 195.9mm exactos)
             columnStyles: {
-                  0: { cellWidth: 10, halign: 'center' }, // ID
-                  1: { cellWidth: 22, halign: 'center' }, // Fecha (dd/mm/yyyy)
-                  2: { cellWidth: 70, halign: 'left'   }, // Medicamento (wrap)
-                  3: { cellWidth: 12, halign: 'center' }, // Cant.
-                  4: { cellWidth: 36, halign: 'left'   }, // Paciente
-                  5: { cellWidth: 30, halign: 'left'   }, // Responsable (más chico pero presente)
-                  6: { cellWidth: 15, halign: 'right'  }  // Valor
+                0: { cellWidth: 20, halign: 'center' },   // Fecha
+                1: { cellWidth: 16, halign: 'center' },   // Clave
+                2: { cellWidth: 46, halign: 'left' },     // Medicamento
+                3: { cellWidth: 18, halign: 'center' },   // Lote
+                4: { cellWidth: 18, halign: 'center' },   // Caducidad
+                5: { cellWidth: 12, halign: 'center' },   // Cant.
+                6: { cellWidth: 28, halign: 'left' },     // Paciente/Destino
+                7: { cellWidth: 22.9, halign: 'left' },   // Responsable
+                8: { cellWidth: 15, halign: 'right' }     // Valor
             },
-
-            // Evitar que “Cant.” se vea raro y mejorar look
             didParseCell: function (data) {
-                  // Encabezado: asegurar texto corto y centrado
-                  if (data.section === 'head' && data.column.index === 3) {
-                        data.cell.text = ['Cant.']; // evita saltos raros
-                  }
-                  // Forzar que medicamento respete wrap sin “estirar” espacios
-                  if (data.section === 'body' && data.column.index === 2) {
-                        data.cell.styles.valign = 'top';
-                        data.cell.styles.fontSize = 6.7;
-                  }
+                if (data.section === 'head' && data.column.index === 5) {
+                    data.cell.text = ['Cant.'];
+                }
+                if (data.section === 'body' && data.column.index === 2) {
+                    data.cell.styles.valign = 'top';
+                    data.cell.styles.fontSize = 6.7;
+                }
             },
-
             alternateRowStyles: { fillColor: [248, 249, 250] },
-
             didDrawPage: function (data) {
-                  const pageCount = doc.internal.getNumberOfPages();
-                  doc.setFontSize(8);
-                  doc.setFont('DejaVuSans', 'normal');
-                  doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+                const pageCount = doc.internal.getNumberOfPages();
+                doc.setFontSize(8);
+                doc.setFont('DejaVuSans', 'normal');
+                doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
             }
-      });
+        });
 
       doc.save('Historial_Salidas.pdf');
 }
@@ -1232,25 +1252,25 @@ async function exportarHistorialExcel() {
   // ===== HOJA 1: Tabla de datos (TODOS) =====
   const wsData = workbook.addWorksheet('Historial');
 
-  const headerRow = wsData.addRow([
-    'ID', 'Fecha', 'Medicamento', 'Cantidad',
-    'Paciente', 'Responsable', 'Tipo de Salida', 'Precio'
-  ]);
+  const headerRow = wsData.addRow(['Fecha', 'Clave', 'Medicamento', 'Lote', 'Caducidad', 'Cantidad', 'Paciente/Destino', 'Responsable', 'Tipo de Salida', 'Precio']); 
 
   headerRow.font = { bold: true, color: { rgb: 'FFFFFF' }, size: 11 };
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { rgb: 'C00000' } };
   headerRow.alignment = { horizontal: 'center', vertical: 'center' };
 
-  const allRows = (salidasData || []).map(item => ([
-    String(item.id ?? ''),
-    String(item.fecha ?? ''),
-    String(item.medicamento ?? ''),
-    String(item.cantidad ?? ''),
-    String(item.paciente ?? ''),
-    String(item.responsable ?? ''),
-    String(item.tipo ?? ''),
-    String(item.valor ?? '')
-  ]));
+    const allRows = salidasData
+        .map(item => [
+            String(item.fecha ?? ''),
+            String(item.clave ?? 'N/A'),
+            String(item.medicamento ?? ''),
+            String(item.lote ?? 'N/A'),
+            String(item.caducidad ?? 'N/A'),
+            String(item.cantidad ?? ''),
+            String(item.tipo === 'Transferencia' ? (item.destino ?? 'N/A') : (item.paciente ?? '')),
+            String(item.responsable ?? ''),
+            String(item.tipo ?? ''),
+            String(item.valor ?? '')
+        ]);
 
   allRows.forEach((r, idx) => {
     const newRow = wsData.addRow(r);
@@ -1261,10 +1281,18 @@ async function exportarHistorialExcel() {
     newRow.alignment = { horizontal: 'left', vertical: 'center' };
   });
 
-  wsData.columns = [
-    { width: 10 }, { width: 15 }, { width: 45 }, { width: 15 },
-    { width: 30 }, { width: 24 }, { width: 16 }, { width: 12 }
-  ];
+    wsData.columns = [
+        { width: 14 },  // Fecha
+        { width: 12 },  // Clave
+        { width: 40 },  // Medicamento
+        { width: 14 },  // Lote
+        { width: 14 },  // Caducidad
+        { width: 10 },  // Cantidad
+        { width: 26 },  // Paciente/Destino
+        { width: 24 },  // Responsable
+        { width: 16 },  // Tipo de Salida
+        { width: 12 }   // Precio
+    ];
 
   const buffer = await workbook.xlsx.writeBuffer();
   downloadArrayBufferExcel(buffer, 'Historial_Salidas.xlsx');

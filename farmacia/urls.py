@@ -58,6 +58,7 @@ urlpatterns = [
     path('api/reportes/salidas/', views.api_reportes_salidas, name='api_reportes_salidas'),
     path('api/reportes/medicamentos-top/', views.api_reportes_medicamentos_top, name='api_reportes_medicamentos_top'),
     path('reportes/medicamentos-sin-movimiento/excel/', views.exportar_medicamentos_sin_movimiento_excel, name='exportar_medicamentos_sin_movimiento_excel'),
+    path('reportes/medicamentos-sin-movimiento/pdf/', views.exportar_medicamentos_sin_movimiento_pdf, name='exportar_medicamentos_sin_movimiento_pdf'),
     path('api/reportes/pacientes-frecuentes/', views.api_reportes_pacientes_frecuentes, name='api_reportes_pacientes_frecuentes'),
     path('api/reportes/tendencias/', views.api_reportes_tendencias, name='api_reportes_tendencias'),
     path('api/reportes/kpis/', views.api_reportes_kpis, name='api_reportes_kpis'),
