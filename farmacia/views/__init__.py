@@ -40,7 +40,8 @@ from .reporte_views import (
     exportar_inventario_general_pdf, reportes_farmacia, api_reportes_kpis,
     api_reportes_salidas, api_reportes_medicamentos_top, api_reportes_pacientes_frecuentes,
     api_reportes_tendencias, exportar_proximos_caducar_pdf, api_medicamentos_sin_movimiento, exportar_medicamentos_sin_movimiento_excel, 
-    exportar_medicamentos_sin_movimiento_pdf
+    exportar_medicamentos_sin_movimiento_pdf, api_medicamentos_lento_movimiento, exportar_medicamentos_lento_movimiento_pdf, 
+    exportar_medicamentos_lento_movimiento_excel,
 )
 
 from .salida_transferencia_views import (

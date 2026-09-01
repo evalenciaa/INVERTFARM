@@ -105,9 +105,10 @@ body {
 
 .header-actions {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
     gap: 12px;
-    position: relative;
-    z-index: 1;
 }
 
 .btn-export,
@@ -705,7 +706,7 @@ body {
     color: #fff;
 }
 
-#modal-exportar-sin-movimiento.modal {
+.modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -717,7 +718,7 @@ body {
     justify-content: center;
 }
 
-#modal-overlay-sin-movimiento {
+.modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -820,3 +821,35 @@ body {
         width: 100%;
     }
 }
+
+.global-filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-right: 12px;
+    padding-right: 12px;
+    border-right: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.global-filter-group .date-input {
+    min-width: 150px;
+}
+
+.global-filter-group .btn-filter {
+    white-space: nowrap;
+}
+
+@media (max-width: 992px) {
+    .header-actions {
+        justify-content: flex-start;
+    }
+
+    .global-filter-group {
+        margin-right: 0;
+        padding-right: 0;
+        border-right: none;
+        width: 100%;
+    }
+}
+

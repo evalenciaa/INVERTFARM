@@ -8,6 +8,7 @@ from io import BytesIO
 from django.urls import reverse
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
+from collections import defaultdict
 from django.db.models import Sum, Count, Q, F, Value, IntegerField, Max, DecimalField
 from django.db.models.functions import Coalesce, TruncMonth
 from django.http import JsonResponse, HttpResponse
@@ -1301,94 +1302,8 @@ def exportar_medicamentos_sin_movimiento_pdf(request):
 
     except Exception as e:
         return HttpResponse(f'Error: {str(e)}', status=400)
-
-
-@login_required
-@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
-def api_medicamentos_sin_movimiento(request):
-    try:
-        fecha_fin = timezone.now().date()
-        fecha_inicio = fecha_fin - timedelta(days=90)
-
-        if request.GET.get('fecha_inicio'):
-            fecha_inicio = datetime.strptime(
-                request.GET.get('fecha_inicio'),
-                '%Y-%m-%d'
-            ).date()
-
-        if request.GET.get('fecha_fin'):
-            fecha_fin = datetime.strptime(
-                request.GET.get('fecha_fin'),
-                '%Y-%m-%d'
-            ).date()
-
-        medicamentos = list(
-            obtener_medicamentos_sin_movimiento(fecha_inicio, fecha_fin)
-        )
-
-        return JsonResponse({
-            'success': True,
-            'data': medicamentos,
-            'total': len(medicamentos),
-            'fecha_inicio': str(fecha_inicio),
-            'fecha_fin': str(fecha_fin),
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
-
-@login_required
-@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
-def api_reportes_medicamentos_top(request):
-    try:
-        fecha_fin = timezone.now().date()
-        fecha_inicio = fecha_fin - timedelta(days=90)
-        if request.GET.get('fecha_inicio'): fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
-        if request.GET.get('fecha_fin'): fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
-        
-        medicamentos_top = RecetaMedicamento.objects.filter(receta__fecha_surtido__range=[fecha_inicio, fecha_fin]).values('medicamento__id', 'medicamento__descripcion', 'medicamento__clave').annotate(total_dispensado=Sum('cantidad_surtida')).order_by('-total_dispensado')[:10]
-        
-        datos = [{'medicamento': med['medicamento__descripcion'], 'clave': med['medicamento__clave'], 'cantidad': med['total_dispensado']} for med in medicamentos_top]
-        return JsonResponse({'success': True, 'data': datos})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-@login_required
-@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
-def api_reportes_pacientes_frecuentes(request):
-    try:
-        fecha_fin = timezone.now().date()
-        fecha_inicio = fecha_fin - timedelta(days=90)
-        if request.GET.get('fecha_inicio'): fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
-        if request.GET.get('fecha_fin'): fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
-        
-        pacientes_top = Receta.objects.filter(fecha_surtido__range=[fecha_inicio, fecha_fin]).values('paciente__id', 'paciente__nombre_completo').annotate(total_visitas=Count('id'), total_medicamentos=Sum('recetamedicamento__cantidad_surtida'), ultima_visita=Max('fecha_surtido')).order_by('-total_visitas')[:10]
-        
-        datos = [{'paciente': pac['paciente__nombre_completo'], 'visitas': pac['total_visitas'], 'medicamentos': pac['total_medicamentos'] or 0, 'ultima_visita': pac['ultima_visita'].strftime('%Y-%m-%d') if pac['ultima_visita'] else 'N/A', 'gasto_total': 0} for pac in pacientes_top]
-        return JsonResponse({'success': True, 'data': datos})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-@login_required
-@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
-def api_reportes_tendencias(request):
-    try:
-        fecha_fin = timezone.now().date()
-        fecha_inicio = fecha_fin - timedelta(days=365)
-        
-        salidas_por_mes = RecetaMedicamento.objects.filter(receta__fecha_surtido__range=[fecha_inicio, fecha_fin]).annotate(mes=TruncMonth('receta__fecha_surtido')).values('mes').annotate(total=Count('id')).order_by('mes')
-        
-        meses = [item['mes'].strftime('%b %Y') for item in salidas_por_mes]
-        totales = [item['total'] for item in salidas_por_mes]
-        return JsonResponse({'success': True, 'meses': meses, 'totales': totales})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
+
 @login_required
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
 def exportar_medicamentos_sin_movimiento_excel(request):
@@ -1515,6 +1430,764 @@ def exportar_medicamentos_sin_movimiento_excel(request):
         )
         response['Content-Disposition'] = (
             f'attachment; filename="Medicamentos_Sin_Movimiento_{datetime.now().strftime("%d%m%Y")}.xlsx"'
+        )
+        return response
+
+    except Exception as e:
+        return HttpResponse(f'Error: {str(e)}', status=400)
+
+
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def api_medicamentos_sin_movimiento(request):
+    try:
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(
+                request.GET.get('fecha_inicio'),
+                '%Y-%m-%d'
+            ).date()
+
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(
+                request.GET.get('fecha_fin'),
+                '%Y-%m-%d'
+            ).date()
+
+        medicamentos = list(
+            obtener_medicamentos_sin_movimiento(fecha_inicio, fecha_fin)
+        )
+
+        return JsonResponse({
+            'success': True,
+            'data': medicamentos,
+            'total': len(medicamentos),
+            'fecha_inicio': str(fecha_inicio),
+            'fecha_fin': str(fecha_fin),
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def api_reportes_medicamentos_top(request):
+    try:
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+        if request.GET.get('fecha_inicio'): fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
+        if request.GET.get('fecha_fin'): fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
+        
+        medicamentos_top = RecetaMedicamento.objects.filter(receta__fecha_surtido__range=[fecha_inicio, fecha_fin]).values('medicamento__id', 'medicamento__descripcion', 'medicamento__clave').annotate(total_dispensado=Sum('cantidad_surtida')).order_by('-total_dispensado')[:10]
+        
+        datos = [{'medicamento': med['medicamento__descripcion'], 'clave': med['medicamento__clave'], 'cantidad': med['total_dispensado']} for med in medicamentos_top]
+        return JsonResponse({'success': True, 'data': datos})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def api_reportes_pacientes_frecuentes(request):
+    try:
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+        if request.GET.get('fecha_inicio'): fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
+        if request.GET.get('fecha_fin'): fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
+        
+        pacientes_top = Receta.objects.filter(fecha_surtido__range=[fecha_inicio, fecha_fin]).values('paciente__id', 'paciente__nombre_completo').annotate(total_visitas=Count('id'), total_medicamentos=Sum('recetamedicamento__cantidad_surtida'), ultima_visita=Max('fecha_surtido')).order_by('-total_visitas')[:10]
+        
+        datos = [{'paciente': pac['paciente__nombre_completo'], 'visitas': pac['total_visitas'], 'medicamentos': pac['total_medicamentos'] or 0, 'ultima_visita': pac['ultima_visita'].strftime('%Y-%m-%d') if pac['ultima_visita'] else 'N/A', 'gasto_total': 0} for pac in pacientes_top]
+        return JsonResponse({'success': True, 'data': datos})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def api_reportes_tendencias(request):
+    try:
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=365)
+        
+        salidas_por_mes = RecetaMedicamento.objects.filter(receta__fecha_surtido__range=[fecha_inicio, fecha_fin]).annotate(mes=TruncMonth('receta__fecha_surtido')).values('mes').annotate(total=Count('id')).order_by('mes')
+        
+        meses = [item['mes'].strftime('%b %Y') for item in salidas_por_mes]
+        totales = [item['total'] for item in salidas_por_mes]
+        return JsonResponse({'success': True, 'meses': meses, 'totales': totales})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def api_medicamentos_lento_movimiento(request):
+    try:
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(
+                request.GET.get('fecha_inicio'),
+                '%Y-%m-%d'
+            ).date()
+
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(
+                request.GET.get('fecha_fin'),
+                '%Y-%m-%d'
+            ).date()
+
+        fecha_inicio_dt = make_aware(datetime.combine(fecha_inicio, datetime.min.time()))
+        fecha_fin_dt = make_aware(datetime.combine(fecha_fin, datetime.max.time()))
+
+        conteo_salidas = defaultdict(int)
+        metadata_medicamentos = {}
+
+        # ===== Salidas por receta (unidades reales dispensadas) =====
+        salidas_receta = (
+            RecetaMedicamento.objects
+            .filter(
+                receta__fecha_surtido__range=[fecha_inicio, fecha_fin],
+                medicamento__activo=True
+            )
+            .values(
+                'medicamento_id',
+                'medicamento__clave',
+                'medicamento__descripcion'
+            )
+            .annotate(
+                total_unidades=Coalesce(Sum('cantidad_surtida'), 0, output_field=IntegerField())
+            )
+        )
+
+        for item in salidas_receta:
+            medicamento_id = item['medicamento_id']
+            conteo_salidas[medicamento_id] += item['total_unidades']
+
+            metadata_medicamentos[medicamento_id] = {
+                'id': medicamento_id,
+                'clave': item['medicamento__clave'],
+                'descripcion': item['medicamento__descripcion'],
+            }
+
+        # ===== Salidas por transferencia (unidades reales enviadas) =====
+        salidas_transferencia = (
+            DetalleSalidaTransferencia.objects
+            .filter(
+                transferencia__fecha__gte=fecha_inicio_dt,
+                transferencia__fecha__lte=fecha_fin_dt,
+                lote__medicamento__activo=True
+            )
+            .values(
+                'lote__medicamento_id',
+                'lote__medicamento__clave',
+                'lote__medicamento__descripcion'
+            )
+            .annotate(
+                total_unidades=Coalesce(Sum('cantidad'), 0, output_field=IntegerField())
+            )
+        )
+
+        for item in salidas_transferencia:
+            medicamento_id = item['lote__medicamento_id']
+            conteo_salidas[medicamento_id] += item['total_unidades']
+
+            if medicamento_id not in metadata_medicamentos:
+                metadata_medicamentos[medicamento_id] = {
+                    'id': medicamento_id,
+                    'clave': item['lote__medicamento__clave'],
+                    'descripcion': item['lote__medicamento__descripcion'],
+                }
+
+        # ===== Filtrar por unidades dispensadas entre 1 y 5 =====
+        medicamentos_ids = [
+            medicamento_id
+            for medicamento_id, total in conteo_salidas.items()
+            if 1 <= total <= 5
+        ]
+
+        existencias = (
+            Lote.objects
+            .filter(medicamento_id__in=medicamentos_ids, medicamento__activo=True)
+            .values('medicamento_id')
+            .annotate(existencia_total=Coalesce(Sum('existencia'), 0, output_field=IntegerField()))
+        )
+
+        lotes = (
+            Lote.objects
+            .filter(
+                medicamento_id__in=medicamentos_ids,
+                medicamento__activo=True,
+                existencia__gt=0
+            )
+            .select_related('medicamento')
+            .order_by('medicamento__descripcion', 'fecha_caducidad', 'lote_codigo')
+        )
+
+        data = []
+        for lote in lotes:
+            total_salidas = conteo_salidas.get(lote.medicamento_id, 0)
+
+            data.append({
+                'medicamento_id': lote.medicamento_id,
+                'clave': lote.medicamento.clave or 'N/A',
+                'descripcion': lote.medicamento.descripcion,
+                'lote': lote.lote_codigo or 'N/A',
+                'caducidad': lote.fecha_caducidad.strftime('%Y-%m-%d') if lote.fecha_caducidad else 'N/A',
+                'salidas': total_salidas,
+                'existencia_actual': lote.existencia,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'total': len(data),
+            'fecha_inicio': str(fecha_inicio),
+            'fecha_fin': str(fecha_fin),
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+        
+
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def exportar_medicamentos_lento_movimiento_pdf(request):
+    """Exportar medicamentos de lento movimiento a PDF"""
+    try:
+        import os
+        from io import BytesIO
+        from datetime import datetime
+        from collections import defaultdict
+
+        from django.conf import settings
+        from django.http import HttpResponse
+        from django.db.models import Sum, IntegerField
+        from django.db.models.functions import Coalesce
+        from django.utils import timezone
+        from django.utils.timezone import make_aware
+
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+        )
+
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(
+                request.GET.get('fecha_inicio'), '%Y-%m-%d'
+            ).date()
+
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(
+                request.GET.get('fecha_fin'), '%Y-%m-%d'
+            ).date()
+
+        fecha_inicio_dt = make_aware(datetime.combine(fecha_inicio, datetime.min.time()))
+        fecha_fin_dt = make_aware(datetime.combine(fecha_fin, datetime.max.time()))
+
+        conteo_salidas = defaultdict(int)
+
+        salidas_receta = (
+            RecetaMedicamento.objects
+            .filter(
+                receta__fecha_surtido__range=[fecha_inicio, fecha_fin],
+                medicamento__activo=True
+            )
+            .values(
+                'medicamento_id',
+                'medicamento__clave',
+                'medicamento__descripcion'
+            )
+            .annotate(
+                total_unidades=Coalesce(Sum('cantidad_surtida'), 0, output_field=IntegerField())
+            )
+        )
+
+        for item in salidas_receta:
+            medicamento_id = item['medicamento_id']
+            conteo_salidas[medicamento_id] += item['total_unidades']
+
+        salidas_transferencia = (
+            DetalleSalidaTransferencia.objects
+            .filter(
+                transferencia__fecha__gte=fecha_inicio_dt,
+                transferencia__fecha__lte=fecha_fin_dt,
+                lote__medicamento__activo=True
+            )
+            .values(
+                'lote__medicamento_id',
+                'lote__medicamento__clave',
+                'lote__medicamento__descripcion'
+            )
+            .annotate(
+                total_unidades=Coalesce(Sum('cantidad'), 0, output_field=IntegerField())
+            )
+        )
+
+        for item in salidas_transferencia:
+            medicamento_id = item['lote__medicamento_id']
+            conteo_salidas[medicamento_id] += item['total_unidades']
+
+        medicamentos_ids = [
+            medicamento_id
+            for medicamento_id, total in conteo_salidas.items()
+            if 1 <= total <= 5
+        ]
+
+        lotes = (
+            Lote.objects
+            .filter(
+                medicamento_id__in=medicamentos_ids,
+                medicamento__activo=True,
+                existencia__gt=0
+            )
+            .select_related('medicamento')
+            .order_by('medicamento__descripcion', 'fecha_caducidad', 'lote_codigo')
+        )
+
+        data = []
+        for lote in lotes:
+            total_salidas = conteo_salidas.get(lote.medicamento_id, 0)
+
+            data.append({
+                'clave': lote.medicamento.clave or 'N/A',
+                'descripcion': lote.medicamento.descripcion or 'N/A',
+                'lote': lote.lote_codigo or 'N/A',
+                'caducidad': lote.fecha_caducidad.strftime('%Y-%m-%d') if lote.fecha_caducidad else 'N/A',
+                'salidas': total_salidas,
+                'existencia_actual': lote.existencia or 0,
+            })
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            leftMargin=10 * mm,
+            rightMargin=10 * mm,
+            topMargin=12 * mm,
+            bottomMargin=12 * mm,
+        )
+
+        styles = getSampleStyleSheet()
+
+        estilo_titulo = ParagraphStyle(
+            name="TituloReporte",
+            parent=styles["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=14,
+            leading=16,
+            alignment=1,
+            spaceAfter=4,
+        )
+
+        estilo_meta = ParagraphStyle(
+            name="MetaReporte",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=11,
+            alignment=1,
+            spaceAfter=2,
+        )
+
+        estilo_header = ParagraphStyle(
+            name="HeaderTabla",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=7,
+            leading=8,
+            alignment=1,
+            textColor=colors.whitesmoke,
+        )
+
+        estilo_celda = ParagraphStyle(
+            name="CeldaTabla",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7,
+            leading=8,
+            alignment=0,
+            wordWrap='LTR',
+            splitLongWords=True
+        )
+
+        estilo_celda_centrada = ParagraphStyle(
+            name="CeldaTablaCentrada",
+            parent=estilo_celda,
+            alignment=1,
+        )
+
+        elementos = []
+
+        logo_path = os.path.join(
+            settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg'
+        )
+        if os.path.exists(logo_path):
+            logo = Image(logo_path, width=170 * mm, height=24 * mm)
+            logo.hAlign = 'CENTER'
+            elementos.append(logo)
+            elementos.append(Spacer(1, 3 * mm))
+
+        elementos.append(Paragraph(
+            "BOLETINAJE DE MEDICAMENTOS DE LENTO MOVIMIENTO",
+            estilo_titulo
+        ))
+
+        fecha_generacion = datetime.now().strftime('%d/%m/%Y %H:%M')
+        nombre_usuario = (request.user.get_full_name() or request.user.username).strip()
+
+        elementos.append(Paragraph(
+            f"Periodo: {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}",
+            estilo_meta
+        ))
+        elementos.append(Paragraph(
+            f"Fecha de Generación: {fecha_generacion}",
+            estilo_meta
+        ))
+        elementos.append(Paragraph(
+            f"Generado por: {nombre_usuario}",
+            estilo_meta
+        ))
+        elementos.append(Spacer(1, 4 * mm))
+
+        data_tabla = [[
+            Paragraph("Clave", estilo_header),
+            Paragraph("Descripción", estilo_header),
+            Paragraph("Lote", estilo_header),
+            Paragraph("Caducidad", estilo_header),
+            Paragraph("Salidas", estilo_header),
+            Paragraph("Existencia Actual", estilo_header),
+        ]]
+
+        for item in data:
+            data_tabla.append([
+                Paragraph(item['clave'], estilo_celda_centrada),
+                Paragraph(truncar_texto(item['descripcion'], 120), estilo_celda),
+                Paragraph(item['lote'], estilo_celda_centrada),
+                Paragraph(item['caducidad'], estilo_celda_centrada),
+                Paragraph(str(item['salidas']), estilo_celda_centrada),
+                Paragraph(str(item['existencia_actual']), estilo_celda_centrada),
+            ])
+
+        if not data:
+            data_tabla.append([
+                Paragraph("", estilo_celda),
+                Paragraph(
+                    "No se encontraron medicamentos de lento movimiento para el periodo seleccionado.",
+                    estilo_celda_centrada
+                ),
+                Paragraph("", estilo_celda),
+                Paragraph("", estilo_celda),
+                Paragraph("", estilo_celda),
+                Paragraph("", estilo_celda),
+            ])
+
+        col_widths = [
+            24 * mm,   # Clave
+            72 * mm,   # Descripción
+            24 * mm,   # Lote
+            28 * mm,   # Caducidad
+            18 * mm,   # Salidas
+            24 * mm,   # Existencia
+        ]
+
+        tabla = Table(
+            data_tabla,
+            colWidths=col_widths,
+            repeatRows=1,
+            splitByRow=1,
+            hAlign='LEFT',
+        )
+
+        tabla.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#8B0000")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F4F4")]),
+            ('GRID', (0, 0), (-1, -1), 0.35, colors.grey),
+
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            ('ALIGN', (2, 1), (5, -1), 'CENTER'),
+        ]))
+
+        elementos.append(tabla)
+        elementos.append(Spacer(1, 4 * mm))
+        elementos.append(Paragraph(
+            f"Documento generado por INVENTFARM - {nombre_usuario}",
+            estilo_meta
+        ))
+
+        doc.build(elementos)
+
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="Medicamentos_Lento_Movimiento_{datetime.now().strftime("%d%m%Y")}.pdf"'
+        )
+        return response
+
+    except Exception as e:
+        return HttpResponse(f'Error: {str(e)}', status=400)
+
+
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def exportar_medicamentos_lento_movimiento_excel(request):
+    try:
+        import os
+        import xlsxwriter
+        from io import BytesIO
+        from datetime import datetime, timedelta
+        from collections import defaultdict
+
+        from django.conf import settings
+        from django.http import HttpResponse
+        from django.db.models import Sum, IntegerField
+        from django.db.models.functions import Coalesce
+        from django.utils import timezone
+        from django.utils.timezone import make_aware
+
+        from farmacia.models import Lote, RecetaMedicamento, DetalleSalidaTransferencia
+
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin - timedelta(days=90)
+
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(
+                request.GET.get('fecha_inicio'),
+                '%Y-%m-%d'
+            ).date()
+
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(
+                request.GET.get('fecha_fin'),
+                '%Y-%m-%d'
+            ).date()
+
+        fecha_inicio_dt = make_aware(datetime.combine(fecha_inicio, datetime.min.time()))
+        fecha_fin_dt = make_aware(datetime.combine(fecha_fin, datetime.max.time()))
+
+        conteo_salidas = defaultdict(int)
+
+        salidas_receta = (
+            RecetaMedicamento.objects
+            .filter(
+                receta__fecha_surtido__range=[fecha_inicio, fecha_fin],
+                medicamento__activo=True
+            )
+            .values('medicamento_id')
+            .annotate(
+                total_unidades=Coalesce(
+                    Sum('cantidad_surtida'),
+                    0,
+                    output_field=IntegerField()
+                )
+            )
+        )
+
+        for item in salidas_receta:
+            conteo_salidas[item['medicamento_id']] += item['total_unidades']
+
+        salidas_transferencia = (
+            DetalleSalidaTransferencia.objects
+            .filter(
+                transferencia__fecha__gte=fecha_inicio_dt,
+                transferencia__fecha__lte=fecha_fin_dt,
+                lote__medicamento__activo=True
+            )
+            .values('lote__medicamento_id')
+            .annotate(
+                total_unidades=Coalesce(
+                    Sum('cantidad'),
+                    0,
+                    output_field=IntegerField()
+                )
+            )
+        )
+
+        for item in salidas_transferencia:
+            conteo_salidas[item['lote__medicamento_id']] += item['total_unidades']
+
+        medicamentos_ids = [
+            medicamento_id
+            for medicamento_id, total in conteo_salidas.items()
+            if 1 <= total <= 5
+        ]
+
+        lotes = (
+            Lote.objects
+            .filter(
+                medicamento_id__in=medicamentos_ids,
+                medicamento__activo=True,
+                existencia__gt=0
+            )
+            .select_related('medicamento')
+            .order_by('medicamento__descripcion', 'fecha_caducidad', 'lote_codigo')
+        )
+
+        data = []
+        for lote in lotes:
+            total_salidas = conteo_salidas.get(lote.medicamento_id, 0)
+            data.append({
+                'clave': lote.medicamento.clave or 'N/A',
+                'descripcion': lote.medicamento.descripcion or 'N/A',
+                'lote': lote.lote_codigo or 'N/A',
+                'caducidad': lote.fecha_caducidad,
+                'salidas': total_salidas,
+                'existencia_actual': lote.existencia or 0,
+            })
+
+        output = BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet('Lento Movimiento')
+
+        header_format = workbook.add_format({
+            'bg_color': '#8B0000',
+            'font_color': 'white',
+            'bold': True,
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 11
+        })
+
+        title_format = workbook.add_format({
+            'bg_color': '#8B0000',
+            'font_color': 'white',
+            'bold': True,
+            'align': 'center',
+            'valign': 'vcenter',
+            'font_size': 14
+        })
+
+        date_format = workbook.add_format({
+            'italic': True,
+            'align': 'left',
+            'font_size': 10
+        })
+
+        text_format = workbook.add_format({
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 10
+        })
+
+        number_format = workbook.add_format({
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 10,
+            'num_format': '#,##0'
+        })
+
+        date_cell_format = workbook.add_format({
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 10,
+            'num_format': 'dd/mm/yyyy'
+        })
+
+        worksheet.set_column('A:A', 18)
+        worksheet.set_column('B:B', 55)
+        worksheet.set_column('C:C', 18)
+        worksheet.set_column('D:D', 18)
+        worksheet.set_column('E:E', 12)
+        worksheet.set_column('F:F', 18)
+
+        logo_path = os.path.join(
+            settings.BASE_DIR,
+            'farmacia', 'static', 'farmacia', 'img', 'logo.jpg'
+        )
+        if os.path.exists(logo_path):
+            try:
+                worksheet.insert_image('A1', logo_path, {'x_scale': 0.8, 'y_scale': 0.8})
+            except Exception:
+                pass
+
+        worksheet.merge_range(
+            'A3:F3',
+            'BOLETINAJE DE MEDICAMENTOS DE LENTO MOVIMIENTO',
+            title_format
+        )
+        worksheet.merge_range(
+            'A4:F4',
+            f'Periodo: {fecha_inicio.strftime("%d/%m/%Y")} al {fecha_fin.strftime("%d/%m/%Y")}',
+            date_format
+        )
+        worksheet.merge_range(
+            'A5:F5',
+            f'Generado: {datetime.now().strftime("%d/%m/%Y %H:%M")}',
+            date_format
+        )
+
+        headers = ['Clave', 'Descripción', 'Lote', 'Caducidad', 'Salidas', 'Existencia Actual']
+        for col, header in enumerate(headers):
+            worksheet.write(6, col, header, header_format)
+
+        row = 7
+        for item in data:
+            worksheet.write(row, 0, item['clave'], text_format)
+            worksheet.write(row, 1, item['descripcion'], text_format)
+            worksheet.write(row, 2, item['lote'], text_format)
+
+            if item['caducidad']:
+                worksheet.write_datetime(
+                    row,
+                    3,
+                    datetime.combine(item['caducidad'], datetime.min.time()),
+                    date_cell_format
+                )
+            else:
+                worksheet.write(row, 3, 'N/A', text_format)
+
+            worksheet.write_number(row, 4, item['salidas'], number_format)
+            worksheet.write_number(row, 5, item['existencia_actual'], number_format)
+            row += 1
+
+        if not data:
+            worksheet.merge_range(
+                'A8:F8',
+                'No se encontraron medicamentos de lento movimiento para el periodo seleccionado.',
+                text_format
+            )
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = (
+            f'attachment; filename="Medicamentos_Lento_Movimiento_{datetime.now().strftime("%d%m%Y")}.xlsx"'
         )
         return response
 

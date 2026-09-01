@@ -44,7 +44,9 @@ async function loadData(fechaInicio = '', fechaFin = '') {
         if (dataSalidas.success) {
             salidasData = dataSalidas.data;
             currentPage = 1;
-            loadTabContent('historial');
+
+            const activeTab = getActiveTab();
+            loadTabContent(activeTab);
         }
 
     } catch (error) {
@@ -171,6 +173,9 @@ function loadTabContent(tabId) {
             break;
         case 'tendencias':
             loadTendenciasCharts();
+            break;
+        case 'lento-movimiento':
+            loadLentoMovimientoTable();
             break;
     }
 }
@@ -589,6 +594,51 @@ function loadHorasPico() {
     });
 }
 
+// ===== TAB 5: MEDICAMENTOS DE LENTO MOVIMIENTO =====
+async function loadLentoMovimientoTable() {
+    try {
+        const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+        const fechaFin = document.getElementById('fechaFin')?.value || '';
+
+        const params = new URLSearchParams();
+        if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+        if (fechaFin) params.append('fecha_fin', fechaFin);
+
+        const query = params.toString() ? `?${params.toString()}` : '';
+        const response = await fetch(`/api/medicamentos-lento-movimiento/${query}`);
+        const data = await response.json();
+
+        const tbody = document.getElementById('tableLentoMovimientoBody');
+        const totalEl = document.getElementById('totalLentoMovimiento');
+
+        if (data.success && data.data.length > 0) {
+            tbody.innerHTML = data.data.map(item => `
+                <tr>
+                    <td>${item.clave}</td>
+                    <td>${item.descripcion}</td>
+                    <td>${item.lote}</td>
+                    <td>${item.caducidad}</td>
+                    <td>${item.salidas}</td>
+                    <td>${item.existencia_actual}</td>
+                </tr>
+            `).join('');
+            totalEl.textContent = `${data.total} lotes`;
+        } else {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align:center;">
+                        No se encontraron medicamentos de lento movimiento en el periodo.
+                    </td>
+                </tr>
+            `;
+            totalEl.textContent = '0 lotes';
+        }
+    } catch (error) {
+        console.error('Error cargando lento movimiento:', error);
+        showNotification('Error al cargar medicamentos de lento movimiento', 'error');
+    }
+}
+
 // ===== PAGINACIÓN =====
 function updatePagination(totalItems) {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -693,6 +743,11 @@ function initializeEventListeners() {
     const btnExportarSinMovimiento = document.getElementById('btnExportarSinMovimiento');
     if (btnExportarSinMovimiento) {
         btnExportarSinMovimiento.addEventListener('click', abrirModalExportarSinMovimiento);
+    }
+
+    const btnExportarLentoMovimiento = document.getElementById('btnExportarLentoMovimiento');
+    if (btnExportarLentoMovimiento) {
+        btnExportarLentoMovimiento.addEventListener('click', abrirModalExportarLentoMovimiento);
     }
     
     // Botón Exportar PDF
@@ -857,6 +912,43 @@ function descargarSinMovimientoPDF() {
     const url = `/reportes/medicamentos-sin-movimiento/pdf/?${params.toString()}`;
     window.open(url, '_blank');
     cerrarModalExportarSinMovimiento();
+}
+
+// ===== MODAL EXPORTAR LENTO MOVIMIENTO =====
+function abrirModalExportarLentoMovimiento() {
+    document.getElementById('modal-overlay-lento-movimiento').style.display = 'block';
+    document.getElementById('modal-exportar-lento-movimiento').style.display = 'flex';
+}
+
+function cerrarModalExportarLentoMovimiento() {
+    document.getElementById('modal-overlay-lento-movimiento').style.display = 'none';
+    document.getElementById('modal-exportar-lento-movimiento').style.display = 'none';
+}
+
+function descargarLentoMovimientoExcel() {
+    const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+    const fechaFin = document.getElementById('fechaFin')?.value || '';
+
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const url = `/reportes/medicamentos-lento-movimiento/excel/?${params.toString()}`;
+    window.open(url, '_blank');
+    cerrarModalExportarLentoMovimiento();
+}
+
+function descargarLentoMovimientoPDF() {
+    const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+    const fechaFin = document.getElementById('fechaFin')?.value || '';
+
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const url = `/reportes/medicamentos-lento-movimiento/pdf/?${params.toString()}`;
+    window.open(url, '_blank');
+    cerrarModalExportarLentoMovimiento();
 }
 
 // ===== UTILIDADES =====

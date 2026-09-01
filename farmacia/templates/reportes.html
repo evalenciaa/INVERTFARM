@@ -38,6 +38,13 @@
                         <p class="subtitle">Panel de análisis y visualización de datos</p>
                     </div>
                 </div>
+                <div class="filter-group global-filter-group">
+                    <input type="date" id="fechaInicio" class="date-input">
+                    <input type="date" id="fechaFin" class="date-input">
+                    <button class="btn-filter" id="filtrarFechas">
+                        <i class="fas fa-filter"></i> Filtrar
+                    </button>
+                </div>
                 <div class="header-actions">
                     <button class="btn-export" id="exportPDF">
                         <i class="fas fa-file-pdf"></i> Exportar PDF
@@ -122,6 +129,9 @@
                     <button class="tab-btn" data-tab="tendencias">
                         <i class="fas fa-chart-line"></i> Tendencias Temporales
                     </button>
+                    <button class="tab-btn" data-tab="lento-movimiento">
+                        <i class="fas fa-hourglass-half"></i>Medicamentos de Lento Movimiento
+                    </button>
                 </div>
 
                 <!-- Tab 1: Historial de Salidas -->
@@ -130,11 +140,6 @@
                         <div class="card-header">
                             <h3><i class="fas fa-list"></i> Historial Completo de Salidas</h3>
                             <div class="filter-group">
-                                <input type="date" id="fechaInicio" class="date-input">
-                                <input type="date" id="fechaFin" class="date-input">
-                                <button class="btn-filter" id="filtrarFechas">
-                                    <i class="fas fa-filter"></i> Filtrar
-                                </button>
                                 <button class="btn-filter" id="btnExportarSinMovimiento" >
                                     <i class="fas fa-download"></i> Exportar medicamentos sin salidas
                                 </button>
@@ -275,6 +280,42 @@
                         </div>
                     </div>
                 </div>
+
+                                <!-- Tab 5: Medicamentos de Lento Movimiento -->
+                <div class="tab-content" id="tab-lento-movimiento">
+                    <div class="content-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-hourglass-half"></i> Medicamentos de Lento Movimiento</h3>
+                        <div class="filter-group">
+                            <button class="btn-filter" id="btnExportarLentoMovimiento">
+                                <i class="fas fa-download"></i> Exportar lento movimiento
+                            </button>
+                        </div>
+                    </div>
+                        <div class="table-wrapper">
+                            <table class="data-table" id="tableLentoMovimiento">
+                                <thead>
+                                    <tr>
+                                        <th>Clave</th>
+                                        <th>Descripción</th>
+                                        <th>Lote</th>
+                                        <th>Caducidad</th>
+                                        <th>Salidas</th>
+                                        <th>Existencia Actual</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableLentoMovimientoBody">
+                                    <tr>
+                                        <td colspan="6" style="text-align:center;">Cargando datos...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-footer">
+                            <span id="totalLentoMovimiento">0 medicamentos</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -308,6 +349,40 @@
     </div>
 
     <div id="modal-overlay-sin-movimiento" style="display: none;" onclick="cerrarModalExportarSinMovimiento()"></div>
+
+    <div id="modal-exportar-lento-movimiento" class="modal" style="display: none;">
+        <div class="modal-content modal-exportar">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-export"></i> Exportar lento movimiento</h3>
+                <button class="btn-close" onclick="cerrarModalExportarLentoMovimiento()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <p>Selecciona el formato para exportar los medicamentos con salidas entre 1 y 5 en el periodo actual.</p>
+
+                <div class="exportar-opciones">
+                    <button class="btn btn-danger btn-exportar" onclick="descargarLentoMovimientoPDF()">
+                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                    </button>
+
+                    <button class="btn btn-success btn-exportar" onclick="descargarLentoMovimientoExcel()">
+                        <i class="fas fa-file-excel"></i> Exportar Excel
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModalExportarLentoMovimiento()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay-lento-movimiento" style="display: none;"
+        onclick="cerrarModalExportarLentoMovimiento()"></div>
 
     <script>
         window.STATIC_LOGO_URL = "{% static 'farmacia/img/logo.jpg' %}";
