@@ -5,25 +5,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registro de Nuevo Medicamento</title>
-    <link rel="stylesheet" href="{% static 'farmacia/css/r_medic_farm.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <link rel="stylesheet"
+          href="{% static 'farmacia/css/r_medic_farm.css' %}">
+
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <!-- Botón Volver -->
+
         <a href="{% url 'farmacia' %}" class="btn-back">
-            <i class="fas fa-arrow-left"></i> Volver a Farmacia
+            <i class="fas fa-arrow-left"></i>
+            Volver a Farmacia
         </a>
 
-        <!-- Card Principal -->
         <div class="form-card">
-            <!-- Header -->
+
             <div class="form-header">
                 <i class="fas fa-pills"></i>
                 <h1>Registro de Nuevo Medicamento</h1>
             </div>
 
-            <!-- Mensajes de Error/Éxito -->
             {% if messages %}
                 {% for message in messages %}
                     <div class="alert alert-{{ message.tags }}">
@@ -33,54 +36,203 @@
                 {% endfor %}
             {% endif %}
 
-            <!-- Formulario -->
-            <form method="POST" id="form-medicamento">
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <form method="POST" id="form-medicamento" novalidate>
                 {% csrf_token %}
-                
-                <!-- Campo: Clave -->
+
                 <div class="form-group">
                     <label for="id_clave">
-                        <i class="fas fa-key"></i> Clave del Medicamento
+                        <i class="fas fa-key"></i>
+                        Clave del medicamento
                     </label>
+
                     {{ form.clave }}
+
                     {% if form.clave.errors %}
                         <div class="error-message">
                             {{ form.clave.errors }}
                         </div>
                     {% endif %}
-                    <small class="form-help">Identificador único del medicamento (ej: PAR-500)</small>
+
+                    <small class="form-help">
+                        Identificador único del medicamento.
+                    </small>
                 </div>
 
-                <!-- Campo: Descripción -->
                 <div class="form-group">
                     <label for="id_descripcion">
-                        <i class="fas fa-file-medical"></i> Descripción
+                        <i class="fas fa-file-medical"></i>
+                        Descripción
                     </label>
+
                     {{ form.descripcion }}
+
                     {% if form.descripcion.errors %}
                         <div class="error-message">
                             {{ form.descripcion.errors }}
                         </div>
                     {% endif %}
-                    <small class="form-help">Descripción completa del medicamento (concentración, presentación, etc.)</small>
+
+                    <small class="form-help">
+                        Incluye concentración y presentación cuando corresponda.
+                    </small>
                 </div>
 
-                <!-- Botones -->
+                <fieldset class="antibiotico-fieldset">
+                    <legend>
+                        <i class="fas fa-shield-virus"></i>
+                        Clasificación del medicamento
+                    </legend>
+
+                    <div class="antibiotico-switch">
+                        {{ form.es_antibiotico }}
+
+                        <label for="id_es_antibiotico">
+                            Este medicamento es un antibiótico
+                        </label>
+                    </div>
+
+                    {% if form.es_antibiotico.errors %}
+                        <div class="error-message">
+                            {{ form.es_antibiotico.errors }}
+                        </div>
+                    {% endif %}
+                </fieldset>
+
+                <section
+                    id="datos-antibiotico"
+                    class="antibiotico-details"
+                    hidden
+                    aria-labelledby="titulo-datos-antibiotico">
+
+                    <h2 id="titulo-datos-antibiotico">
+                        Datos del antibiótico
+                    </h2>
+
+                    <p class="section-help">
+                        Captura el código ATC para consultar automáticamente
+                        la clasificación AWaRe y la DDD disponible.
+                    </p>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="id_via_administracion">
+                                Vía de administración
+                            </label>
+
+                            {{ form.via_administracion }}
+
+                            {% if form.via_administracion.errors %}
+                                <div class="error-message">
+                                    {{ form.via_administracion.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_codigo_atc">
+                                Código ATC
+                            </label>
+
+                            <div class="input-with-status">
+                                {{ form.codigo_atc }}
+                                <span
+                                    id="estado-catalogo"
+                                    class="catalog-status"
+                                    aria-live="polite">
+                                </span>
+                            </div>
+
+                            {% if form.codigo_atc.errors %}
+                                <div class="error-message">
+                                    {{ form.codigo_atc.errors }}
+                                </div>
+                            {% endif %}
+
+                            <small class="form-help">
+                                Ejemplo: J01CA04.
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_categoria_aware">
+                                Categoría AWaRe
+                            </label>
+
+                            {{ form.categoria_aware }}
+
+                            {% if form.categoria_aware.errors %}
+                                <div class="error-message">
+                                    {{ form.categoria_aware.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_gramos_por_pieza">
+                                Gramos por pieza
+                            </label>
+
+                            {{ form.gramos_por_pieza }}
+
+                            {% if form.gramos_por_pieza.errors %}
+                                <div class="error-message">
+                                    {{ form.gramos_por_pieza.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_valor_atc">
+                                Valor ATC
+                            </label>
+
+                            {{ form.valor_atc }}
+
+                            {% if form.valor_atc.errors %}
+                                <div class="error-message">
+                                    {{ form.valor_atc.errors }}
+                                </div>
+                            {% endif %}
+
+                            <small class="form-help">
+                                Valor numérico de referencia para calcular DDD/ATC.
+                            </small>
+                        </div>
+                    </div>
+                </section>
+
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="limpiarFormulario()">
-                        <i class="fas fa-eraser"></i> Limpiar
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        onclick="limpiarFormulario()">
+
+                        <i class="fas fa-eraser"></i>
+                        Limpiar
                     </button>
+
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Registrar Medicamento
+                        <i class="fas fa-save"></i>
+                        Registrar Medicamento
                     </button>
                 </div>
             </form>
         </div>
 
-        <!-- Nota Informativa -->
         <div class="info-box">
             <i class="fas fa-info-circle"></i>
-            <p><strong>Nota:</strong> Una vez registrado el medicamento, podrás agregar lotes y stock desde el módulo de Entradas.</p>
+            <p>
+                <strong>Nota:</strong>
+                Una vez registrado el medicamento, podrás agregar lotes y stock
+                desde el módulo de Entradas.
+            </p>
         </div>
     </div>
 

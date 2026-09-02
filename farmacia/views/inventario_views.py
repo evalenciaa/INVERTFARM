@@ -21,8 +21,7 @@ from django.views.decorators.http import require_http_methods
 from ..decorators import group_required
 from ..forms import MedicamentoForm
 from ..models import (
-    Lote, Medicamento, Presentacion, CPMMedicamento, Almacen,
-    Institucion, FuenteFinanciamiento
+    Lote, Medicamento, Presentacion, CPMMedicamento, CatalogoAntibioticosWHO
 )
 
 logger = logging.getLogger(__name__)
@@ -350,26 +349,77 @@ def eliminar_medicamento(request):
 @permission_required('farmacia.add_medicamento', raise_exception=True)
 def registro_medicamento(request):
     """Vista para registrar un nuevo medicamento"""
+    from django.contrib import messages
+
     if request.method == 'POST':
         form = MedicamentoForm(request.POST)
+
         if form.is_valid():
             try:
                 medicamento = form.save(commit=False)
+
+                medicamento.clave = medicamento.clave.strip().upper()
+                medicamento.descripcion = medicamento.descripcion.strip()
                 medicamento.activo = True
-                medicamento.costo = 0.00
-                medicamento.codigo_barras = None
-                medicamento.proveedor = None
-                medicamento.presentacion = None
+
+                if medicamento.costo is None:
+                    medicamento.costo = 0.00
+
+                if not medicamento.codigo_barras:
+                    medicamento.codigo_barras = None
+
+                if not medicamento.proveedor_id:
+                    medicamento.proveedor = None
+
+                if not medicamento.presentacion_id:
+                    medicamento.presentacion = None
+
                 medicamento.save()
-                from django.contrib import messages
-                messages.success(request, f'✓ Medicamento "{medicamento.clave}" registrado correctamente.')
+
+                messages.success(
+                    request,
+                    f'✓ Medicamento "{medicamento.clave}" '
+                    'registrado correctamente.'
+                )
+
                 return redirect('farmacia_g')
+
             except Exception as e:
-                from django.contrib import messages
-                messages.error(request, f'Error al registrar medicamento: {str(e)}')
+                messages.error(
+                    request,
+                    f'Error al registrar medicamento: {str(e)}'
+                )
         else:
-            from django.contrib import messages
-            messages.error(request, 'Error en el formulario. Verifica los datos.')
+            messages.error(
+                request,
+                'Error en el formulario. Verifica los datos.'
+            )
     else:
         form = MedicamentoForm()
-    return render(request, 'registro_medicamento.html', {'form': form})
+
+    return render(
+        request,
+        'registro_medicamento.html',
+        {'form': form}
+    )
+
+
+@login_required
+def buscar_catalogo_antibiotico(request):
+    codigo_atc = request.GET.get('codigo_atc', '').strip().upper()
+
+    if not codigo_atc:
+        return JsonResponse({'encontrado': False, 'error': 'Código ATC requerido'}, status=400)
+
+    item = CatalogoAntibioticosWHO.objects.filter(codigo_atc=codigo_atc).first()
+
+    if not item:
+        return JsonResponse({'encontrado': False})
+
+    return JsonResponse({
+        'encontrado': True,
+        'codigo_atc': item.codigo_atc,
+        'categoria_aware': item.categoria_aware,
+        'valor_atc': float(item.valor_atc) if item.valor_atc is not None else None,
+        'fuente_ddd': item.fuente_ddd,
+    })

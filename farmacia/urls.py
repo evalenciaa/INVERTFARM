@@ -26,6 +26,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('alertas/', views.alertas, name='alertas'),
     path('medicamentos/nuevo/', views.registro_medicamento, name='registro_medicamento'),
+    path('api/catalogo-antibioticos/buscar/', views.buscar_catalogo_antibiotico, name='buscar_catalogo_antibiotico'),
     path('editar_lote/<str:lote_id>/', views.editar_lote, name='editar_lote'),
     path('api/medicamentos/buscar/', views.buscar_medicamentos_autocomplete, name='buscar_medicamentos_autocomplete'),
     path('farmacia/gestion-lotes/', views.farmacia_g, name='farmacia_g'),

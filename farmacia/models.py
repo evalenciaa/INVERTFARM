@@ -197,6 +197,50 @@ class Medicamento(models.Model):
         Presentacion, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Presentación"
     )
     activo = models.BooleanField(default=True)
+    es_antibiotico = models.BooleanField(default=False)
+
+    via_administracion = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        choices=[
+            ('ORAL', 'Oral'),
+            ('INTRAMUSCULAR', 'Intramuscular'),
+            ('INTRAVENOSA', 'Intravenosa'),
+        ]
+    )
+
+    codigo_atc = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        db_index=True
+    )
+
+    categoria_aware = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        choices=[
+            ('Access', 'Access'),
+            ('Watch', 'Watch'),
+            ('Reserve', 'Reserve'),
+        ]
+    )
+
+    gramos_por_pieza = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        blank=True,
+        null=True
+    )
+
+    valor_atc = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
         return f"{self.clave} - {self.descripcion}"
@@ -744,6 +788,43 @@ class MedicamentoNoDisponibleTransferencia(models.Model):
 
     def __str__(self):
         return f"{self.medicamento_descripcion} - {self.transferencia.folio}"
+    
+    
+class CatalogoAntibioticosWHO(models.Model):
+    codigo_atc = models.CharField(max_length=20, unique=True, db_index=True)
+
+    categoria_aware = models.CharField(
+        max_length=10,
+        choices=[
+            ('Access', 'Access'),
+            ('Watch', 'Watch'),
+            ('Reserve', 'Reserve')
+        ],
+    )
+
+    valor_atc = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        blank=True,
+        null=True
+    )
+
+    fuente_ddd = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        choices=[
+            ('herramienta_calculo', 'Herramienta de cálculo'),
+            ('manual', 'Captura manual')
+        ],
+    )
+
+    class Meta:
+        verbose_name = "Catálogo WHO AWaRe/ATC"
+        verbose_name_plural = "Catálogo WHO AWaRe/ATC"
+
+    def __str__(self):
+        return f"{self.codigo_atc} ({self.categoria_aware})"
     
 
 # Señales

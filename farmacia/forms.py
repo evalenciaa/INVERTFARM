@@ -1,5 +1,5 @@
 from django import forms
-from .models import Lote, Receta, RecetaMedicamento, Medicamento, Proveedor, Institucion
+from .models import Lote, Receta, RecetaMedicamento, Medicamento, Proveedor, Institucion, CatalogoAntibioticosWHO
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -46,48 +46,156 @@ class LoteForm(forms.ModelForm):
 
 
 class MedicamentoForm(forms.ModelForm):
-    """Formulario para registrar medicamentos - Solo clave y descripción"""
-    
     class Meta:
         model = Medicamento
-        fields = ['clave', 'descripcion']  # Solo estos dos campos
-        
+        fields = [
+            'clave',
+            'descripcion',
+            'es_antibiotico',
+            'via_administracion',
+            'codigo_atc',
+            'categoria_aware',
+            'gramos_por_pieza',
+            'valor_atc',
+        ]
+
         widgets = {
             'clave': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Ej: PAR-500',
-                'required': True
+                'autocomplete': 'off',
+                'required': True,
             }),
             'descripcion': forms.Textarea(attrs={
                 'class': 'form-control',
-                'placeholder': 'Ej: Paracetamol 500mg tabletas',
+                'placeholder': 'Ej: Paracetamol 500 mg tabletas',
                 'rows': 3,
-                'required': True
+                'required': True,
+            }),
+            'es_antibiotico': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+                'id': 'id_es_antibiotico',
+            }),
+            'via_administracion': forms.Select(attrs={
+                'class': 'form-control',
+                'id': 'id_via_administracion',
+            }),
+            'codigo_atc': forms.TextInput(attrs={
+                'class': 'form-control',
+                'id': 'id_codigo_atc',
+                'placeholder': 'Ej: J01CA04',
+                'autocomplete': 'off',
+            }),
+            'categoria_aware': forms.Select(attrs={
+                'class': 'form-control',
+                'id': 'id_categoria_aware',
+            }),
+            'gramos_por_pieza': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'id': 'id_gramos_por_pieza',
+                'step': '0.0001',
+                'min': '0',
+                'placeholder': 'Ej: 0.5000',
+            }),
+            'valor_atc': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'id': 'id_valor_atc',
+                'step': '0.0001',
+                'min': '0',
+                'placeholder': 'Ej: 1.5000',
             }),
         }
-        
+
         labels = {
-            'clave': 'Clave del Medicamento',
+            'clave': 'Clave del medicamento',
             'descripcion': 'Descripción',
+            'es_antibiotico': '¿Es antibiótico?',
+            'via_administracion': 'Vía de administración',
+            'codigo_atc': 'Código ATC',
+            'categoria_aware': 'Categoría AWaRe',
+            'gramos_por_pieza': 'Gramos por pieza',
+            'valor_atc': 'Valor ATC',
         }
-    
+
     def clean_clave(self):
-        """Validar que la clave no esté duplicada"""
-        clave = self.cleaned_data.get('clave')
-        if clave:
-            clave = clave.strip().upper()
-            if Medicamento.objects.filter(clave=clave).exists():
-                raise forms.ValidationError('Ya existe un medicamento con esta clave.')
+        clave = (self.cleaned_data.get('clave') or '').strip().upper()
+
+        if Medicamento.objects.filter(clave=clave).exists():
+            raise forms.ValidationError(
+                'Ya existe un medicamento con esta clave.'
+            )
+
         return clave
-    
+
     def clean_descripcion(self):
-        """Validar descripción"""
-        descripcion = self.cleaned_data.get('descripcion')
-        if descripcion:
-            descripcion = descripcion.strip()
-            if len(descripcion) < 5:
-                raise forms.ValidationError('La descripción debe tener al menos 5 caracteres.')
+        descripcion = (self.cleaned_data.get('descripcion') or '').strip()
+
+        if len(descripcion) < 5:
+            raise forms.ValidationError(
+                'La descripción debe tener al menos 5 caracteres.'
+            )
+
         return descripcion
+
+    def clean_codigo_atc(self):
+        codigo_atc = self.cleaned_data.get('codigo_atc')
+
+        if codigo_atc:
+            return codigo_atc.strip().upper()
+
+        return codigo_atc
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        es_antibiotico = cleaned_data.get('es_antibiotico')
+        codigo_atc = cleaned_data.get('codigo_atc')
+        via_administracion = cleaned_data.get('via_administracion')
+        categoria_aware = cleaned_data.get('categoria_aware')
+        gramos_por_pieza = cleaned_data.get('gramos_por_pieza')
+        valor_atc = cleaned_data.get('valor_atc')
+
+        if not es_antibiotico:
+            cleaned_data['via_administracion'] = None
+            cleaned_data['codigo_atc'] = None
+            cleaned_data['categoria_aware'] = None
+            cleaned_data['gramos_por_pieza'] = None
+            cleaned_data['valor_atc'] = None
+            return cleaned_data
+
+        if not via_administracion:
+            self.add_error(
+                'via_administracion',
+                'Selecciona la vía de administración.'
+            )
+
+        if not codigo_atc:
+            self.add_error(
+                'codigo_atc',
+                'El código ATC es obligatorio para antibióticos.'
+            )
+
+        if gramos_por_pieza is None:
+            self.add_error(
+                'gramos_por_pieza',
+                'Indica los gramos por pieza.'
+            )
+
+        if codigo_atc:
+            catalogo = CatalogoAntibioticosWHO.objects.filter(
+                codigo_atc=codigo_atc
+            ).first()
+
+            if catalogo:
+                if not categoria_aware:
+                    cleaned_data['categoria_aware'] = (
+                        catalogo.categoria_aware
+                    )
+
+            if valor_atc is None:
+                cleaned_data['valor_atc'] = catalogo.valor_atc
+
+        return cleaned_data
 
 
 class SalidaForm(forms.Form):
