@@ -594,64 +594,18 @@ class Entrada(models.Model):
         ('TRANSFERENCIA', 'Entrada por Transferencia'),
     ]
     
-    folio = models.CharField(
-        max_length=50,
-        verbose_name="Folio",
-        blank=True,  # Permite folio vacío para autogeneración
-        null=True,   # Necesario para MySQL con unique constraint
-        help_text="Dejar vacío para generación automática"
-    )
-    fecha = models.DateTimeField(
-        default=timezone.now,
-        verbose_name="Fecha de Entrada"
-    )
-    tipo_entrada = models.CharField(
-        max_length=20, 
-        choices=TIPO_ENTRADA,
-        verbose_name="Tipo de Entrada"
-    )
-    almacen = models.ForeignKey(
-        Almacen, 
-        on_delete=models.PROTECT, 
-        null=True, 
-        blank=True
-    )
-    institucion = models.ForeignKey(
-        Institucion, 
-        on_delete=models.PROTECT, 
-        null=True, 
-        blank=True
-    )
-    fuente_financiamiento = models.ForeignKey(
-        FuenteFinanciamiento,
-        on_delete=models.PROTECT,
-        verbose_name="Fuente de Financiamiento"
-    )
-    contrato = models.CharField(
-        max_length=50, 
-        verbose_name="Número de Contrato", 
-        blank=True, 
-        null=True
-    )
-    proceso = models.CharField(
-        max_length=100, 
-        verbose_name="Proceso"
-    )
-    recibido_por = models.ForeignKey(
-        UsuarioPersonalizado,
-        on_delete=models.PROTECT,
-        verbose_name="Recibido por"
-    )
-    observaciones = models.TextField(
-        blank=True, 
-        verbose_name="Observaciones"
-    )
-    creado_en = models.DateTimeField(
-        auto_now_add=True
-    )
-    actualizado_en = models.DateTimeField(
-        auto_now=True
-    )
+    folio = models.CharField(max_length=50,verbose_name="Folio", blank=True, null=True, help_text="Dejar vacío para generación automática")
+    fecha = models.DateTimeField(default=timezone.now, verbose_name="Fecha de Entrada")
+    tipo_entrada = models.CharField(max_length=20, choices=TIPO_ENTRADA, verbose_name="Tipo de Entrada")
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True)
+    institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, null=True, blank=True)
+    fuente_financiamiento = models.ForeignKey(FuenteFinanciamiento, on_delete=models.PROTECT, null=True, blank=True, verbose_name="Fuente de Financiamiento")
+    contrato = models.CharField(max_length=50, verbose_name="Número de Contrato", blank=True, null=True)
+    proceso = models.CharField(max_length=100, verbose_name="Proceso")
+    recibido_por = models.ForeignKey(UsuarioPersonalizado, on_delete=models.PROTECT, verbose_name="Recibido por")
+    observaciones = models.TextField(blank=True, verbose_name="Observaciones")
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
     
     class Meta:
         verbose_name = 'Entrada de Medicamentos'
@@ -837,17 +791,30 @@ def sumar_existencia(sender, instance, created, **kwargs):
     lote_codigo = instance.lote
     cantidad = instance.cantidad
 
-    # Ajustar cantidad si es caja
     if instance.presentacion and instance.presentacion.nombre.upper() == "CAJA":
         cantidad *= instance.presentacion.unidades_por_caja
+
+    entrada = instance.entrada
+    fuente_nombre = (
+        entrada.fuente_financiamiento.nombre
+        if entrada.fuente_financiamiento else None
+    )
 
     try:
         lote_obj = Lote.objects.get(
             lote_codigo=lote_codigo,
             medicamento=instance.medicamento
         )
+
         lote_obj.existencia += cantidad
-        lote_obj.costo_unitario = instance.precio_unitario  # <-- guardar costo
+        lote_obj.costo_unitario = instance.precio_unitario
+        lote_obj.fecha_caducidad = instance.caducidad
+        lote_obj.presentacion = instance.presentacion
+
+        lote_obj.origen = entrada.tipo_entrada
+        lote_obj.contrato = entrada.contrato
+        lote_obj.fuente_financiamiento = fuente_nombre
+
         lote_obj.save()
     except Lote.DoesNotExist:
         Lote.objects.create(
@@ -857,7 +824,10 @@ def sumar_existencia(sender, instance, created, **kwargs):
             fecha_caducidad=instance.caducidad,
             existencia=cantidad,
             presentacion=instance.presentacion,
-            costo_unitario=instance.precio_unitario,  # <-- guardar costo
+            costo_unitario=instance.precio_unitario,
+            origen=entrada.tipo_entrada,
+            contrato=entrada.contrato,
+            fuente_financiamiento=fuente_nombre
         )
 
 

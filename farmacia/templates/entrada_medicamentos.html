@@ -4,203 +4,370 @@
 {% block title %}Registro de Entradas{% endblock %}
 
 {% block extra_css %}
-<!-- Tu CSS personalizado -->
 <link rel="stylesheet" href="{% static 'farmacia/css/entrada_medicamentos.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="container entrada-container">
-    <h2 class="text-center mb-4">
-        <i class="fas fa-sign-in-alt me-2"></i>Registro de Entrada de Medicamentos
-    </h2>
+<div class="entrada-page">
+    <header class="entrada-page__header">
+        <h1>
+            <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+            Registro de entrada de medicamentos
+        </h1>
+        <p>Registra lotes nuevos y actualiza el inventario de farmacia.</p>
+    </header>
 
-    <!-- Formulario para agregar nuevos medicamentos -->
-    <div class="card mb-4 shadow">
-        <div class="card-header bg-primary text-white">
-            <h4><i class="fas fa-plus-circle"></i> Nueva Entrada</h4>
+    <section class="panel panel--entrada" aria-labelledby="titulo-nueva-entrada">
+        <div class="panel__header panel__header--primary">
+            <h2 id="titulo-nueva-entrada">
+                <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                Nueva entrada
+            </h2>
         </div>
-        <div class="card-body">
+
+        <div class="panel__body">
             <form id="entrada-form" method="post" autocomplete="off">
                 {% csrf_token %}
-                
-                <div class="row">
-                    <!-- Columna izquierda -->
-                    <div class="col-md-6">
-                        <!-- Búsqueda de medicamento -->
-                        <div class="form-group">
-                            <label for="buscar-medicamento">Buscar Medicamento</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="buscar-medicamento" 
-                                       placeholder="Clave o nombre del medicamento">
-                                <div class="input-group-append">
-                                    <button class="btn btn-outline-secondary" type="button" id="btn-buscar">
-                                        <i class="fas fa-search"></i>
-                                    </button>
+
+                <div class="entrada-layout">
+                    <div class="entrada-column entrada-column--medicamento">
+                        <div class="field-group buscador-group">
+                            <label for="buscar-medicamento">Buscar medicamento</label>
+
+                            <div class="search-control">
+                                <input
+                                    type="text"
+                                    id="buscar-medicamento"
+                                    placeholder="Clave o nombre del medicamento"
+                                    autocomplete="off"
+                                >
+                                <button
+                                    type="button"
+                                    id="btn-buscar"
+                                    class="icon-button"
+                                    aria-label="Buscar medicamento"
+                                    title="Buscar medicamento"
+                                >
+                                    <i class="fas fa-search" aria-hidden="true"></i>
+                                </button>
+
+                                <div
+                                    id="resultados-busqueda"
+                                    class="autocomplete-results"
+                                    role="listbox"
+                                    aria-label="Resultados de medicamentos"
+                                ></div>
+                            </div>
+
+                            <div class="field-help">
+                                Si el medicamento no existe en el sistema, regístralo primero.
+                            </div>
+
+                            <a
+                                href="{% url 'registro_medicamento' %}"
+                                class="button button--outline button--small"
+                            >
+                                <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                                Registrar medicamento nuevo
+                            </a>
+                        </div>
+
+                        <div id="contenedor-info-medicamento" class="medicine-info" hidden>
+                            <div class="medicine-info__header">
+                                <i class="fas fa-capsules" aria-hidden="true"></i>
+                                Información del medicamento seleccionado
+                            </div>
+
+                            <div class="medicine-info__body">
+                                <div class="medicine-info__grid medicine-info__grid--main">
+                                    <div class="info-item">
+                                        <strong>Clave:</strong>
+                                        <span id="info-clave">-</span>
+                                    </div>
+
+                                    <div class="info-item info-item--description">
+                                        <strong>Descripción:</strong>
+                                        <span id="info-descripcion">-</span>
+                                    </div>
+
+                                    <div class="info-item">
+                                        <strong>Presentación:</strong>
+                                        <span id="info-presentacion">-</span>
+                                    </div>
+
+                                    <div class="info-item">
+                                        <strong>¿Es antibiótico?:</strong>
+                                        <span id="info-es-antibiotico">No</span>
+                                    </div>
+                                </div>
+
+                                <div id="info-antibiotico-extra" class="medicine-info__extra" hidden>
+                                    <div class="medicine-info__separator"></div>
+
+                                    <div class="medicine-info__grid medicine-info__grid--antibiotic">
+                                        <div class="info-item">
+                                            <strong>Vía de administración:</strong>
+                                            <span id="info-via">-</span>
+                                        </div>
+
+                                        <div class="info-item">
+                                            <strong>Código ATC:</strong>
+                                            <span id="info-codigo-atc">-</span>
+                                        </div>
+
+                                        <div class="info-item">
+                                            <strong>Categoría AWaRe:</strong>
+                                            <span id="info-aware">-</span>
+                                        </div>
+
+                                        <div class="info-item">
+                                            <strong>Gramos por pieza:</strong>
+                                            <span id="info-gramos">-</span>
+                                        </div>
+
+                                        <div class="info-item">
+                                            <strong>Valor ATC:</strong>
+                                            <span id="info-valor-atc">-</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div id="resultados-busqueda" class="list-group resultados-busqueda"></div>
                         </div>
-                        
-                        <!-- Campos del medicamento -->
-                        <div class="form-group">
-                            <label for="clave_medicamento">Clave del Medicamento</label>
-                            <input type="text" class="form-control" id="clave_medicamento" name="clave_medicamento" readonly>
-                            <!-- Campo oculto para el ID real -->
-                            <input type="hidden" id="medicamento_id" name="medicamento_id">
+
+                        <div class="hidden-medicine-fields" aria-hidden="true">
+                            <input
+                                type="text"
+                                id="clave_medicamento"
+                                name="clave_medicamento"
+                                readonly
+                            >
+
+                            <input
+                                type="hidden"
+                                id="medicamento_id"
+                                name="medicamento_id"
+                            >
+
+                            <input
+                                type="text"
+                                id="nombre_medicamento"
+                                name="nombre_medicamento"
+                                readonly
+                            >
+
+                            <textarea
+                                id="descripcion"
+                                name="descripcion"
+                                readonly
+                            ></textarea>
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="nombre_medicamento">Nombre del Medicamento</label>
-                            <input type="text" class="form-control" id="nombre_medicamento" name="nombre_medicamento" readonly>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="descripcion">Descripción</label>
-                            <textarea class="form-control" id="descripcion" name="descripcion" rows="2" readonly></textarea>
-                        </div>
-                        
-                        <div class="form-group">
+
+                        <div class="field-group">
                             <label for="presentacion">Presentación</label>
-                            <select class="form-control" id="presentacion" name="presentacion" required>
+                            <select id="presentacion" name="presentacion" required>
                                 <option value="">Seleccione una presentación</option>
+
                                 {% for presentacion in presentaciones %}
-                                <option value="{{ presentacion.id }}" 
-                                        data-unidades="{{ presentacion.unidades_por_caja }}">
-                                    {{ presentacion.nombre }}
-                                </option>
+                                    <option
+                                        value="{{ presentacion.id }}"
+                                        data-unidades="{{ presentacion.unidadesporcaja }}"
+                                    >
+                                        {{ presentacion.nombre }}
+                                    </option>
                                 {% endfor %}
                             </select>
                         </div>
                     </div>
-                    
-                    <!-- Columna derecha -->
-                    <div class="col-md-6">
-                        <div class="form-group">
+
+                    <div class="entrada-column entrada-column--lote">
+                        <div class="field-group">
                             <label for="lote">Lote</label>
-                            <input type="text" class="form-control" id="lote" name="lote" required>
+                            <input
+                                type="text"
+                                id="lote"
+                                name="lote"
+                                required
+                            >
                         </div>
-                        
-                        <div class="form-group">
+
+                        <div class="field-group">
                             <label for="caducidad">Caducidad</label>
-                            <input type="date" class="form-control" id="caducidad" name="caducidad" required>
+                            <input
+                                type="date"
+                                id="caducidad"
+                                name="caducidad"
+                                required
+                            >
                         </div>
-                        
-                        <div class="form-group">
+
+                        <div class="field-group">
                             <label for="cantidad">Cantidad</label>
-                            <input type="number" class="form-control" id="cantidad" name="cantidad" min="1" required>
+                            <input
+                                type="number"
+                                id="cantidad"
+                                name="cantidad"
+                                min="1"
+                                required
+                            >
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="precio_unitario">Precio Unitario</label>
-                            <input type="number" step="0.01" class="form-control" id="precio_unitario" name="precio_unitario" required>
+
+                        <div class="field-group">
+                            <label for="precio_unitario">Precio unitario</label>
+                            <input
+                                type="number"
+                                id="precio_unitario"
+                                name="precio_unitario"
+                                min="0"
+                                step="0.01"
+                                required
+                            >
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="folio_entrada">Folio Institucional</label>
-                            <input type="text" class="form-control" id="folio_entrada" name="folio_entrada" value="{{ folio_entrada }}" placeholder="Dejar vacío para autogenerar">
-                            <small class="form-text text-muted">
-                                {% if not request.POST.folio_entrada %}
-                                    Folio generado automáticamente
-                                {% endif %}
-                            </small>
+
+                        <div class="field-group">
+                            <label for="folio_entrada">Folio institucional</label>
+                            <input
+                                type="text"
+                                id="folio_entrada"
+                                name="folio_entrada"
+                                value="{{ folio_entrada }}"
+                                placeholder="Dejar vacío para autogenerar"
+                            >
+
+                            {% if not request.POST.folio_entrada %}
+                                <span class="field-help">Folio generado automáticamente.</span>
+                            {% endif %}
                         </div>
-                        
-                        <div class="form-group">
+
+                        <div class="field-group">
                             <label for="fecha">Fecha</label>
-                            <input type="date" class="form-control" id="fecha" name="fecha" value="{{ hoy }}" readonly>
+                            <input
+                                type="date"
+                                id="fecha"
+                                name="fecha"
+                                value="{{ hoy }}"
+                                readonly
+                            >
                         </div>
                     </div>
                 </div>
-                
-                <!-- Información adicional -->
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="tipo_entrada">Tipo de Entrada</label>
-                            <select class="form-control" id="tipo_entrada" name="tipo_entrada" required>
+
+                <div class="section-divider"></div>
+
+                <div class="additional-data">
+                    <div class="additional-data__column">
+                        <div class="field-group">
+                            <label for="tipo_entrada">Tipo de entrada</label>
+                            <select id="tipo_entrada" name="tipo_entrada" required>
                                 <option value="">Seleccione tipo de entrada</option>
-                                <option value="ALMACEN">Entrada por Almacén</option>
-                                <option value="TRANSFERENCIA">Entrada por Transferencia</option>
+                                <option value="ALMACEN">Entrada por almacén</option>
+                                <option value="TRANSFERENCIA">Entrada por transferencia</option>
                             </select>
                         </div>
-                        
-                        <div class="form-group" id="grupo-almacen">
+
+                        <div class="field-group" id="grupo-almacen">
                             <label for="almacen">Almacén</label>
-                            <select class="form-control" id="almacen" name="almacen">
+                            <select id="almacen" name="almacen">
                                 <option value="">Seleccione un almacén</option>
+
                                 {% for almacen in almacenes %}
-                                <option value="{{ almacen.id }}">{{ almacen.nombre }}</option>
+                                    <option value="{{ almacen.id }}">
+                                        {{ almacen.nombre }}
+                                    </option>
                                 {% endfor %}
                             </select>
                         </div>
-                        
-                        <div class="form-group" id="grupo-institucion" style="display:none;">
+
+                        <div class="field-group" id="grupo-institucion" hidden>
                             <label for="institucion">Institución que envía</label>
-                            <select class="form-control" id="institucion" name="institucion">
+                            <select id="institucion" name="institucion">
                                 <option value="">Seleccione una institución</option>
+
                                 {% for institucion in instituciones %}
-                                <option value="{{ institucion.id }}">{{ institucion.nombre }}</option>
+                                    <option value="{{ institucion.id }}">
+                                        {{ institucion.nombre }}
+                                    </option>
                                 {% endfor %}
                             </select>
                         </div>
                     </div>
-                    
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="fuente_financiamiento">Fuente de Financiamiento</label>
-                            <select class="form-control" id="fuente_financiamiento" name="fuente_financiamiento" required>
+
+                    <div class="additional-data__column">
+                        <div class="field-group">
+                            <label for="fuente_financiamiento">Fuente de financiamiento</label>
+                            <select id="fuente_financiamiento" name="fuente_financiamiento">
                                 <option value="">Seleccione una fuente</option>
+
                                 {% for fuente in fuentes_financiamiento %}
-                                <option value="{{ fuente.id }}">{{ fuente.nombre }}</option>
+                                    <option value="{{ fuente.id }}">
+                                        {{ fuente.nombre }}
+                                    </option>
                                 {% endfor %}
                             </select>
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="contrato">Número de Contrato</label>
-                            <input type="text" class="form-control" id="contrato" name="contrato">
+
+                        <div class="field-group">
+                            <label for="contrato">Número de contrato</label>
+                            <input
+                                type="text"
+                                id="contrato"
+                                name="contrato"
+                            >
                         </div>
-                        
-                        <div class="form-group">
+
+                        <div class="field-group">
                             <label for="proceso">Proceso</label>
-                            <input type="text" class="form-control" id="proceso" name="proceso" required>
+                            <input
+                                type="text"
+                                id="proceso"
+                                name="proceso"
+                                required
+                            >
                         </div>
-                        
-                        <div class="form-group">
+
+                        <div class="field-group">
                             <label for="recibido_por">Recibido por</label>
-                            <input type="text" class="form-control" id="recibido_por" 
-                                   value="{{ request.user.get_full_name|default:request.user.username }}" readonly>
-                            <input type="hidden" name="recibido_por" value="{{ request.user.id }}">
+                            <input
+                                type="text"
+                                id="recibido_por"
+                                value="{{ request.user.get_full_name|default:request.user.username }}"
+                                readonly
+                            >
+
+                            <input
+                                type="hidden"
+                                name="recibido_por"
+                                value="{{ request.user.id }}"
+                            >
                         </div>
                     </div>
                 </div>
-                
-                <div class="text-right mt-3">
-                    <button type="button" class="btn btn-primary" id="btn-agregar">
-                        <i class="fas fa-plus"></i> Agregar Medicamento
+
+                <div class="form-actions">
+                    <button
+                        type="button"
+                        id="btn-agregar"
+                        class="button button--primary"
+                    >
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        Agregar medicamento
                     </button>
                 </div>
             </form>
         </div>
-    </div>
-    
-    <!-- Lista de medicamentos agregados -->
-    <div class="card shadow">
-        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-            <h4><i class="fas fa-list me-2"></i>Medicamentos por Ingresar</h4>
-            <div>
-                <button class="btn btn-light btn-sm me-2" id="btn-pdf">
-                    <i class="fas fa-file-pdf me-1"></i>PDF
-                </button>
-                <button class="btn btn-light btn-sm" id="btn-excel">
-                    <i class="fas fa-file-excel me-1"></i>Excel
-                </button>
-            </div>
+    </section>
+
+    <section class="panel panel--list" aria-labelledby="titulo-lista-entradas">
+        <div class="panel__header panel__header--success">
+            <h2 id="titulo-lista-entradas">
+                <i class="fas fa-list-ol" aria-hidden="true"></i>
+                Medicamentos por ingresar
+            </h2>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover" id="tabla-entradas">
-                    <thead class="thead-dark">
+
+        <div class="panel__body">
+            <div class="table-wrapper">
+                <table id="tabla-entradas">
+                    <thead>
                         <tr>
                             <th>Clave</th>
                             <th>Medicamento</th>
@@ -208,50 +375,82 @@
                             <th>Lote</th>
                             <th>Caducidad</th>
                             <th>Cantidad</th>
-                            <th>Precio Unitario</th>
+                            <th>Precio unitario</th>
                             <th>Total</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <!-- Aquí se agregarán dinámicamente las entradas -->
-                    </tbody>
+
+                    <tbody></tbody>
+
                     <tfoot>
-                        <tr class="table-info">
-                            <td colspan="7" class="text-right"><strong>Total General:</strong></td>
+                        <tr>
+                            <td colspan="7">Total general:</td>
                             <td id="total-general">$0.00</td>
                             <td></td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
-            
-            <div class="text-right mt-3">
-                <button type="button" class="btn btn-success" id="btn-guardar">
-                    <i class="fas fa-save"></i> Guardar Todas las Entradas
+
+            <div class="form-actions form-actions--save">
+                <button
+                    type="button"
+                    id="btn-guardar"
+                    class="button button--success"
+                >
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    Guardar todas las entradas
                 </button>
             </div>
         </div>
-    </div>
+    </section>
 </div>
 
-<!-- Modal de confirmación -->
-<div class="modal fade" id="confirmModal" aria-hidden="true" aria-labelledby="confirmModalLabel" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="confirmModalLabel">Confirmación</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                ¿Está seguro que desea guardar todas las entradas de medicamentos?
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="confirm-save" aria-label="Confirmar guardado">Confirmar</button>
-            </div>
+<div
+    class="custom-modal"
+    id="confirmModal"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="confirmModalTitle"
+>
+    <div class="custom-modal__backdrop" data-close-modal></div>
+
+    <div class="custom-modal__dialog">
+        <div class="custom-modal__header">
+            <h2 id="confirmModalTitle">Confirmación</h2>
+
+            <button
+                type="button"
+                class="icon-button icon-button--close"
+                data-close-modal
+                aria-label="Cerrar ventana"
+            >
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <div class="custom-modal__body">
+            <p>¿Está seguro que desea guardar todas las entradas de medicamentos?</p>
+        </div>
+
+        <div class="custom-modal__footer">
+            <button
+                type="button"
+                class="button button--secondary"
+                data-close-modal
+            >
+                Cancelar
+            </button>
+
+            <button
+                type="button"
+                class="button button--primary"
+                id="confirm-save"
+            >
+                Confirmar guardado
+            </button>
         </div>
     </div>
 </div>
@@ -259,8 +458,4 @@
 
 {% block extra_js %}
 <script src="{% static 'farmacia/js/entrada_medicamentos.js' %}"></script>
-<!-- jQuery (necesario para Bootstrap) -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

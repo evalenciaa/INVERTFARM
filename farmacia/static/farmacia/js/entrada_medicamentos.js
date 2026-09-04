@@ -1,457 +1,682 @@
-document.addEventListener('DOMContentLoaded', function() {
-    
-    // Función para mostrar notificaciones
-function mostrarNotificacion(tipo, mensaje) {
-    // Puedes implementar notificaciones bonitas con Toastr, SweetAlert, o similar
-    // Esta es una implementación básica con alert()
-    alert(`${tipo.toUpperCase()}: ${mensaje}`);
-    
-    // Opcional: Implementación con Bootstrap (si lo estás usando)
-    const notification = document.createElement('div');
-    notification.className = `alert alert-${tipo} fixed-top mx-auto mt-2`;
-    notification.style.maxWidth = '500px';
-    notification.style.zIndex = '2000';
-    notification.textContent = mensaje;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.remove();
-    }, 5000);
-}
-    
-    
-    // Variables globales
+document.addEventListener('DOMContentLoaded', function () {
     let entradas = [];
+    let medicamentoSeleccionado = null;
     const hoy = new Date().toISOString().split('T')[0];
-    
-    // Elementos del DOM
+
     const buscarMedicamento = document.getElementById('buscar-medicamento');
     const resultadosBusqueda = document.getElementById('resultados-busqueda');
     const btnBuscar = document.getElementById('btn-buscar');
     const btnAgregar = document.getElementById('btn-agregar');
     const btnGuardar = document.getElementById('btn-guardar');
-    const btnPdf = document.getElementById('btn-pdf');
-    const btnExcel = document.getElementById('btn-excel');
     const tipoEntrada = document.getElementById('tipo_entrada');
     const grupoInstitucion = document.getElementById('grupo-institucion');
     const grupoAlmacen = document.getElementById('grupo-almacen');
-    const tablaEntradas = document.getElementById('tabla-entradas').getElementsByTagName('tbody')[0];
+    const tablaEntradas = document.querySelector('#tabla-entradas tbody');
     const totalGeneral = document.getElementById('total-general');
-    
-    // Eventos
-    buscarMedicamento.addEventListener('input', buscarMedicamentos);
-    btnBuscar.addEventListener('click', buscarMedicamentos);
-    btnAgregar.addEventListener('click', agregarEntrada);
-    btnGuardar.addEventListener('click', mostrarConfirmacion);
-    document.getElementById('confirm-save').addEventListener('click', guardarEntradas);
-    btnPdf.addEventListener('click', generarReportePDF);
-    btnExcel.addEventListener('click', generarReporteExcel);
-    tipoEntrada.addEventListener('change', toggleTipoEntrada);
-    
-    // Inicialización
-    document.getElementById('fecha').value = hoy;
-    document.getElementById('caducidad').min = hoy;
-    
-    // Funciones
-    
+    const recibidoPorInput = document.querySelector('input[name="recibido_por"]');
+
+    const presentacionSelect = document.getElementById('presentacion');
+    const loteInput = document.getElementById('lote');
+    const caducidadInput = document.getElementById('caducidad');
+    const cantidadInput = document.getElementById('cantidad');
+    const precioUnitarioInput = document.getElementById('precio_unitario');
+    const fechaInput = document.getElementById('fecha');
+    const almacenSelect = document.getElementById('almacen');
+    const institucionSelect = document.getElementById('institucion');
+    const fuenteSelect = document.getElementById('fuente_financiamiento');
+    const grupoFuente = document.getElementById('grupo-fuente-financiamiento');
+    const contratoInput = document.getElementById('contrato');
+    const procesoInput = document.getElementById('proceso');
+    const folioEntradaInput = document.getElementById('folio_entrada');
+
+    const claveMedicamentoInput = document.getElementById('clave_medicamento');
+    const medicamentoIdInput = document.getElementById('medicamento_id');
+    const nombreMedicamentoInput = document.getElementById('nombre_medicamento');
+    const descripcionInput = document.getElementById('descripcion');
+
+    const contenedorInfoMedicamento = document.getElementById('contenedor-info-medicamento');
+    const infoClave = document.getElementById('info-clave');
+    const infoDescripcion = document.getElementById('info-descripcion');
+    const infoPresentacion = document.getElementById('info-presentacion');
+    const infoEsAntibiotico = document.getElementById('info-es-antibiotico');
+    const infoAntibioticoExtra = document.getElementById('info-antibiotico-extra');
+    const infoVia = document.getElementById('info-via');
+    const infoCodigoAtc = document.getElementById('info-codigo-atc');
+    const infoAware = document.getElementById('info-aware');
+    const infoGramos = document.getElementById('info-gramos');
+    const infoValorAtc = document.getElementById('info-valor-atc');
+
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmSaveBtn = document.getElementById('confirm-save');
+    const closeModalTriggers = document.querySelectorAll('[data-close-modal]');
+
+    let ultimoElementoEnfocado = null;
+
+    if (fechaInput) fechaInput.value = hoy;
+    if (caducidadInput) caducidadInput.min = hoy;
+
+    if (buscarMedicamento) buscarMedicamento.addEventListener('input', debounce(buscarMedicamentos, 250));
+    if (btnBuscar) btnBuscar.addEventListener('click', buscarMedicamentos);
+    if (btnAgregar) btnAgregar.addEventListener('click', agregarEntrada);
+    if (btnGuardar) btnGuardar.addEventListener('click', mostrarConfirmacion);
+    if (confirmSaveBtn) confirmSaveBtn.addEventListener('click', guardarEntradas);
+    if (tipoEntrada) tipoEntrada.addEventListener('change', toggleTipoEntrada);
+
+    if (tablaEntradas) {
+        tablaEntradas.addEventListener('click', function (e) {
+            const btnEliminar = e.target.closest('.btn-eliminar-entrada');
+            if (!btnEliminar) return;
+
+            const index = parseInt(btnEliminar.dataset.index, 10);
+            if (Number.isInteger(index)) {
+                eliminarEntrada(index);
+            }
+        });
+    }
+
+    closeModalTriggers.forEach(trigger => {
+        trigger.addEventListener('click', cerrarModalConfirmacion);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && confirmModal && !confirmModal.hidden) {
+            cerrarModalConfirmacion();
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (
+            resultadosBusqueda &&
+            !resultadosBusqueda.contains(e.target) &&
+            buscarMedicamento &&
+            !buscarMedicamento.contains(e.target) &&
+            btnBuscar &&
+            !btnBuscar.contains(e.target)
+        ) {
+            ocultarResultadosBusqueda();
+        }
+    });
+
+    toggleTipoEntrada();
+
+    function debounce(fn, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+    function mostrarNotificacion(tipo, mensaje) {
+        const notification = document.createElement('div');
+        notification.className = `notification notification--${mapearTipoNotificacion(tipo)}`;
+        notification.textContent = mensaje;
+        document.body.appendChild(notification);
+
+        window.setTimeout(() => {
+            notification.remove();
+        }, 3500);
+    }
+
+    function mapearTipoNotificacion(tipo) {
+        if (tipo === 'success') return 'success';
+        if (tipo === 'warning') return 'warning';
+        if (tipo === 'danger' || tipo === 'error') return 'danger';
+        return 'info';
+    }
+
     function buscarMedicamentos() {
         const query = buscarMedicamento.value.trim();
-        
+
         if (query.length < 2) {
-            resultadosBusqueda.style.display = 'none';
+            ocultarResultadosBusqueda();
             return;
         }
-        
+
         fetch(`/api/medicamentos/buscar/?q=${encodeURIComponent(query)}`)
-            .then(response => response.json())
-            .then(data => {
-                resultadosBusqueda.innerHTML = '';
-                
-                if (data.length === 0) {
-                    const item = document.createElement('div');
-                    item.className = 'list-group-item';
-                    item.textContent = 'No se encontraron medicamentos';
-                    resultadosBusqueda.appendChild(item);
-                } else {
-                    data.forEach(medicamento => {
-                        const item = document.createElement('div');
-                        item.className = 'list-group-item';
-                        item.innerHTML = `
-                            <strong>${medicamento.clave}</strong> - ${medicamento.descripcion}
-                            <small class="text-muted float-right">${medicamento.presentacion || 'UNIDAD'}</small>
-                        `;
-                        item.addEventListener('click', () => seleccionarMedicamento(medicamento));
-                        resultadosBusqueda.appendChild(item);
-                    });
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('No se pudo realizar la búsqueda.');
                 }
-                
-                resultadosBusqueda.style.display = 'block';
+                return response.json();
+            })
+            .then(data => {
+                renderizarResultadosBusqueda(Array.isArray(data) ? data : []);
             })
             .catch(error => {
                 console.error('Error al buscar medicamentos:', error);
-                resultadosBusqueda.style.display = 'none';
+                ocultarResultadosBusqueda();
+                mostrarNotificacion('danger', 'Error al buscar medicamentos.');
             });
     }
-    
-    function seleccionarMedicamento(medicamento) {
-        document.getElementById('clave_medicamento').value = medicamento.clave;
-        document.getElementById('medicamento_id').value = medicamento.id; // Guardar el ID real
-        document.getElementById('nombre_medicamento').value = medicamento.descripcion;
-        document.getElementById('descripcion').value = medicamento.descripcion;
-        buscarMedicamento.value = '';
-        resultadosBusqueda.style.display = 'none';
-        document.getElementById('presentacion').focus();
-    }
-    
-    function toggleTipoEntrada() {
-    if (tipoEntrada.value === 'TRANSFERENCIA') {
-        grupoInstitucion.style.display = 'block';
-        grupoAlmacen.style.display = 'none';
-        document.getElementById('institucion').required = true;
-        document.getElementById('almacen').required = false;
-        document.getElementById('almacen').value = '';
-    } else {
-        grupoInstitucion.style.display = 'none';
-        grupoAlmacen.style.display = 'block';
-        document.getElementById('institucion').required = false;
-        document.getElementById('almacen').required = true;
-        document.getElementById('institucion').value = '';
-    }
-    }
-    
-    function agregarEntrada() {
-        // Validar campos obligatorios
-        const lote = document.getElementById('lote').value;
-    
-    // Verificar duplicados
-        if (entradas.some(e => e.lote === lote)) {
-            mostrarNotificacion('warning', '¡Este lote ya fue agregado!');
+
+    function renderizarResultadosBusqueda(medicamentos) {
+        resultadosBusqueda.innerHTML = '';
+
+        if (!medicamentos.length) {
+            const item = document.createElement('div');
+            item.className = 'list-group-item';
+            item.textContent = 'No se encontraron medicamentos';
+            resultadosBusqueda.appendChild(item);
+            mostrarResultadosBusqueda();
             return;
         }
-        
-        const camposRequeridos = [
-            'clave_medicamento', 'presentacion', 'lote', 'caducidad', 
-            'cantidad', 'precio_unitario', 'tipo_entrada'
+
+        medicamentos.forEach(medicamento => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item';
+            item.innerHTML = `
+                <strong>${escapeHtml(medicamento.clave || '')}</strong> - ${escapeHtml(medicamento.descripcion || '')}
+                <small>${escapeHtml(medicamento.presentacion || 'UNIDAD')}</small>
+            `;
+            item.addEventListener('click', function () {
+                seleccionarMedicamento(medicamento);
+            });
+            resultadosBusqueda.appendChild(item);
+        });
+
+        mostrarResultadosBusqueda();
+    }
+
+    function seleccionarMedicamento(medicamento) {
+        medicamentoSeleccionado = medicamento;
+
+        claveMedicamentoInput.value = medicamento.clave || '';
+        medicamentoIdInput.value = medicamento.id || '';
+        nombreMedicamentoInput.value = medicamento.descripcion || '';
+        descripcionInput.value = medicamento.descripcion || '';
+
+        infoClave.textContent = medicamento.clave || '-';
+        infoDescripcion.textContent = medicamento.descripcion || '-';
+        infoPresentacion.textContent = medicamento.presentacion || obtenerTextoPresentacionActual() || '-';
+
+        const esAntibiotico = Boolean(
+            medicamento.es_antibiotico === true ||
+            medicamento.antibiotico === true ||
+            medicamento.tipo === 'ANTIBIOTICO' ||
+            medicamento.categoria === 'ANTIBIOTICO'
+        );
+
+        infoEsAntibiotico.textContent = esAntibiotico ? 'Sí' : 'No';
+
+        if (esAntibiotico) {
+            infoVia.textContent = medicamento.via_administracion || medicamento.via || '-';
+            infoCodigoAtc.textContent = medicamento.codigo_atc || '-';
+            infoAware.textContent = medicamento.categoria_aware || medicamento.aware || '-';
+            infoGramos.textContent = medicamento.gramos_por_pieza || medicamento.gramos || '-';
+            infoValorAtc.textContent = medicamento.valor_atc || '-';
+            infoAntibioticoExtra.hidden = false;
+        } else {
+            infoVia.textContent = '-';
+            infoCodigoAtc.textContent = '-';
+            infoAware.textContent = '-';
+            infoGramos.textContent = '-';
+            infoValorAtc.textContent = '-';
+            infoAntibioticoExtra.hidden = true;
+        }
+
+        contenedorInfoMedicamento.hidden = false;
+        buscarMedicamento.value = '';
+        ocultarResultadosBusqueda();
+        presentacionSelect.focus();
+    }
+
+
+    function toggleTipoEntrada() {
+        const esTransferencia = tipoEntrada.value === 'TRANSFERENCIA';
+
+        grupoInstitucion.hidden = !esTransferencia;
+        grupoAlmacen.hidden = esTransferencia;
+
+        institucionSelect.required = esTransferencia;
+        institucionSelect.disabled = !esTransferencia;
+
+        almacenSelect.required = !esTransferencia;
+        almacenSelect.disabled = esTransferencia;
+
+        fuenteSelect.required = !esTransferencia;
+
+        if (esTransferencia) {
+            almacenSelect.value = '';
+            fuenteSelect.value = '';
+        } else {
+            institucionSelect.value = '';
+        }
+    }
+
+    function agregarEntrada() {
+        limpiarValidaciones();
+
+        const lote = loteInput.value.trim().toUpperCase();
+        const cantidad = parseInt(cantidadInput.value, 10);
+        const precioUnitario = parseFloat(precioUnitarioInput.value);
+
+        if (!medicamentoIdInput.value) {
+            mostrarNotificacion('warning', 'Seleccione un medicamento antes de agregarlo.');
+            buscarMedicamento.focus();
+            return;
+        }
+
+        if (entradas.some(e => e.lote.toUpperCase() === lote)) {
+            mostrarNotificacion('warning', 'Este lote ya fue agregado a la lista.');
+            loteInput.focus();
+            return;
+        }
+
+        const camposBase = [
+            'clave_medicamento',
+            'presentacion',
+            'lote',
+            'caducidad',
+            'cantidad',
+            'precio_unitario',
+            'tipo_entrada',
+            'proceso'
         ];
-        
+
+        if (tipoEntrada.value === 'TRANSFERENCIA') {
+            camposBase.push('institucion');
+        } else if (tipoEntrada.value === 'ALMACEN') {
+            camposBase.push('almacen', 'fuente_financiamiento');
+        }
+
+        const esValido = validarCampos(camposBase);
+        if (!esValido) {
+            mostrarNotificacion('danger', 'Complete todos los campos obligatorios.');
+            return;
+        }
+
+        if (!Number.isInteger(cantidad) || cantidad <= 0) {
+            cantidadInput.classList.add('is-invalid');
+            mostrarNotificacion('warning', 'La cantidad debe ser mayor a cero.');
+            cantidadInput.focus();
+            return;
+        }
+
+        if (Number.isNaN(precioUnitario) || precioUnitario < 0) {
+            precioUnitarioInput.classList.add('is-invalid');
+            mostrarNotificacion('warning', 'Ingrese un precio unitario válido.');
+            precioUnitarioInput.focus();
+            return;
+        }
+
+        const entrada = {
+            medicamento_id: medicamentoIdInput.value,
+            clave: claveMedicamentoInput.value,
+            nombre: nombreMedicamentoInput.value,
+            descripcion: descripcionInput.value,
+            presentacion: presentacionSelect.options[presentacionSelect.selectedIndex]?.text || '',
+            presentacion_id: presentacionSelect.value,
+            lote: lote,
+            caducidad: caducidadInput.value,
+            cantidad: cantidad,
+            precio_unitario: precioUnitario,
+            tipo_entrada: tipoEntrada.value,
+            institucion: institucionSelect.value,
+            institucion_texto: institucionSelect.options[institucionSelect.selectedIndex]?.text || '',
+            almacen: almacenSelect.value,
+            almacen_texto: almacenSelect.options[almacenSelect.selectedIndex]?.text || '',
+            fuente_financiamiento: fuenteSelect.value,
+            fuente_financiamiento_texto: fuenteSelect.options[fuenteSelect.selectedIndex]?.text || '',
+            contrato: contratoInput.value.trim(),
+            proceso: procesoInput.value.trim(),
+            folio_entrada: folioEntradaInput ? folioEntradaInput.value.trim() : '',
+            es_antibiotico: medicamentoSeleccionado?.es_antibiotico || false,
+            via_administracion: medicamentoSeleccionado?.via_administracion || medicamentoSeleccionado?.via || '',
+            codigo_atc: medicamentoSeleccionado?.codigo_atc || '',
+            categoria_aware: medicamentoSeleccionado?.categoria_aware || medicamentoSeleccionado?.aware || '',
+            gramos_por_pieza: medicamentoSeleccionado?.gramos_por_pieza || medicamentoSeleccionado?.gramos || '',
+            valor_atc: medicamentoSeleccionado?.valor_atc || ''
+        };
+
+        entrada.total = entrada.cantidad * entrada.precio_unitario;
+
+        entradas.push(entrada);
+        actualizarTabla();
+        limpiarCamposCaptura();
+        mostrarNotificacion('success', 'Medicamento agregado a la lista.');
+    }
+
+    function validarCampos(ids) {
         let valido = true;
-        camposRequeridos.forEach(campo => {
-            const elemento = document.getElementById(campo);
-            if (!elemento.value) {
-                elemento.classList.add('is-invalid');
+
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            const valor = (el.value || '').trim();
+            if (!valor) {
+                el.classList.add('is-invalid');
                 valido = false;
-            } else {
-                elemento.classList.remove('is-invalid');
             }
         });
-        
-        if (!valido) {
-            alert('Por favor complete todos los campos requeridos');
-            return;
-        }
-        
-        // Crear objeto de entrada
-        const entrada = {
-            medicamento_id: document.getElementById('medicamento_id').value,
-            clave: document.getElementById('clave_medicamento').value,
-            nombre: document.getElementById('nombre_medicamento').value,
-            presentacion: document.getElementById('presentacion').options[document.getElementById('presentacion').selectedIndex].text,
-            presentacion_id: document.getElementById('presentacion').value,
-            lote: document.getElementById('lote').value,
-            caducidad: document.getElementById('caducidad').value,
-            cantidad: parseInt(document.getElementById('cantidad').value),
-            precio_unitario: parseFloat(document.getElementById('precio_unitario').value),
-            tipo_entrada: document.getElementById('tipo_entrada').value,
-            institucion: document.getElementById('institucion').value,
-            almacen: document.getElementById('almacen').value,
-            fuente_financiamiento: document.getElementById('fuente_financiamiento').value,
-            contrato: document.getElementById('contrato').value,
-            proceso: document.getElementById('proceso').value
-        };
-        
-        entrada.total = entrada.cantidad * entrada.precio_unitario;
-        
-        // Agregar a la lista
-        entradas.push(entrada);
-        
-        // Actualizar tabla
-        actualizarTabla();
-        
-        // Limpiar campos del medicamento
-        document.getElementById('presentacion').value = '';
-        document.getElementById('lote').value = '';
-        document.getElementById('caducidad').value = '';
-        document.getElementById('cantidad').value = '';
-        document.getElementById('precio_unitario').value = '';
-        
-        // Enfocar campo de lote
-        document.getElementById('lote').focus();
+
+        return valido;
     }
-    
+
+    function limpiarValidaciones() {
+        document.querySelectorAll('.is-invalid').forEach(el => {
+            el.classList.remove('is-invalid');
+        });
+    }
+
     function actualizarTabla() {
         tablaEntradas.innerHTML = '';
+
+        if (!entradas.length) {
+            totalGeneral.textContent = formatearMoneda(0);
+            return;
+        }
+
         let granTotal = 0;
-        
+
         entradas.forEach((entrada, index) => {
             granTotal += entrada.total;
-            
+
             const fila = document.createElement('tr');
             fila.innerHTML = `
-                <td>${entrada.clave}</td>
-                <td>${entrada.nombre}</td>
-                <td>${entrada.presentacion}</td>
-                <td>${entrada.lote}</td>
-                <td>${entrada.caducidad}</td>
+                <td>${escapeHtml(entrada.clave)}</td>
+                <td>${escapeHtml(entrada.nombre)}</td>
+                <td>${escapeHtml(entrada.presentacion)}</td>
+                <td>${escapeHtml(entrada.lote)}</td>
+                <td>${escapeHtml(formatearFecha(entrada.caducidad))}</td>
                 <td>${entrada.cantidad}</td>
-                <td>$${entrada.precio_unitario.toFixed(2)}</td>
-                <td>$${entrada.total.toFixed(2)}</td>
+                <td>${formatearMoneda(entrada.precio_unitario)}</td>
+                <td>${formatearMoneda(entrada.total)}</td>
                 <td>
-                    <button class="btn btn-danger btn-sm btn-action" onclick="eliminarEntrada(${index})">
+                    <button
+                        type="button"
+                        class="btn-action btn-eliminar-entrada"
+                        data-index="${index}"
+                        aria-label="Eliminar entrada"
+                        title="Eliminar entrada"
+                    >
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
             `;
-            
             tablaEntradas.appendChild(fila);
         });
-        
-        totalGeneral.textContent = `$${granTotal.toFixed(2)}`;
+
+        totalGeneral.textContent = formatearMoneda(granTotal);
     }
-    
+
     function eliminarEntrada(index) {
-        if (confirm('¿Está seguro que desea eliminar esta entrada?')) {
-            entradas.splice(index, 1);
-            actualizarTabla();
-        }
+        entradas.splice(index, 1);
+        actualizarTabla();
+        mostrarNotificacion('info', 'Entrada eliminada de la lista.');
     }
-    
+
+    function limpiarCamposCaptura() {
+        presentacionSelect.value = '';
+        loteInput.value = '';
+        caducidadInput.value = '';
+        cantidadInput.value = '';
+        precioUnitarioInput.value = '';
+        buscarMedicamento.value = '';
+
+        claveMedicamentoInput.value = '';
+        medicamentoIdInput.value = '';
+        nombreMedicamentoInput.value = '';
+        descripcionInput.value = '';
+
+        medicamentoSeleccionado = null;
+        contenedorInfoMedicamento.hidden = true;
+        infoAntibioticoExtra.hidden = true;
+
+        presentacionSelect.focus();
+    }
+
     function mostrarConfirmacion() {
-        if (entradas.length === 0) {
-            alert('No hay entradas para guardar');
+        if (!entradas.length) {
+            mostrarNotificacion('warning', 'No hay entradas para guardar.');
             return;
         }
-        
-        $('#confirmModal').modal('show');
-    }
 
+        ultimoElementoEnfocado = document.activeElement;
+        confirmModal.hidden = false;
+        document.body.style.overflow = 'hidden';
 
-function generarFolioAutomatico() {
-    const hoy = new Date();
-    const dateStr = hoy.toISOString().split('T')[0].replace(/-/g, '');
-    return `ENT-${dateStr}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-}
-
-function guardarEntradas() {
-    $('#confirmModal').modal('hide');
-    
-    // Verificar que tenemos medicamentos para guardar
-    if (entradas.length === 0) {
-        alert('Error: No hay medicamentos agregados para guardar');
-        return;
-    }
-
-    // Obtener todos los campos necesarios
-    const recibidoPorInput = document.querySelector('input[name="recibido_por"][type="hidden"]');
-    const folioInput = document.getElementById('folio_entrada');
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-
-    // Validar campos requeridos
-    if (!recibidoPorInput || !folioInput || !csrfToken) {
-        alert('Error: Faltan datos requeridos en el formulario');
-        return;
-    }
-
-    // Construir objeto de datos que coincida exactamente con views.py
-    const datos = {
-        folio: folioInput.value || generarFolioAutomatico(),
-        fecha: document.getElementById('fecha').value,
-        tipo_entrada: document.getElementById('tipo_entrada').value,
-        almacen: document.getElementById('almacen')?.value || null,
-        institucion: document.getElementById('institucion')?.value || null,
-        fuente_financiamiento: document.getElementById('fuente_financiamiento').value,
-        contrato: document.getElementById('contrato')?.value || '',
-        proceso: document.getElementById('proceso').value,
-        recibido_por: recibidoPorInput.value,
-        detalles: entradas.map(entrada => ({
-            medicamento_id: entrada.medicamento_id,  // Asegúrate que 'clave' sea el ID correcto del medicamento
-            lote: entrada.lote,
-            caducidad: entrada.caducidad,
-            cantidad: entrada.cantidad,
-            precio_unitario: entrada.precio_unitario,
-            presentacion_id: entrada.presentacion_id
-        }))
-    };
-
-    // Validación adicional
-    const requiredFields = {
-        'fuente_financiamiento': 'Fuente de financiamiento',
-        'proceso': 'Proceso',
-        'recibido_por': 'Usuario receptor'
-    };
-
-    for (const [field, name] of Object.entries(requiredFields)) {
-        if (!datos[field]) {
-            alert(`Error: El campo ${name} es requerido`);
-            return;
+        if (confirmSaveBtn) {
+            confirmSaveBtn.focus();
         }
     }
 
-    fetch('/api/entradas/guardar/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify(datos)
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errData => {
-                throw new Error(errData.error || `Error del servidor: ${response.status}`);
+    function cerrarModalConfirmacion() {
+        confirmModal.hidden = true;
+        document.body.style.overflow = '';
+
+        if (ultimoElementoEnfocado && typeof ultimoElementoEnfocado.focus === 'function') {
+            ultimoElementoEnfocado.focus();
+        }
+    }
+
+    async function guardarEntradas() {
+        if (!entradas.length) {
+            cerrarModalConfirmacion();
+            mostrarNotificacion('warning', 'No hay entradas para guardar.');
+            return;
+        }
+
+        confirmSaveBtn.disabled = true;
+        btnGuardar.disabled = true;
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+        const payload = {
+            folio: folioEntradaInput ? folioEntradaInput.value.trim() : '',
+            fecha: fechaInput.value,
+            tipo_entrada: tipoEntrada.value,
+            almacen: almacenSelect.value || null,
+            institucion: institucionSelect.value || null,
+            fuente_financiamiento: fuenteSelect.value,
+            contrato: contratoInput.value.trim(),
+            proceso: procesoInput.value.trim(),
+            recibido_por: recibidoPorInput ? recibidoPorInput.value : '',
+            observaciones: '',
+            detalles: entradas.map(item => ({
+                medicamento_id: item.medicamento_id,
+                presentacion_id: item.presentacion_id,
+                lote: item.lote,
+                caducidad: item.caducidad,
+                cantidad: item.cantidad,
+                precio_unitario: item.precio_unitario
+            }))
+        };
+
+        try {
+            const response = await fetch('/api/entradas/guardar/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
             });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            alert(`Éxito: Entrada ${data.folio} guardada correctamente`);
-            setTimeout(() => {
-                window.location.href = data.redirect_url || "{% url 'farmacia_g' %}";
-            }, 2000);
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'No se pudieron guardar las entradas.');
+            }
+
+            await descargarPdfEntrada(payload);
+
+            cerrarModalConfirmacion();
+            mostrarNotificacion('success', `Entrada ${data.folio || payload.folio} guardada correctamente.`);
+
             entradas = [];
             actualizarTabla();
-        } else {
-            throw new Error(data.error || 'Error desconocido al guardar');
+            resetFormularioCompleto();
+
+        } catch (error) {
+            console.error('Error al guardar entradas:', error);
+            mostrarNotificacion('danger', error.message || 'Ocurrió un error al guardar.');
+        } finally {
+            confirmSaveBtn.disabled = false;
+            btnGuardar.disabled = false;
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert(`Error al guardar: ${error.message}`);
-    });
-}
-    
-// Función compartida para preparar datos
-    function prepararDatosReporte() {
-        const almacenSelect = document.getElementById('almacen');
-        const institucionSelect = document.getElementById('institucion');
-        const fuenteSelect = document.getElementById('fuente_financiamiento');
-        
-        return {
-            titulo: 'REPORTE DE ENTRADA DE MEDICAMENTOS',
-            folio: document.getElementById('folio_entrada').value,
-            fecha: document.getElementById('fecha').value,
-            tipo_entrada: document.getElementById('tipo_entrada').value,
-            almacen: almacenSelect.value,
-            almacen_nombre: almacenSelect.options[almacenSelect.selectedIndex]?.text || '',
-            institucion: institucionSelect.value,
-            institucion_nombre: institucionSelect.options[institucionSelect.selectedIndex]?.text || '',
-            fuente_financiamiento: fuenteSelect.value,
-            fuente_financiamiento_nombre: fuenteSelect.options[fuenteSelect.selectedIndex]?.text || '',
-            proceso: document.getElementById('proceso').value,
-            items: entradas.map(entrada => ({
-                nombre: entrada.nombre,
-                lote: entrada.lote,
-                presentacion: entrada.presentacion,
-                cantidad: entrada.cantidad,
-                precio_unitario: entrada.precio_unitario,
-                total: entrada.total
-            })),
-            total: entradas.reduce((sum, entrada) => sum + entrada.total, 0)
-        };
     }
 
-    // Función para manejar la respuesta de descarga
-    function manejarDescarga(response, tipo) {
-        if (!response.ok) throw new Error(`Error al generar ${tipo.toUpperCase()}`);
-        return response.blob().then(blob => {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `ENTRADA_${document.getElementById('folio_entrada').value}.${tipo}`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            mostrarNotificacion('success', `Reporte ${tipo.toUpperCase()} generado correctamente`);
+    async function descargarPdfEntrada(payloadGuardado) {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+        const totalGeneralCalculado = entradas.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+
+        const payloadPdf = {
+            folio: payloadGuardado.folio,
+            fecha: payloadGuardado.fecha,
+            tipo_entrada: payloadGuardado.tipo_entrada,
+            almacen_nombre: payloadGuardado.tipo_entrada === 'ALMACEN'
+                ? (almacenSelect.options[almacenSelect.selectedIndex]?.text || 'N/A')
+                : (institucionSelect.options[institucionSelect.selectedIndex]?.text || 'N/A'),
+            fuente_financiamiento_nombre: fuenteSelect.options[fuenteSelect.selectedIndex]?.text || 'N/A',
+            proceso: payloadGuardado.proceso,
+            items: entradas.map(item => ({
+                nombre: item.nombre,
+                lote: item.lote,
+                presentacion: item.presentacion,
+                cantidad: item.cantidad,
+                precio_unitario: item.precio_unitario,
+                total: item.total
+            })),
+            total: totalGeneralCalculado
+        };
+
+        const response = await fetch('/api/generar-reporte-pdf/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(payloadPdf)
         });
+
+        if (!response.ok) {
+            let mensaje = 'No se pudo generar el PDF.';
+            try {
+                const errorData = await response.json();
+                mensaje = errorData.error || mensaje;
+            } catch (_) {}
+            throw new Error(mensaje);
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ENTRADA_${payloadGuardado.folio || 'REPORTE'}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
     }
 
-    // Función para manejar errores
-    function manejarErrorReporte(error) {
-        console.error('Error:', error);
-        mostrarNotificacion('danger', `Error al generar reporte: ${error.message}`);
-    }
-
-    // Generar PDF
     function generarReportePDF() {
-        if (entradas.length === 0) {
-            mostrarNotificacion('warning', 'No hay entradas para generar el reporte');
+        if (!entradas.length) {
+            mostrarNotificacion('warning', 'No hay datos para generar el PDF.');
             return;
         }
 
-        const datosReporte = prepararDatosReporte();
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/farmacia/entradas/reporte/pdf/';
+        form.target = '_blank';
 
-        fetch('/api/generar-reporte-pdf/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            },
-            body: JSON.stringify(datosReporte)
-        })
-        .then(response => manejarDescarga(response, 'pdf'))
-        .catch(manejarErrorReporte);
+        agregarCampoOculto(form, 'csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]')?.value || '');
+        agregarCampoOculto(form, 'entradas', JSON.stringify(entradas));
+        agregarCampoOculto(form, 'fecha', fechaInput.value);
+        agregarCampoOculto(form, 'tipo_entrada', tipoEntrada.value);
+        agregarCampoOculto(form, 'almacen', almacenSelect.value);
+        agregarCampoOculto(form, 'institucion', institucionSelect.value);
+        agregarCampoOculto(form, 'fuente_financiamiento', fuenteSelect.value);
+        agregarCampoOculto(form, 'contrato', contratoInput.value.trim());
+        agregarCampoOculto(form, 'proceso', procesoInput.value.trim());
+        agregarCampoOculto(form, 'folio_entrada', folioEntradaInput ? folioEntradaInput.value.trim() : '');
+
+        document.body.appendChild(form);
+        form.submit();
+        form.remove();
     }
 
-    // Función para generar reporte Excel
-    function generarReporteExcel() {
-        if (entradas.length === 0) {
-            mostrarNotificacion('warning', 'No hay entradas para generar el reporte');
-            return;
+    function agregarCampoOculto(form, nombre, valor) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = nombre;
+        input.value = valor;
+        form.appendChild(input);
+    }
+
+    function resetFormularioCompleto() {
+        buscarMedicamento.value = '';
+        presentacionSelect.value = '';
+        loteInput.value = '';
+        caducidadInput.value = '';
+        cantidadInput.value = '';
+        precioUnitarioInput.value = '';
+        tipoEntrada.value = '';
+        almacenSelect.value = '';
+        institucionSelect.value = '';
+        fuenteSelect.value = '';
+        contratoInput.value = '';
+        procesoInput.value = '';
+
+        if (folioEntradaInput) {
+            folioEntradaInput.value = '';
         }
 
-        const datosReporte = prepararDatosReporte();
+        claveMedicamentoInput.value = '';
+        medicamentoIdInput.value = '';
+        nombreMedicamentoInput.value = '';
+        descripcionInput.value = '';
 
-        fetch('/api/generar-reporte-excel/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            },
-            body: JSON.stringify(datosReporte)
-        })
-        .then(response => manejarDescarga(response, 'xlsx'))
-        .catch(manejarErrorReporte);
+        medicamentoSeleccionado = null;
+        contenedorInfoMedicamento.hidden = true;
+        infoAntibioticoExtra.hidden = true;
+        ocultarResultadosBusqueda();
+        limpiarValidaciones();
+        toggleTipoEntrada();
+
+        if (fechaInput) fechaInput.value = hoy;
+        if (caducidadInput) caducidadInput.min = hoy;
+
+        buscarMedicamento.focus();
     }
 
-
-    // Generar Excel (similar estructura pero con diferente endpoint)
-    function prepararDatosReporte() {
-        // Obtener elementos select
-        const almacenSelect = document.getElementById('almacen');
-        const fuenteSelect = document.getElementById('fuente_financiamiento');
-        
-        return {
-            titulo: 'REPORTE DE ENTRADA DE MEDICAMENTOS',
-            folio: document.getElementById('folio_entrada').value,
-            fecha: document.getElementById('fecha').value,
-            tipo_entrada: document.getElementById('tipo_entrada').value,
-            almacen: almacenSelect.value,
-            almacen_nombre: almacenSelect.options[almacenSelect.selectedIndex]?.text || '',
-            fuente_financiamiento: fuenteSelect.value,
-            fuente_financiamiento_nombre: fuenteSelect.options[fuenteSelect.selectedIndex]?.text || '',
-            proceso: document.getElementById('proceso').value,
-            items: entradas.map(entrada => ({
-                nombre: entrada.nombre,
-                lote: entrada.lote,
-                presentacion: entrada.presentacion,
-                cantidad: entrada.cantidad,
-                precio_unitario: entrada.precio_unitario,
-                total: entrada.total
-            })),
-            total: entradas.reduce((sum, entrada) => sum + entrada.total, 0)
-        };
+    function mostrarResultadosBusqueda() {
+        resultadosBusqueda.style.display = 'block';
+        resultadosBusqueda.classList.add('is-visible');
     }
-    
-    // Hacer funciones disponibles globalmente
-    window.eliminarEntrada = eliminarEntrada;
+
+    function ocultarResultadosBusqueda() {
+        resultadosBusqueda.style.display = 'none';
+        resultadosBusqueda.classList.remove('is-visible');
+    }
+
+    function obtenerTextoPresentacionActual() {
+        return presentacionSelect.options[presentacionSelect.selectedIndex]?.text || '';
+    }
+
+    function formatearMoneda(valor) {
+        return new Intl.NumberFormat('es-MX', {
+            style: 'currency',
+            currency: 'MXN'
+        }).format(Number(valor) || 0);
+    }
+
+    function formatearFecha(fecha) {
+        if (!fecha) return '';
+        const partes = fecha.split('-');
+        if (partes.length !== 3) return fecha;
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    function escapeHtml(texto) {
+        return String(texto ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
 });

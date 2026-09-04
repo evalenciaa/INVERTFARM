@@ -91,14 +91,29 @@ def buscar_medicamentos(request):
     query = request.GET.get('q', '').strip()
     if not query or len(query) < 2:
         return JsonResponse([], safe=False)
-    medicamentos = Medicamento.objects.filter(
-        Q(clave__icontains=query) | Q(descripcion__icontains=query),
-        activo=True
-    ).select_related('presentacion')[:10]
+
+    medicamentos = (
+        Medicamento.objects
+        .filter(
+            Q(clave__icontains=query) | Q(descripcion__icontains=query),
+            activo=True
+        )
+        .select_related('presentacion')[:10]
+    )
+
     resultados = [{
-        'id': m.id, 'clave': m.clave, 'descripcion': m.descripcion,
-        'presentacion': m.presentacion.nombre if m.presentacion else 'UNIDAD'
+        'id': m.id,
+        'clave': m.clave,
+        'descripcion': m.descripcion,
+        'presentacion': m.presentacion.nombre if m.presentacion else 'UNIDAD',
+        'es_antibiotico': m.es_antibiotico,
+        'via_administracion': m.via_administracion,
+        'codigo_atc': m.codigo_atc,
+        'categoria_aware': m.categoria_aware,
+        'gramos_por_pieza': float(m.gramos_por_pieza) if m.gramos_por_pieza is not None else None,
+        'valor_atc': float(m.valor_atc) if m.valor_atc is not None else None,
     } for m in medicamentos]
+
     return JsonResponse(resultados, safe=False)
 
 
@@ -106,10 +121,11 @@ def buscar_medicamentos(request):
 def guardar_entradas(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+
     try:
         data = json.loads(request.body)
-        required_fields = ['folio', 'fecha', 'tipo_entrada', 'recibido_por',
-                           'detalles', 'fuente_financiamiento', 'proceso']
+
+        required_fields = ['folio', 'fecha', 'tipo_entrada', 'recibido_por', 'detalles', 'proceso']
         for field in required_fields:
             if field not in data or data[field] in (None, '', []):
                 return JsonResponse({'error': f'Campo {field} es requerido'}, status=400)
@@ -120,47 +136,77 @@ def guardar_entradas(request):
         tipo = data['tipo_entrada']
         almacen_id = data.get('almacen')
         institucion_id = data.get('institucion')
+        fuente_financiamiento_id = data.get('fuente_financiamiento') or None
 
         if tipo == 'ALMACEN':
             if not almacen_id:
                 return JsonResponse({'error': 'Seleccione un almacén'}, status=400)
+            if not fuente_financiamiento_id:
+                return JsonResponse({'error': 'Seleccione una fuente de financiamiento'}, status=400)
             institucion_id = None
+
         elif tipo == 'TRANSFERENCIA':
             if not institucion_id:
                 return JsonResponse({'error': 'Seleccione una institución'}, status=400)
             almacen_id = None
+            fuente_financiamiento_id = None
+
         else:
             return JsonResponse({'error': 'Tipo de entrada inválido'}, status=400)
 
         with transaction.atomic():
             entrada = Entrada.objects.create(
-                folio=data['folio'], fecha=data['fecha'], tipo_entrada=tipo,
-                almacen_id=almacen_id, institucion_id=institucion_id,
-                fuente_financiamiento_id=data['fuente_financiamiento'],
-                contrato=data.get('contrato', ''), proceso=data['proceso'],
+                folio=data['folio'],
+                fecha=data['fecha'],
+                tipo_entrada=tipo,
+                almacen_id=almacen_id,
+                institucion_id=institucion_id,
+                fuente_financiamiento_id=fuente_financiamiento_id,
+                contrato=data.get('contrato', ''),
+                proceso=data['proceso'],
                 recibido_por_id=data['recibido_por'],
                 observaciones=data.get('observaciones', '')
             )
+
             detalle_fields = {f.name for f in DetalleEntrada._meta.fields}
+
             for det in data['detalles']:
-                detalle_required = ['medicamento_id', 'lote', 'caducidad', 'cantidad', 'precio_unitario', 'presentacion_id']
+                detalle_required = [
+                    'medicamento_id',
+                    'lote',
+                    'caducidad',
+                    'cantidad',
+                    'precio_unitario',
+                    'presentacion_id'
+                ]
+
                 for f in detalle_required:
                     if f not in det or det[f] in (None, ''):
                         return JsonResponse({'error': f'Campo {f} es requerido en los detalles'}, status=400)
+
                 kwargs_det = dict(
-                    entrada=entrada, medicamento_id=det['medicamento_id'],
-                    lote=det['lote'], caducidad=det['caducidad'],
-                    cantidad=det['cantidad'], presentacion_id=det['presentacion_id'],
+                    entrada=entrada,
+                    medicamento_id=det['medicamento_id'],
+                    lote=det['lote'],
+                    caducidad=det['caducidad'],
+                    cantidad=det['cantidad'],
+                    presentacion_id=det['presentacion_id'],
                 )
+
                 if 'precio_unitario' in detalle_fields:
                     kwargs_det['precio_unitario'] = det['precio_unitario']
                 elif 'preciounitario' in detalle_fields:
                     kwargs_det['preciounitario'] = det['precio_unitario']
                 else:
                     return JsonResponse({'error': 'El modelo DetalleEntrada no tiene campo de precio unitario'}, status=500)
+
                 DetalleEntrada.objects.create(**kwargs_det)
 
-            return JsonResponse({'success': True, 'folio': entrada.folio, 'redirect_url': reverse('farmacia_g')})
+            return JsonResponse({
+                'success': True,
+                'folio': entrada.folio,
+                'redirect_url': reverse('farmacia_g')
+            })
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Datos JSON inválidos'}, status=400)
