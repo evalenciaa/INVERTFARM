@@ -1,7 +1,7 @@
 import pandas as pd
 from datetime import datetime, date
 from django.db import transaction
-from .models import Medicamento, Lote, Presentacion
+from .models import Medicamento, Lote, Presentacion, CatalogoAntibioticosWHO
 import uuid
 from collections import defaultdict
 
@@ -11,6 +11,14 @@ class ProcesadorCargaMasiva:
     COLUMNAS_REQUERIDAS = [
         'clave', 'descripcion', 'lote', 'cantidad', 'precio',
         'caducidad', 'origen', 'contrato', 'fuente_financiamiento'
+    ]
+    
+    COLUMNAS_ANTIBIOTICO_OPCIONALES = [
+        'via_administracion',
+        'codigo_atc',
+        'categoria_aware',
+        'gramos_por_pieza',
+        'valor_atc',
     ]
     
     def __init__(self, archivo):
@@ -116,7 +124,6 @@ class ProcesadorCargaMasiva:
     def _validar_fila(self, index, row):
         """Valida una fila y retorna datos preparados o None si hay error"""
         try:
-            # ===== VALIDACIÓN ESTRICTA DE CLAVE =====
             if pd.isna(row['clave']):
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -124,12 +131,9 @@ class ProcesadorCargaMasiva:
                     'error': 'La clave no puede estar vacía'
                 })
                 return None
-            
-            # Limpiar clave preservando formato EXACTO
+
             clave = str(row['clave']).strip().upper()
-            
-            # Validar formato de clave (ejemplo: ###.###.####.##)
-            # Ajusta esta validación según tu estándar
+
             if len(clave) < 5:
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -137,8 +141,7 @@ class ProcesadorCargaMasiva:
                     'error': 'Formato de clave inválido (muy corta)'
                 })
                 return None
-            
-            # ===== VALIDACIÓN DE LOTE =====
+
             if pd.isna(row['lote']):
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -146,10 +149,9 @@ class ProcesadorCargaMasiva:
                     'error': 'El lote no puede estar vacío'
                 })
                 return None
-            
+
             lote_codigo = str(row['lote']).strip().upper()
-            
-            # ===== VALIDACIÓN DE DESCRIPCIÓN (con caracteres especiales) =====
+
             descripcion = str(row['descripcion']).strip()
             if pd.isna(row['descripcion']) or descripcion == 'nan' or not descripcion:
                 self.resultados['errores'].append({
@@ -158,8 +160,7 @@ class ProcesadorCargaMasiva:
                     'error': 'La descripción no puede estar vacía'
                 })
                 return None
-            
-            # Validar que descripción tenga contenido real (no solo espacios)
+
             if len(descripcion) < 5:
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -167,8 +168,7 @@ class ProcesadorCargaMasiva:
                     'error': 'La descripción es demasiado corta'
                 })
                 return None
-            
-            # ===== VALIDACIÓN DE CANTIDAD =====
+
             if not self._validar_cantidad(row['cantidad']):
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -176,10 +176,9 @@ class ProcesadorCargaMasiva:
                     'error': 'Cantidad inválida (debe ser entero positivo)'
                 })
                 return None
-            
+
             cantidad = int(row['cantidad'])
-            
-            # ===== VALIDACIÓN DE PRECIO (permite vacíos) =====
+
             if not self._validar_precio(row['precio']):
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -188,21 +187,18 @@ class ProcesadorCargaMasiva:
                 })
                 return None
 
-            # ⭐ NUEVO: Manejar precios vacíos
             if pd.isna(row['precio']) or row['precio'] == '' or row['precio'] is None:
                 precio = 0.0
-                # Generar advertencia
                 self.resultados['advertencias'].append({
                     'tipo': 'precio_vacio',
                     'fila': index + 2,
                     'clave': clave,
-                    'lote': str(row['lote']).strip().upper(),
+                    'lote': lote_codigo,
                     'mensaje': 'Precio vacío, se asignó $0.00'
                 })
             else:
                 precio = float(row['precio'])
-            
-            # ===== VALIDACIÓN DE FECHA =====
+
             fecha_caducidad = self._parsear_fecha(row['caducidad'])
             if not fecha_caducidad:
                 self.resultados['errores'].append({
@@ -211,8 +207,7 @@ class ProcesadorCargaMasiva:
                     'error': 'Fecha inválida. Formatos: DD/MM/YYYY o YYYY-MM-DD'
                 })
                 return None
-            
-            # Validar fecha futura (con margen de 30 días por si es reposición urgente)
+
             if fecha_caducidad <= date.today():
                 self.resultados['errores'].append({
                     'fila': index + 2,
@@ -220,8 +215,7 @@ class ProcesadorCargaMasiva:
                     'error': f'Fecha de caducidad ya pasó: {fecha_caducidad}'
                 })
                 return None
-            
-            # Advertencia si caduca en menos de 6 meses
+
             dias_hasta_caducidad = (fecha_caducidad - date.today()).days
             if dias_hasta_caducidad < 180:
                 self.resultados['advertencias'].append({
@@ -232,10 +226,76 @@ class ProcesadorCargaMasiva:
                     'dias': dias_hasta_caducidad,
                     'mensaje': f'Este lote caduca en {dias_hasta_caducidad} días'
                 })
-            
-            # Retornar datos validados
+
+            via_administracion = self._normalizar_texto_opcional(row.get('via_administracion'))
+            codigo_atc = self._normalizar_texto_opcional(row.get('codigo_atc'), upper=True)
+            categoria_aware = self._normalizar_texto_opcional(row.get('categoria_aware'))
+            gramos_por_pieza = self._normalizar_decimal_opcional(row.get('gramos_por_pieza'))
+            valor_atc = self._normalizar_decimal_opcional(row.get('valor_atc'))
+
+            if via_administracion:
+                via_administracion = via_administracion.upper()
+                vias_validas = {'ORAL', 'INTRAMUSCULAR', 'INTRAVENOSA'}
+                if via_administracion not in vias_validas:
+                    self.resultados['errores'].append({
+                        'fila': index + 2,
+                        'clave': clave,
+                        'error': f'Vía de administración inválida: {via_administracion}'
+                    })
+                    return None
+
+            if categoria_aware:
+                aware_map = {
+                    'access': 'Access',
+                    'watch': 'Watch',
+                    'reserve': 'Reserve',
+                }
+                categoria_normalizada = aware_map.get(categoria_aware.strip().lower())
+                if not categoria_normalizada:
+                    self.resultados['errores'].append({
+                        'fila': index + 2,
+                        'clave': clave,
+                        'error': f'Categoría AWaRe inválida: {categoria_aware}'
+                    })
+                    return None
+                categoria_aware = categoria_normalizada
+
+            if gramos_por_pieza is not None and gramos_por_pieza < 0:
+                self.resultados['errores'].append({
+                    'fila': index + 2,
+                    'clave': clave,
+                    'error': 'Gramos por pieza inválido (debe ser número positivo)'
+                })
+                return None
+
+            if valor_atc is not None and valor_atc < 0:
+                self.resultados['errores'].append({
+                    'fila': index + 2,
+                    'clave': clave,
+                    'error': 'Valor ATC inválido (debe ser número positivo)'
+                })
+                return None
+
+            es_antibiotico = bool(codigo_atc)
+
+            if codigo_atc:
+                registro_who = CatalogoAntibioticosWHO.objects.filter(codigo_atc=codigo_atc).first()
+                if registro_who:
+                    if not categoria_aware and registro_who.categoria_aware:
+                        categoria_aware = registro_who.categoria_aware
+                    if valor_atc is None and registro_who.valor_atc is not None:
+                        valor_atc = float(registro_who.valor_atc)
+                else:
+                    self.resultados['advertencias'].append({
+                        'tipo': 'codigo_atc_sin_catalogo',
+                        'fila': index + 2,
+                        'clave': clave,
+                        'codigo_atc': codigo_atc,
+                        'mensaje': 'El código ATC no existe en CatalogoAntibioticosWHO; se usarán solo los datos del archivo.'
+                    })
+
             return {
-                'fila': index + 2,  # Para referencia
+                'fila': index + 2,
                 'clave': clave,
                 'descripcion': descripcion,
                 'lote_codigo': lote_codigo,
@@ -244,9 +304,15 @@ class ProcesadorCargaMasiva:
                 'fecha_caducidad': fecha_caducidad,
                 'origen': str(row.get('origen', '')).strip(),
                 'contrato': str(row.get('contrato', '')).strip(),
-                'fuente': str(row.get('fuente_financiamiento', '')).strip()
+                'fuente': str(row.get('fuente_financiamiento', '')).strip(),
+                'es_antibiotico': es_antibiotico,
+                'via_administracion': via_administracion,
+                'codigo_atc': codigo_atc,
+                'categoria_aware': categoria_aware,
+                'gramos_por_pieza': gramos_por_pieza,
+                'valor_atc': valor_atc,
             }
-            
+
         except Exception as e:
             self.resultados['errores'].append({
                 'fila': index + 2,
@@ -257,12 +323,19 @@ class ProcesadorCargaMasiva:
     
     def _procesar_medicamentos_bulk(self, datos_validados):
         medicamentos_unicos = {}
+
         for dato in datos_validados:
             clave = dato['clave']
             if clave not in medicamentos_unicos:
                 medicamentos_unicos[clave] = {
                     'descripcion': dato['descripcion'],
-                    'precio': dato['precio']
+                    'precio': dato['precio'],
+                    'es_antibiotico': dato['es_antibiotico'],
+                    'via_administracion': dato['via_administracion'],
+                    'codigo_atc': dato['codigo_atc'],
+                    'categoria_aware': dato['categoria_aware'],
+                    'gramos_por_pieza': dato['gramos_por_pieza'],
+                    'valor_atc': dato['valor_atc'],
                 }
 
         existentes = Medicamento.objects.filter(clave__in=medicamentos_unicos.keys())
@@ -284,28 +357,76 @@ class ProcesadorCargaMasiva:
                     med.costo = datos['precio']
                     actualizado = True
 
+                if datos['codigo_atc']:
+                    if not med.es_antibiotico:
+                        med.es_antibiotico = True
+                        actualizado = True
+
+                    if med.codigo_atc != datos['codigo_atc']:
+                        med.codigo_atc = datos['codigo_atc']
+                        actualizado = True
+
+                    if datos['via_administracion'] and med.via_administracion != datos['via_administracion']:
+                        med.via_administracion = datos['via_administracion']
+                        actualizado = True
+
+                    if datos['categoria_aware'] and med.categoria_aware != datos['categoria_aware']:
+                        med.categoria_aware = datos['categoria_aware']
+                        actualizado = True
+
+                    if datos['gramos_por_pieza'] is not None:
+                        gramos_actual = float(med.gramos_por_pieza) if med.gramos_por_pieza is not None else None
+                        if gramos_actual != datos['gramos_por_pieza']:
+                            med.gramos_por_pieza = datos['gramos_por_pieza']
+                            actualizado = True
+
+                    if datos['valor_atc'] is not None:
+                        valor_actual = float(med.valor_atc) if med.valor_atc is not None else None
+                        if valor_actual != datos['valor_atc']:
+                            med.valor_atc = datos['valor_atc']
+                            actualizado = True
+
                 if actualizado:
                     medicamentos_a_actualizar.append(med)
 
                 self.medicamentos_cache[clave] = med
+
             else:
                 medicamentos_a_crear.append(Medicamento(
                     clave=clave,
                     descripcion=datos["descripcion"],
                     costo=datos["precio"],
-                    activo=True
+                    activo=True,
+                    es_antibiotico=datos['es_antibiotico'],
+                    via_administracion=datos['via_administracion'],
+                    codigo_atc=datos['codigo_atc'],
+                    categoria_aware=datos['categoria_aware'],
+                    gramos_por_pieza=datos['gramos_por_pieza'],
+                    valor_atc=datos['valor_atc'],
                 ))
 
         if medicamentos_a_crear:
             Medicamento.objects.bulk_create(medicamentos_a_crear, batch_size=100)
 
-            # Recargar para asegurar IDs y objetos reales en cache
-            nuevas_claves = [m.clave for m in medicamentos_a_crear]
-            for med in Medicamento.objects.filter(clave__in=nuevas_claves):
-                self.medicamentos_cache[med.clave] = med
+        nuevas_claves = [m.clave for m in medicamentos_a_crear]
+        for med in Medicamento.objects.filter(clave__in=nuevas_claves):
+            self.medicamentos_cache[med.clave] = med
 
         if medicamentos_a_actualizar:
-            Medicamento.objects.bulk_update(medicamentos_a_actualizar, ['descripcion', 'costo'], batch_size=100)
+            Medicamento.objects.bulk_update(
+                medicamentos_a_actualizar,
+                [
+                    'descripcion',
+                    'costo',
+                    'es_antibiotico',
+                    'via_administracion',
+                    'codigo_atc',
+                    'categoria_aware',
+                    'gramos_por_pieza',
+                    'valor_atc',
+                ],
+                batch_size=100
+            )
     
     def _procesar_lotes_bulk(self, datos_validados):
         """
@@ -517,6 +638,26 @@ class ProcesadorCargaMasiva:
             return precio_float >= 0  # Permite 0 y positivos
         except (ValueError, TypeError):
             return False
+        
+    def _normalizar_texto_opcional(self, valor, upper=False):
+        if pd.isna(valor) or valor is None:
+            return None
+
+        texto = str(valor).strip()
+        if not texto or texto.lower() == 'nan':
+            return None
+
+        return texto.upper() if upper else texto
+
+
+    def _normalizar_decimal_opcional(self, valor):
+        if pd.isna(valor) or valor in (None, ''):
+            return None
+
+        try:
+            return float(valor)
+        except (ValueError, TypeError):
+            return None
 
     
     def _validar_columnas(self, df):

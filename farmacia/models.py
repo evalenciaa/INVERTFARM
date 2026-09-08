@@ -763,7 +763,7 @@ class CatalogoAntibioticosWHO(models.Model):
         null=True
     )
 
-    fuente_ddd = models.CharField(
+    fuente_valor_atc = models.CharField(
         max_length=30,
         blank=True,
         null=True,

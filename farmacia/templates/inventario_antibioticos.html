@@ -1,0 +1,277 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario Antibióticos - INVERTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+<!-- Barra Superior -->
+<header class="top-bar">
+    <div class="top-bar-left">
+        <a href="{% url 'farmacia' %}" class="btn-back">
+            <i class="fas fa-arrow-left"></i> Volver a Farmacia
+        </a>
+    </div>
+    <div class="top-bar-center">
+        <h1><i class="fas fa-prescription-bottle-medical"></i> Inventario Antibióticos</h1>
+    </div>
+    <div class="top-bar-right">
+        <span class="user-badge">
+            <i class="fas fa-user"></i> {{ user.username }}
+        </span>
+    </div>
+</header>
+
+<main class="main-content">
+
+    <!-- Estadísticas -->
+    <section class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-card stat-primary">
+                <div class="stat-icon"><i class="fas fa-capsules"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Total Antibióticos</span>
+                    <span class="stat-value" id="total-antibioticos">{{ total_antibioticos }}</span>
+                </div>
+            </div>
+            <div class="stat-card stat-success">
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Access</span>
+                    <span class="stat-value" id="total-access">{{ total_access }}</span>
+                </div>
+            </div>
+            <div class="stat-card stat-warning">
+                <div class="stat-icon"><i class="fas fa-eye"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Watch</span>
+                    <span class="stat-value" id="total-watch">{{ total_watch }}</span>
+                </div>
+            </div>
+            <div class="stat-card stat-danger">
+                <div class="stat-icon"><i class="fas fa-shield-alt"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Reserve</span>
+                    <span class="stat-value" id="total-reserve">{{ total_reserve }}</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="controls-section">
+        <div class="controls-card">
+            <div class="controls-header">
+                <h3><i class="fas fa-filter"></i> Filtros y Acciones</h3>
+            </div>
+            <div class="controls-body">
+                <div class="filtros-container">
+
+                    <div class="filtro-columna">
+                        <label for="filtro-clave"><i class="fas fa-key"></i> Clave</label>
+                        <input type="text" id="filtro-clave" class="form-control" placeholder="Buscar por clave...">
+                    </div>
+
+                    <div class="filtro-columna">
+                        <label for="filtro-descripcion"><i class="fas fa-file-medical"></i> Descripción</label>
+                        <input type="text" id="filtro-descripcion" class="form-control" placeholder="Buscar medicamento...">
+                    </div>
+
+                    <div class="filtro-columna">
+                        <label for="filtro-atc"><i class="fas fa-flask"></i> Código ATC</label>
+                        <input type="text" id="filtro-atc" class="form-control" placeholder="Buscar por ATC...">
+                    </div>
+
+                    <div class="filtro-columna">
+                        <label for="filtro-aware"><i class="fas fa-shield-alt"></i> Categoría AWaRe</label>
+                        <select id="filtro-aware" class="form-control">
+                            <option value="">Todas</option>
+                            <option value="Access">Access</option>
+                            <option value="Watch">Watch</option>
+                            <option value="Reserve">Reserve</option>
+                        </select>
+                    </div>
+
+                    <div class="filtro-columna">
+                        <label for="filtro-mes"><i class="fas fa-calendar-alt"></i> Mes</label>
+                        <input type="month" id="filtro-mes" class="form-control" value="{{ mes_actual }}">
+                    </div>
+
+                    <div class="filtro-acciones">
+                        <button class="btn btn-primary" onclick="aplicarFiltros()">
+                            <i class="fas fa-search"></i> Filtrar
+                        </button>
+                        <button class="btn btn-secondary" onclick="limpiarFiltros()">
+                            <i class="fas fa-eraser"></i> Limpiar
+                        </button>
+                        <button class="btn btn-success" onclick="descargarExcelAntibioticos()">
+                            <i class="fas fa-file-excel"></i> Excel
+                        </button>
+                        <button class="btn btn-danger" onclick="descargarPdfAntibioticos()">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tabla -->
+    <section class="table-section">
+        <div class="table-card">
+            <div class="table-header">
+                <h3><i class="fas fa-table"></i> Consumo de Antibióticos (DDD)</h3>
+                <span class="table-count" id="count-visible">
+                    Mostrando <strong>{{ antibioticos|length }}</strong> antibióticos
+                </span>
+            </div>
+
+            <div class="table-container">
+                <table class="lotes-table" id="tabla-antibioticos">
+                    <colgroup>
+                        <col style="width: 130px"> <!-- Clave -->
+                        <col style="width: 320px"> <!-- Descripción -->
+                        <col style="width: 110px"> <!-- Vía -->
+                        <col style="width: 140px"> <!-- Código ATC -->
+                        <col style="width: 140px"> <!-- AWaRe -->
+                        <col style="width: 130px"> <!-- Gramos/pieza -->
+                        <col style="width: 130px"> <!-- Consumo total -->
+                        <col style="width: 130px"> <!-- DDD OMS -->
+                        <col style="width: 130px"> <!-- DDD consumidas -->
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-key"></i> Clave</th>
+                            <th><i class="fas fa-file-medical"></i> Descripción</th>
+                            <th><i class="fas fa-route"></i> Vía</th>
+                            <th><i class="fas fa-flask"></i> Código ATC</th>
+                            <th><i class="fas fa-shield-alt"></i> AWaRe</th>
+                            <th><i class="fas fa-weight-hanging"></i> Gramos/Pieza</th>
+                            <th><i class="fas fa-cubes"></i> Consumo Total</th>
+                            <th><i class="fas fa-balance-scale"></i> DDD OMS</th>
+                            <th><i class="fas fa-chart-line"></i> DDD Consumidas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in antibioticos %}
+                        <tr class="lote-row
+                            {% if item.aware == 'Access' %}fondo-verde
+                            {% elif item.aware == 'Watch' %}fondo-amarillo
+                            {% elif item.aware == 'Reserve' %}fondo-rojo
+                            {% endif %}"
+                            data-clave="{{ item.clave|escapejs }}"
+                            data-descripcion="{{ item.descripcion|escapejs }}"
+                            data-atc="{{ item.codigo_atc|escapejs }}"
+                            data-aware="{{ item.aware|escapejs }}">
+
+                            <td class="clave-cell">
+                                <span class="badge badge-clave">{{ item.clave }}</span>
+                            </td>
+                            <td class="descripcion-cell">
+                                <div class="descripcion-content">{{ item.descripcion }}</div>
+                            </td>
+                            <td class="presentacion-cell" style="text-align:center;">
+                                {{ item.via_administracion|default:"N/A" }}
+                            </td>
+                            <td class="presentacion-cell" style="text-align:center;">
+                                <span class="badge badge-lote">{{ item.codigo_atc|default:"N/A" }}</span>
+                            </td>
+                            <td class="caducidad-cell">
+                                <span class="badge
+                                    {% if item.aware == 'Access' %}badge-success
+                                    {% elif item.aware == 'Watch' %}badge-warning
+                                    {% elif item.aware == 'Reserve' %}badge-danger
+                                    {% endif %}">
+                                    {{ item.aware|default:"N/A" }}
+                                </span>
+                            </td>
+                            <td class="existencia-cell">{{ item.gramos_por_pieza|default:"-" }}</td>
+                            <td class="existencia-cell">
+                                <span class="badge-existencia">{{ item.consumo_total|default:"0" }}</span>
+                            </td>
+                            <td class="existencia-cell">{{ item.valor_atc|default:"-" }}</td>
+                            <td class="existencia-cell">
+                                <span class="badge-existencia">{{ item.ddd_consumidas|floatformat:2|default:"0" }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="empty-state">
+                                <div class="empty-content">
+                                    <i class="fas fa-inbox"></i>
+                                    <p>No hay medicamentos marcados como antibiótico en el catálogo.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+function aplicarFiltros() {
+    const clave = document.getElementById('filtro-clave').value.toLowerCase();
+    const descripcion = document.getElementById('filtro-descripcion').value.toLowerCase();
+    const atc = document.getElementById('filtro-atc').value.toLowerCase();
+    const aware = document.getElementById('filtro-aware').value;
+
+    const filas = document.querySelectorAll('.lote-row');
+    let visibles = 0;
+
+    filas.forEach(fila => {
+        const dClave = (fila.dataset.clave || '').toLowerCase();
+        const dDescripcion = (fila.dataset.descripcion || '').toLowerCase();
+        const dAtc = (fila.dataset.atc || '').toLowerCase();
+        const dAware = fila.dataset.aware || '';
+
+        let mostrar = true;
+
+        if (clave && !dClave.includes(clave)) mostrar = false;
+        if (descripcion && !dDescripcion.includes(descripcion)) mostrar = false;
+        if (atc && !dAtc.includes(atc)) mostrar = false;
+        if (aware && dAware !== aware) mostrar = false;
+
+        fila.style.display = mostrar ? '' : 'none';
+        if (mostrar) visibles++;
+    });
+
+    document.getElementById('count-visible').innerHTML =
+        `Mostrando <strong>${visibles}</strong> antibióticos`;
+}
+
+function limpiarFiltros() {
+    document.getElementById('filtro-clave').value = '';
+    document.getElementById('filtro-descripcion').value = '';
+    document.getElementById('filtro-atc').value = '';
+    document.getElementById('filtro-aware').value = '';
+
+    const filas = document.querySelectorAll('.lote-row');
+    filas.forEach(fila => fila.style.display = '');
+
+    document.getElementById('count-visible').innerHTML =
+        `Mostrando <strong>${filas.length}</strong> antibióticos`;
+}
+
+function descargarExcelAntibioticos() {
+    const mes = document.getElementById('filtro-mes').value;
+    window.location.href = `/api/reportes/antibioticos-ddd/excel/?mes=${mes}`;
+}
+
+function descargarPdfAntibioticos() {
+    const mes = document.getElementById('filtro-mes').value;
+    window.location.href = `/api/reportes/antibioticos-ddd/pdf/?mes=${mes}`;
+}
+</script>
+
+</body>
+</html>

@@ -10,7 +10,8 @@ from .inventario_views import (
     alertas, editar_lote, farmacia_g, 
     tiene_acceso_farmacia, guardar_descripcion, inventario_general,
     editar_cpm_medicamento, eliminar_lote, registro_medicamento,
-    actualizar_cpm, eliminar_medicamento, buscar_catalogo_antibiotico
+    actualizar_cpm, eliminar_medicamento, buscar_catalogo_antibiotico, api_reportes_antibioticos_ddd,
+    inventario_antibioticos
 )
 from .entrada_views import (
     entrada_medicamentos, guardar_entradas,

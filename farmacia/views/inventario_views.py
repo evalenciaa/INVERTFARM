@@ -6,7 +6,7 @@ inventario general, registro de medicamentos.
 import json
 import logging
 import uuid
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from math import ceil
 
 from django.contrib.auth.decorators import login_required, permission_required
@@ -21,7 +21,7 @@ from django.views.decorators.http import require_http_methods
 from ..decorators import group_required
 from ..forms import MedicamentoForm
 from ..models import (
-    Lote, Medicamento, Presentacion, CPMMedicamento, CatalogoAntibioticosWHO
+    Lote, Medicamento, Presentacion, CPMMedicamento, CatalogoAntibioticosWHO, RecetaMedicamento, Salida
 )
 
 logger = logging.getLogger(__name__)
@@ -423,3 +423,164 @@ def buscar_catalogo_antibiotico(request):
         'valor_atc': float(item.valor_atc) if item.valor_atc is not None else None,
         'fuente_ddd': item.fuente_ddd,
     })
+
+
+@login_required
+@permission_required('farmacia.view_reportes', raise_exception=True)
+def inventario_antibioticos(request):
+    hoy = timezone.now().date()
+
+    mes_param = request.GET.get('mes')
+    if mes_param:
+        try:
+            fecha_inicio = datetime.strptime(mes_param, '%Y-%m').date().replace(day=1)
+        except ValueError:
+            fecha_inicio = hoy.replace(day=1)
+    else:
+        fecha_inicio = hoy.replace(day=1)
+
+    if fecha_inicio.month == 12:
+        siguiente_mes = fecha_inicio.replace(year=fecha_inicio.year + 1, month=1, day=1)
+    else:
+        siguiente_mes = fecha_inicio.replace(month=fecha_inicio.month + 1, day=1)
+
+    antibioticos_qs = (
+        Medicamento.objects
+        .filter(es_antibiotico=True, activo=True)
+        .order_by('descripcion')
+    )
+
+    consumos_qs = (
+        Salida.objects
+        .filter(fecha_hora__date__gte=fecha_inicio, fecha_hora__date__lt=siguiente_mes)
+        .values('lote__medicamento_id')
+        .annotate(consumo_total=Sum('cantidad'))
+    )
+
+    consumos_map = {
+        item['lote__medicamento_id']: item['consumo_total'] or 0
+        for item in consumos_qs
+    }
+
+    antibioticos = []
+    total_access = 0
+    total_watch = 0
+    total_reserve = 0
+
+    for med in antibioticos_qs:
+        gramos_por_pieza = med.gramos_por_pieza or 0
+        valor_atc = med.valor_atc or 0
+        consumo_total = consumos_map.get(med.id, 0)
+
+        consumo_gramos = float(consumo_total) * float(gramos_por_pieza) if gramos_por_pieza else 0
+        ddd_consumidas = (consumo_gramos / float(valor_atc)) if valor_atc else 0
+
+        aware = (med.categoria_aware or '').strip()
+
+        if aware == 'Access':
+            total_access += 1
+        elif aware == 'Watch':
+            total_watch += 1
+        elif aware == 'Reserve':
+            total_reserve += 1
+
+        antibioticos.append({
+            'id': med.id,
+            'clave': med.clave,
+            'descripcion': med.descripcion,
+            'via_administracion': med.via_administracion or '',
+            'codigo_atc': med.codigo_atc or '',
+            'aware': aware or 'N/A',
+            'gramos_por_pieza': gramos_por_pieza,
+            'valor_atc': valor_atc,
+            'consumo_total': consumo_total,
+            'ddd_consumidas': round(ddd_consumidas, 2),
+        })
+
+    context = {
+        'user': request.user,
+        'antibioticos': antibioticos,
+        'total_antibioticos': len(antibioticos),
+        'total_access': total_access,
+        'total_watch': total_watch,
+        'total_reserve': total_reserve,
+        'mes_actual': fecha_inicio.strftime('%Y-%m'),
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': siguiente_mes,
+    }
+
+    return render(request, 'inventario_antibioticos.html', context)
+
+    
+@login_required
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+def api_reportes_antibioticos_ddd(request):
+    """
+    Calcula consumo real, gramos consumidos y DDD por medicamento antibiótico,
+    filtrado por periodo (fecha_inicio / fecha_fin).
+    """
+    try:
+        fecha_fin = timezone.now().date()
+        fecha_inicio = fecha_fin.replace(day=1)
+
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d').date()
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
+
+        antibioticos = Medicamento.objects.filter(es_antibiotico=True, activo=True)
+
+        consumo_por_medicamento = (
+            RecetaMedicamento.objects
+            .filter(
+                medicamento__es_antibiotico=True,
+                receta__fecha_surtido__range=[fecha_inicio, fecha_fin]
+            )
+            .values('medicamento_id')
+            .annotate(total_consumo=Sum('cantidad_surtida'))
+        )
+
+        consumo_map = {
+            item['medicamento_id']: item['total_consumo'] or 0
+            for item in consumo_por_medicamento
+        }
+
+        datos = []
+        for med in antibioticos:
+            consumo_real = consumo_map.get(med.id, 0)
+
+            gramos_por_pieza = float(med.gramos_por_pieza) if med.gramos_por_pieza is not None else None
+            valor_atc = float(med.valor_atc) if med.valor_atc is not None else None
+
+            gramos_consumidos = (
+                consumo_real * gramos_por_pieza
+                if gramos_por_pieza is not None
+                else None
+            )
+
+            ddd = None
+            if gramos_consumidos is not None and valor_atc:
+                ddd = gramos_consumidos / valor_atc
+
+            datos.append({
+                'clave': med.clave,
+                'descripcion': med.descripcion,
+                'via_administracion': med.via_administracion,
+                'categoria_aware': med.categoria_aware,
+                'codigo_atc': med.codigo_atc,
+                'consumo_real': consumo_real,
+                'gramos_por_pieza': gramos_por_pieza,
+                'gramos_consumidos': round(gramos_consumidos, 4) if gramos_consumidos is not None else None,
+                'valor_atc': valor_atc,
+                'ddd': round(ddd, 4) if ddd is not None else None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'fecha_inicio': fecha_inicio.strftime('%Y-%m-%d'),
+            'fecha_fin': fecha_fin.strftime('%Y-%m-%d'),
+            'data': datos
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
