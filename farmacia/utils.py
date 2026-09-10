@@ -28,7 +28,8 @@ class ProcesadorCargaMasiva:
             'actualizados': 0,
             'errores': [],
             'total': 0,
-            'advertencias': []  # Para claves similares
+            'advertencias': [],  # Para claves similares
+            'procesados': []
         }
         self.medicamentos_cache = {}
         
@@ -293,6 +294,25 @@ class ProcesadorCargaMasiva:
                         'codigo_atc': codigo_atc,
                         'mensaje': 'El código ATC no existe en CatalogoAntibioticosWHO; se usarán solo los datos del archivo.'
                     })
+                    
+            self.resultados['procesados'].append({
+                'fila': index + 2,
+                'clave': clave,
+                'descripcion': descripcion,
+                'lote': lote_codigo,
+                'cantidad': cantidad,
+                'precio': precio,
+                'caducidad': str(fecha_caducidad),
+                'origen': str(row.get('origen', '')).strip(),
+                'contrato': str(row.get('contrato', '')).strip(),
+                'fuente_financiamiento': str(row.get('fuente_financiamiento', '')).strip(),
+                'es_antibiotico': es_antibiotico,
+                'via_administracion': via_administracion or '',
+                'codigo_atc': codigo_atc or '',
+                'categoria_aware': categoria_aware or '',
+                'gramos_por_pieza': gramos_por_pieza if gramos_por_pieza is not None else '',
+                'valor_atc': valor_atc if valor_atc is not None else ''
+            })
 
             return {
                 'fila': index + 2,

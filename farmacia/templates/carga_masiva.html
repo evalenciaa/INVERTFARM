@@ -40,9 +40,13 @@
                         <ol>
                             <li>Descarga la <a href="#" id="descargar-plantilla" class="link-primary">plantilla de Excel</a> con el formato correcto</li>
                             <li>Llena las columnas requeridas: <strong>clave, descripcion, lote, cantidad, precio, caducidad, origen, contrato, fuente_financiamiento</strong></li>
-                            <li>Las fechas de caducidad deben estar en formato: <strong>YYYY-MM-DD</strong> (ej: 2025-12-31)</li>
+                            <li>Si el medicamento es antibiótico, también puedes incluir estas columnas opcionales: <strong>via_administracion, codigo_atc, categoria_aware, gramos_por_pieza, valor_atc</strong></li>
+                            <li>Las fechas de caducidad pueden capturarse en formato <strong>YYYY-MM-DD</strong> o <strong>DD/MM/YYYY</strong></li>
                             <li>Las cantidades deben ser números enteros positivos (sin decimales)</li>
                             <li>Los precios pueden tener hasta 2 decimales (ej: 80.96, 682.57)</li>
+                            <li>La vía de administración válida para antibióticos debe ser: <strong>ORAL, INTRAMUSCULAR</strong> o <strong>INTRAVENOSA</strong></li>
+                            <li>La categoría AWaRe válida debe ser: <strong>Access, Watch</strong> o <strong>Reserve</strong></li>
+                            <li>Si capturas un <strong>codigo_atc</strong> existente en el catálogo WHO, el sistema puede completar automáticamente <strong>categoria_aware</strong> y <strong>valor_atc</strong> si vienen vacíos</li>
                             <li>Si un medicamento con el mismo lote ya existe, se sumará la cantidad automáticamente</li>
                         </ol>
                     </div>
@@ -158,6 +162,35 @@
                             </div>
                         </div>
 
+                        <div class="procesados-list" id="procesados-list" style="display: none;">
+                            <h3>
+                                <i class="fas fa-pills"></i>
+                                Medicamentos Procesados
+                            </h3>
+                            <div class="procesados-table-container">
+                                <table class="procesados-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fila</th>
+                                            <th>Clave</th>
+                                            <th>Descripción</th>
+                                            <th>Lote</th>
+                                            <th>Cantidad</th>
+                                            <th>Precio</th>
+                                            <th>Caducidad</th>
+                                            <th>Antibiótico</th>
+                                            <th>Vía</th>
+                                            <th>Código ATC</th>
+                                            <th>AWaRe</th>
+                                            <th>Gramos/Pieza</th>
+                                            <th>Valor ATC</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="procesados-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
                         <div class="errors-list" id="errors-list" style="display: none;">
                             <h3><i class="fas fa-bug"></i> Detalles de Errores</h3>
                             <div class="errors-table-container">
@@ -199,5 +232,6 @@
     </div>
 
     <script src="{% static 'farmacia/js/carga_masiva.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </body>
 </html>

@@ -420,8 +420,8 @@ def buscar_catalogo_antibiotico(request):
         'encontrado': True,
         'codigo_atc': item.codigo_atc,
         'categoria_aware': item.categoria_aware,
-        'valor_atc': float(item.valor_atc) if item.valor_atc is not None else None,
-        'fuente_ddd': item.fuente_ddd,
+        'valor_atc': item.valor_atc,
+        'fuente_valor_atc': item.fuente_valor_atc,
     })
 
 

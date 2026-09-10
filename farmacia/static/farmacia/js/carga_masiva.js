@@ -134,10 +134,15 @@ function mostrarResultados(resultados) {
     document.getElementById('stat-exitosos').textContent = resultados.exitosos;
     document.getElementById('stat-actualizados').textContent = resultados.actualizados;
     document.getElementById('stat-errores').textContent = resultados.errores.length;
+    
 
         // ========== NUEVO: Mostrar advertencias ==========
     const advertenciasList = document.getElementById('advertencias-list');
     const advertenciasTbody = document.getElementById('advertencias-tbody');
+    const procesadosList = document.getElementById('procesados-list');
+    const procesadosTbody = document.getElementById('procesados-tbody');
+    const errorsList = document.getElementById('errors-list');
+    const errorsTbody = document.getElementById('errors-tbody');
     
     if (resultados.advertencias && resultados.advertencias.length > 0) {
         advertenciasList.style.display = 'block';
@@ -163,35 +168,75 @@ function mostrarResultados(resultados) {
                 icono = '<i class="fas fa-calendar-times"></i>';
                 tipo = 'Caducidad Próxima';
                 mensaje = `Fila ${adv.fila} - Clave: ${adv.clave}, Lote: ${adv.lote} - ${adv.mensaje}`;
+            } else if (adv.tipo === 'codigo_atc_sin_catalogo') {
+                tipo = 'ATC sin catálogo';
+                mensaje = `Fila ${adv.fila} - Clave: ${adv.clave}, Código ATC: ${adv.codigo_atc} - ${adv.mensaje}`;
+            }
+            else if (adv.tipo === 'precio_vacio') {
+                tipo = 'Precio vacío';
+                mensaje = `Fila ${adv.fila} - Clave: ${adv.clave}, Lote: ${adv.lote} - ${adv.mensaje}`;
             }
             
             row.innerHTML = `
-                <td>${icono} ${tipo}</td>
-                <td>${mensaje}</td>
+                <td>${icono} ${escapeHtml(tipo)}</td>
+                <td>${escapeHtml(mensaje)}</td>
             `;
             advertenciasTbody.appendChild(row);
         });
     } else {
         advertenciasList.style.display = 'none';
     }
+
+    if (resultados.procesados && resultados.procesados.length > 0) {
+        procesadosList.style.display = 'block';
+        procesadosTbody.innerHTML = '';
+
+        resultados.procesados.forEach(item => {
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td>${item.fila ?? ''}</td>
+                <td>${escapeHtml(item.clave ?? '')}</td>
+                <td>${escapeHtml(item.descripcion ?? '')}</td>
+                <td>${escapeHtml(item.lote ?? '')}</td>
+                <td>${item.cantidad ?? ''}</td>
+                <td>${formatearMoneda(item.precio)}</td>
+                <td>${escapeHtml(item.caducidad ?? '')}</td>
+                <td>
+                    <span class="badge ${item.es_antibiotico ? 'badge-success' : 'badge-secondary'}">
+                        ${item.es_antibiotico ? 'Sí' : 'No'}
+                    </span>
+                </td>
+                <td>${escapeHtml(item.via_administracion ?? '')}</td>
+                <td>${escapeHtml(item.codigo_atc ?? '')}</td>
+                <td>${escapeHtml(item.categoria_aware ?? '')}</td>
+                <td>${item.gramos_por_pieza ?? ''}</td>
+                <td>${item.valor_atc ?? ''}</td>
+            `;
+
+            procesadosTbody.appendChild(row);
+        });
+    } else {
+        procesadosList.style.display = 'none';
+    }
     
     // Mostrar errores si existen
-    if (resultados.errores.length > 0) {
-        const errorsList = document.getElementById('errors-list');
-        const errorsTbody = document.getElementById('errors-tbody');
-        
+    if (resultados.errores && resultados.errores.length > 0) {
         errorsList.style.display = 'block';
         errorsTbody.innerHTML = '';
-        
+
         resultados.errores.forEach(error => {
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${error.fila}</td>
-                <td><strong>${error.clave}</strong></td>
-                <td>${error.error}</td>
+                <td>${error.fila ?? ''}</td>
+                <td><strong>${escapeHtml(error.clave ?? '')}</strong></td>
+                <td>${escapeHtml(error.error ?? '')}</td>
             `;
             errorsTbody.appendChild(row);
         });
+    } else {
+        errorsList.style.display = 'none';
+        errorsTbody.innerHTML = '';
     }
     
     // Scroll a resultados
@@ -201,21 +246,99 @@ function mostrarResultados(resultados) {
 // Descargar plantilla
 document.getElementById('descargar-plantilla').addEventListener('click', (e) => {
     e.preventDefault();
-    
-    // Crear plantilla CSV con precio incluido
-    const plantilla = `clave,descripcion,lote,cantidad,precio,caducidad,origen,contrato,fuente_financiamiento
-010.000.0142.00,Salmeterol fluticasona. Polvo. Cada dosis contiene: Xinafoato de salmeterol equi,3F6J,100,80.96,30/08/2026,ALMACEN A,IB/2261/2025,IMSS - BIENESTAR 32% 2025(U013)
-010.00.2154.00,Enoxaparina. Solución inyectable cada jeringa contiene: Enoxaparina sódica 40 m,X15675A,200,682.57,30/06/2026,ALMACEN A,IB/0167/2025,IMSS - BIENESTAR 32% 2025(U013)`;
-    
-    const blob = new Blob([plantilla], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'plantilla_carga_masiva.csv');
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    const datos = [
+        {
+            clave: '010.000.0142.00',
+            descripcion: 'Salmeterol fluticasona. Polvo. Cada dosis contiene: Xinafoato de salmeterol equi',
+            lote: '3F6J',
+            cantidad: 100,
+            precio: 80.96,
+            caducidad: '2026-08-30',
+            origen: 'ALMACEN A',
+            contrato: 'IB/2261/2025',
+            fuente_financiamiento: 'IMSS - BIENESTAR 32% 2025(U013)',
+            via_administracion: '',
+            codigo_atc: '',
+            categoria_aware: '',
+            gramos_por_pieza: '',
+            valor_atc: ''
+        },
+        {
+            clave: '010.00.2154.00',
+            descripcion: 'Enoxaparina. Solución inyectable cada jeringa contiene: Enoxaparina sódica 40 m',
+            lote: 'X15675A',
+            cantidad: 200,
+            precio: 682.57,
+            caducidad: '2026-06-30',
+            origen: 'ALMACEN A',
+            contrato: 'IB/0167/2025',
+            fuente_financiamiento: 'IMSS - BIENESTAR 32% 2025(U013)',
+            via_administracion: '',
+            codigo_atc: '',
+            categoria_aware: '',
+            gramos_por_pieza: '',
+            valor_atc: ''
+        },
+        {
+            clave: '010.000.0999.00',
+            descripcion: 'Amoxicilina con ácido clavulánico. Tableta. Cada tableta contiene: Amoxicilina 875 mg',
+            lote: 'AX2201',
+            cantidad: 150,
+            precio: 45.30,
+            caducidad: '2026-12-15',
+            origen: 'ALMACEN A',
+            contrato: 'IB/3300/2025',
+            fuente_financiamiento: 'IMSS - BIENESTAR 32% 2025(U013)',
+            via_administracion: 'ORAL',
+            codigo_atc: 'J01CR02',
+            categoria_aware: 'Access',
+            gramos_por_pieza: 0.875,
+            valor_atc: 1
+        }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(datos);
+
+    const columnas = [
+        { wch: 18 },
+        { wch: 75 },
+        { wch: 15 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 35 },
+        { wch: 20 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 12 }
+    ];
+    ws['!cols'] = columnas;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
+
+    XLSX.writeFile(wb, 'plantilla_carga_masiva.xlsx');
 });
+
+///Helpers functions
+
+function escapeHtml(texto) {
+    return String(texto ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function formatearMoneda(valor) {
+    const numero = Number(valor || 0);
+    return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN'
+    }).format(numero);
+}
