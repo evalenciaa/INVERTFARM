@@ -5,7 +5,7 @@ búsqueda de medicamentos/lotes para autocomplete, y carga masiva Excel.
 """
 import json
 import logging
-from datetime import date
+from datetime import date, datetime, time
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
@@ -14,6 +14,8 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
@@ -28,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET', 'POST'])
 @permission_required('farmacia.add_entrada', raise_exception=True)
 def entrada_medicamentos(request):
     context = {
@@ -71,6 +74,8 @@ def entrada_medicamentos(request):
 
 
 @login_required
+@require_http_methods(['GET'])
+@permission_required('farmacia.view_medicamento', raise_exception=True)
 def buscar_medicamentos_autocomplete(request):
     query = request.GET.get('q', '').strip()
     if not query or len(query) < 2:
@@ -87,6 +92,8 @@ def buscar_medicamentos_autocomplete(request):
 
 
 @login_required
+@require_http_methods(['GET'])
+@permission_required('farmacia.view_medicamento', raise_exception=True)
 def buscar_medicamentos(request):
     query = request.GET.get('q', '').strip()
     if not query or len(query) < 2:
@@ -118,14 +125,13 @@ def buscar_medicamentos(request):
 
 
 @login_required
+@require_http_methods(['POST'])
+@permission_required('farmacia.add_entrada', raise_exception=True)
 def guardar_entradas(request):
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Método no permitido'}, status=405)
-
     try:
         data = json.loads(request.body)
 
-        required_fields = ['folio', 'fecha', 'tipo_entrada', 'recibido_por', 'detalles', 'proceso']
+        required_fields = ['folio', 'fecha', 'tipo_entrada', 'detalles', 'proceso']
         for field in required_fields:
             if field not in data or data[field] in (None, '', []):
                 return JsonResponse({'error': f'Campo {field} es requerido'}, status=400)
@@ -154,17 +160,26 @@ def guardar_entradas(request):
         else:
             return JsonResponse({'error': 'Tipo de entrada inválido'}, status=400)
 
+        fecha_entrada = parse_datetime(str(data['fecha']))
+        if fecha_entrada is None:
+            fecha_solo_dia = parse_date(str(data['fecha']))
+            if fecha_solo_dia is None:
+                return JsonResponse({'error': 'Fecha de entrada inválida'}, status=400)
+            fecha_entrada = datetime.combine(fecha_solo_dia, time.min)
+        if timezone.is_naive(fecha_entrada):
+            fecha_entrada = timezone.make_aware(fecha_entrada)
+
         with transaction.atomic():
             entrada = Entrada.objects.create(
                 folio=data['folio'],
-                fecha=data['fecha'],
+                fecha=fecha_entrada,
                 tipo_entrada=tipo,
                 almacen_id=almacen_id,
                 institucion_id=institucion_id,
                 fuente_financiamiento_id=fuente_financiamiento_id,
                 contrato=data.get('contrato', ''),
                 proceso=data['proceso'],
-                recibido_por_id=data['recibido_por'],
+                recibido_por=request.user,
                 observaciones=data.get('observaciones', '')
             )
 
@@ -214,6 +229,9 @@ def guardar_entradas(request):
         return JsonResponse({'error': str(e)}, status=400)
 
 
+@login_required
+@permission_required('farmacia.create_salida', raise_exception=True)
+@require_http_methods(['GET'])
 def buscar_lote_json(request, query):
     """Busca un lote por ID (pk) O por Código de Lote."""
     if request.method == "GET":
@@ -236,6 +254,7 @@ def buscar_lote_json(request, query):
 
 @login_required
 @permission_required('farmacia.view_carga_masiva', raise_exception=True)
+@require_http_methods(['GET'])
 def carga_masiva(request):
     """Vista para mostrar el formulario de carga masiva"""
     form = CargaMasivaForm()
@@ -243,11 +262,10 @@ def carga_masiva(request):
 
 
 @login_required
+@require_http_methods(['POST'])
+@permission_required('farmacia.upload_carga_masiva', raise_exception=True)
 def procesar_carga_masiva(request):
     """Procesa el archivo Excel de carga masiva"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Método no permitido'}, status=405)
-
     form = CargaMasivaForm(request.POST, request.FILES)
     if not form.is_valid():
         errores = [str(e) for field, errors in form.errors.items() for e in errors]

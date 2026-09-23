@@ -4,7 +4,7 @@ Vistas para registrar salidas, buscar pacientes y descargar comprobantes PDF/Exc
 """
 import json
 import logging
-import traceback
+import re
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
@@ -14,6 +14,7 @@ from openpyxl.styles import Font
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -23,6 +24,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
 from farmacia.decorators import group_required
+from farmacia.services import descontar_lotes, generar_folio
 from farmacia.forms import SalidaForm
 from farmacia.models import (
     Lote, Paciente, Receta, RecetaMedicamento, MedicamentoNoSurtido, Institucion
@@ -32,78 +34,117 @@ from farmacia.pdf_utils import generar_pdf_salida
 logger = logging.getLogger(__name__)
 
 
+def _indices_enviados(post_data, patron):
+    """Obtiene los indices enviados sin depender de que el cliente sea confiable."""
+    return sorted({
+        int(coincidencia.group(1))
+        for clave in post_data.keys()
+        if (coincidencia := patron.match(clave))
+    })
+
+
+def _leer_items_surtidos(post_data):
+    patron = re.compile(r'^item_(?:lote|cantidad)_(\d+)$')
+    items = []
+
+    for indice in _indices_enviados(post_data, patron):
+        lote_id = (post_data.get(f'item_lote_{indice}') or '').strip()
+        cantidad_str = (post_data.get(f'item_cantidad_{indice}') or '').strip()
+        if not lote_id or not cantidad_str:
+            raise ValidationError(
+                f'El medicamento surtido de la fila {indice + 1} está incompleto.'
+            )
+
+        try:
+            cantidad = int(cantidad_str)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                f'La cantidad surtida de la fila {indice + 1} no es válida.'
+            ) from exc
+
+        if cantidad <= 0:
+            raise ValidationError('Las cantidades surtidas deben ser mayores que cero.')
+
+        try:
+            lote = Lote.objects.select_related('medicamento').get(pk=lote_id)
+        except Lote.DoesNotExist as exc:
+            raise ValidationError(f'El lote {lote_id} no existe.') from exc
+
+        items.append({'lote': lote, 'cantidad': cantidad})
+
+    return items
+
+
+def _leer_medicamentos_no_surtidos(post_data):
+    patron = re.compile(r'^faltante_(?:desc|cant|motivo)_(\d+)$')
+    faltantes = []
+
+    for indice in _indices_enviados(post_data, patron):
+        descripcion = (post_data.get(f'faltante_desc_{indice}') or '').strip()
+        cantidad_str = (post_data.get(f'faltante_cant_{indice}') or '').strip()
+        motivo = (post_data.get(f'faltante_motivo_{indice}') or '').strip()
+
+        if not descripcion or not cantidad_str or not motivo:
+            raise ValidationError(
+                f'El medicamento no surtido de la fila {indice + 1} está incompleto.'
+            )
+        if len(descripcion) > 200:
+            raise ValidationError(
+                f'La descripción del medicamento no surtido de la fila {indice + 1} '
+                'no puede exceder 200 caracteres.'
+            )
+
+        try:
+            cantidad = int(cantidad_str)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                f'La cantidad no surtida de la fila {indice + 1} no es válida.'
+            ) from exc
+
+        if cantidad <= 0:
+            raise ValidationError('Las cantidades no surtidas deben ser mayores que cero.')
+
+        faltantes.append({
+            'descripcion': descripcion,
+            'cantidad': cantidad,
+            'motivo': motivo,
+        })
+
+    return faltantes
+
+
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET', 'POST'])
 @permission_required('farmacia.create_salida', raise_exception=True)
 def registrar_salida(request):
 
     if request.method == 'POST':
 
         curp = request.POST.get('paciente_curp', '').strip().upper()
-        nombre = request.POST.get('paciente_nombre')
+        nombre = request.POST.get('paciente_nombre', '').strip()
         nacimiento_str = request.POST.get('paciente_nacimiento')
         origen = request.POST.get('receta_origen')
-        folio = request.POST.get('receta_folio')
+        folio = request.POST.get('receta_folio', '').strip()
 
-        items_para_guardar = []
-        index = 0
-        while True:
-            lote_id = request.POST.get(f'item_lote_{index}')
-            cantidad_str = request.POST.get(f'item_cantidad_{index}')
+        try:
+            items_para_guardar = _leer_items_surtidos(request.POST)
+            medicamentos_faltantes = _leer_medicamentos_no_surtidos(request.POST)
+            nacimiento_obj = datetime.strptime(nacimiento_str, '%Y-%m-%d').date()
+        except (ValidationError, ValueError, TypeError) as exc:
+            mensaje = exc.messages[0] if isinstance(exc, ValidationError) else 'Fecha de nacimiento inválida.'
+            return JsonResponse({'success': False, 'error': mensaje}, status=400)
 
-            if not lote_id or not cantidad_str:
-                break
-
-            try:
-                lote = Lote.objects.get(id=lote_id)
-                cantidad = int(cantidad_str)
-
-                if cantidad <= 0:
-                    raise Exception(f"Cantidad inválida para {lote.lote_codigo}")
-
-                if cantidad > lote.existencia:
-                    raise Exception(f"Stock insuficiente para {lote.lote_codigo}")
-
-                items_para_guardar.append({
-                    'lote': lote,
-                    'cantidad': cantidad
-                })
-                index += 1
-
-            except (Lote.DoesNotExist, ValueError, Exception) as e:
-                print("ERROR 4.x leyendo items:", str(e))
-                return JsonResponse({"success": False, "error": str(e)}, status=400)
-
-
-        medicamentos_faltantes = []
-        index = 0
-        while True:
-            faltante_desc = request.POST.get(f'faltante_desc_{index}')
-            faltante_cant_str = request.POST.get(f'faltante_cant_{index}')
-            faltante_motivo = request.POST.get(f'faltante_motivo_{index}')
-
-            if not faltante_desc or not faltante_cant_str or not faltante_motivo:
-                break
-
-
-            try:
-                medicamentos_faltantes.append({
-                    'descripcion': faltante_desc,
-                    'cantidad': int(faltante_cant_str),
-                    'motivo': faltante_motivo
-                })
-                index += 1
-
-            except ValueError as e:
-                print("ERROR 6.x leyendo faltantes:", str(e))
-                return JsonResponse({
-                    "success": False,
-                    "error": f"Cantidad inválida para medicamento faltante: {str(e)}"
-                }, status=400)
+        origenes_validos = {valor for valor, _ in Receta.ORIGEN_CHOICES}
+        if not nombre:
+            return JsonResponse({'success': False, 'error': 'El nombre del paciente es obligatorio.'}, status=400)
+        if origen not in origenes_validos:
+            return JsonResponse({'success': False, 'error': 'El origen de la receta no es válido.'}, status=400)
+        if len(folio) > 20:
+            return JsonResponse({'success': False, 'error': 'El folio no puede exceder 20 caracteres.'}, status=400)
 
 
         if not items_para_guardar and not medicamentos_faltantes:
-            print("ERROR 7.x: no hay items ni faltantes")
             return JsonResponse({
                 "success": False,
                 "error": "No hay medicamentos en la lista ni medicamentos faltantes registrados."
@@ -112,14 +153,13 @@ def registrar_salida(request):
         try:
             with transaction.atomic():
 
-                try:
-                    nacimiento_obj = datetime.strptime(nacimiento_str, '%Y-%m-%d').date()
-                except (ValueError, TypeError):
-                    print("ERROR 9.x: fecha de nacimiento inválida")
-                    return JsonResponse({
-                        "success": False,
-                        "error": "Fecha de nacimiento inválida."
-                    }, status=400)
+                cantidades_por_lote = {}
+                for item in items_para_guardar:
+                    lote_id = str(item['lote'].id)
+                    cantidades_por_lote[lote_id] = (
+                        cantidades_por_lote.get(lote_id, 0) + item['cantidad']
+                    )
+                lotes_bloqueados = descontar_lotes(cantidades_por_lote)
 
                 if curp:
                     paciente, _ = Paciente.objects.update_or_create(
@@ -145,16 +185,7 @@ def registrar_salida(request):
 
 
                 if not folio:
-                    fecha_str = timezone.now().strftime('%Y%m%d')
-                    ultimo = Receta.objects.filter(
-                        id_folio__startswith=f'REC-{fecha_str}'
-                    ).order_by('-id_folio').first()
-
-                    if ultimo:
-                        ultimo_num = int(ultimo.id_folio.split('-')[-1])
-                        folio = f"REC-{fecha_str}-{ultimo_num + 1:04d}"
-                    else:
-                        folio = f"REC-{fecha_str}-0001"
+                    folio = generar_folio('REC', Receta, 'id_folio')
 
 
                 receta_salida = Receta.objects.create(
@@ -168,7 +199,7 @@ def registrar_salida(request):
                 )
 
                 for i, item in enumerate(items_para_guardar):
-                    lote = item['lote']
+                    lote = lotes_bloqueados[str(item['lote'].id)]
                     cantidad = item['cantidad']
                     precio_unitario = lote.costo_unitario if lote else Decimal('0.00')
                     precio_total = Decimal(cantidad) * precio_unitario
@@ -182,10 +213,6 @@ def registrar_salida(request):
                         precio_unitario=precio_unitario,
                         precio_total=precio_total,
                     )
-
-                    lote.existencia -= cantidad
-                    lote.save(update_fields=['existencia'])
-
 
                 for i, faltante in enumerate(medicamentos_faltantes):
 
@@ -215,8 +242,10 @@ def registrar_salida(request):
                 "items_faltantes": len(medicamentos_faltantes)
             })
 
+        except ValidationError as e:
+            return JsonResponse({"success": False, "error": e.messages[0]}, status=400)
         except Exception as e:
-            traceback.print_exc()
+            logger.exception('No fue posible registrar la salida por receta')
             return JsonResponse({"success": False, "error": str(e)}, status=500)
 
     form = SalidaForm()
@@ -228,7 +257,9 @@ def registrar_salida(request):
     return render(request, 'salida_medicamentos.html', context)
 
 @login_required
+@require_http_methods(['GET'])
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_receta', raise_exception=True)
 def descargar_comprobante(request, receta_id):
     try:
         receta = get_object_or_404(Receta.objects.select_related('paciente', 'surtido_por'), pk=receta_id)
@@ -244,6 +275,7 @@ def descargar_comprobante(request, receta_id):
 @login_required
 @require_http_methods(['POST'])
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def generar_excel_salidas(request):
     try:
         data = json.loads(request.body)
@@ -288,6 +320,9 @@ def generar_excel_salidas(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@login_required
+@permission_required('farmacia.create_salida', raise_exception=True)
+@require_http_methods(['GET'])
 def get_paciente_info_json(request, curp):
     if request.method == "GET":
         try:
@@ -304,6 +339,9 @@ def get_paciente_info_json(request, curp):
     return JsonResponse({'error': 'Método no permitido'}, status=405)
 
 
+@login_required
+@permission_required('farmacia.create_salida', raise_exception=True)
+@require_http_methods(['GET'])
 def get_paciente_by_name(request, nombre):
     if request.method == "GET":
         try:

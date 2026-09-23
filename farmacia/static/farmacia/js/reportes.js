@@ -2,6 +2,7 @@
 let currentPage = 1;
 const itemsPerPage = 10;
 let salidasData = [];
+let recetasData = [];
 let charts = {};
 
 // ===== INICIALIZACIÓN =====
@@ -176,6 +177,9 @@ function loadTabContent(tabId) {
             break;
         case 'lento-movimiento':
             loadLentoMovimientoTable();
+            break;
+        case 'registro-recetas':
+            loadRegistroRecetasTable();
             break;
     }
 }
@@ -639,6 +643,124 @@ async function loadLentoMovimientoTable() {
     }
 }
 
+// ===== TAB 6: REGISTRO DE RECETAS =====
+async function loadRegistroRecetasTable() {
+    const tbody = document.getElementById('tableRegistroRecetasBody');
+    const total = document.getElementById('totalRegistroRecetas');
+    if (!tbody || !total) return;
+
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-table-message">Cargando recetas...</td></tr>';
+
+    try {
+        const params = new URLSearchParams();
+        const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+        const fechaFin = document.getElementById('fechaFin')?.value || '';
+        const estado = document.getElementById('filtroEstadoReceta')?.value || 'todos';
+        if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+        if (fechaFin) params.append('fecha_fin', fechaFin);
+        params.append('estado', estado);
+
+        const response = await fetch(`/api/reportes/recetas/?${params.toString()}`);
+        const resultado = await response.json();
+        if (!response.ok || !resultado.success) {
+            throw new Error(resultado.error || 'No fue posible cargar el registro de recetas.');
+        }
+
+        recetasData = resultado.data;
+        renderRegistroRecetas(recetasData);
+        total.textContent = `${resultado.total_recetas} receta${resultado.total_recetas === 1 ? '' : 's'} · ${resultado.total_renglones} medicamento${resultado.total_renglones === 1 ? '' : 's'}`;
+    } catch (error) {
+        console.error('Error cargando el registro de recetas:', error);
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-table-message">No fue posible cargar las recetas.</td></tr>';
+        total.textContent = '0 recetas';
+        showNotification(error.message, 'error');
+    }
+}
+
+function crearCeldaReceta(texto, clase = '') {
+    const celda = document.createElement('td');
+    if (clase) celda.className = clase;
+    celda.textContent = texto;
+    return celda;
+}
+
+function renderRegistroRecetas(recetas) {
+    const tbody = document.getElementById('tableRegistroRecetasBody');
+    tbody.replaceChildren();
+
+    if (!recetas.length) {
+        const fila = document.createElement('tr');
+        const celda = crearCeldaReceta('No se encontraron recetas con los filtros seleccionados.', 'empty-table-message');
+        celda.colSpan = 10;
+        fila.appendChild(celda);
+        tbody.appendChild(fila);
+        return;
+    }
+
+    recetas.forEach(receta => {
+        receta.medicamentos.forEach((medicamento, indice) => {
+            const fila = document.createElement('tr');
+            if (indice === 0) fila.classList.add('receta-group-start');
+            if (medicamento.tipo === 'no_surtido') fila.classList.add('receta-faltante-row');
+
+            if (indice === 0) {
+                const comunesInicio = [
+                    crearCeldaReceta(formatDate(receta.fecha), 'receta-common-cell'),
+                    crearCeldaReceta(receta.folio, 'receta-common-cell'),
+                ];
+                comunesInicio.forEach(celda => {
+                    celda.rowSpan = receta.medicamentos.length;
+                    fila.appendChild(celda);
+                });
+            }
+
+            fila.appendChild(crearCeldaReceta(medicamento.clave));
+
+            const descripcion = crearCeldaReceta('');
+            const nombre = document.createElement('strong');
+            nombre.textContent = medicamento.descripcion;
+            descripcion.appendChild(nombre);
+            if (medicamento.tipo === 'no_surtido') {
+                const aviso = document.createElement('span');
+                aviso.className = 'receta-faltante-label';
+                aviso.textContent = `No surtido: ${medicamento.motivo}`;
+                descripcion.appendChild(aviso);
+            }
+            fila.appendChild(descripcion);
+
+            fila.appendChild(crearCeldaReceta(medicamento.lote));
+            fila.appendChild(crearCeldaReceta(
+                medicamento.caducidad !== 'N/A' ? formatDate(medicamento.caducidad) : 'N/A'
+            ));
+
+            const cantidad = crearCeldaReceta('');
+            const cantidadBadge = document.createElement('span');
+            cantidadBadge.className = `badge ${medicamento.tipo === 'no_surtido' ? 'badge-warning' : 'badge-success'}`;
+            cantidadBadge.textContent = `${medicamento.cantidad} unidades`;
+            cantidad.appendChild(cantidadBadge);
+            fila.appendChild(cantidad);
+
+            if (indice === 0) {
+                const paciente = crearCeldaReceta(receta.paciente, 'receta-common-cell');
+                const responsable = crearCeldaReceta(receta.responsable, 'receta-common-cell');
+                paciente.rowSpan = receta.medicamentos.length;
+                responsable.rowSpan = receta.medicamentos.length;
+                fila.append(paciente, responsable);
+
+                const estado = crearCeldaReceta('', 'receta-common-cell');
+                estado.rowSpan = receta.medicamentos.length;
+                const estadoBadge = document.createElement('span');
+                estadoBadge.className = `badge receta-estado-${receta.estado}`;
+                estadoBadge.textContent = receta.estado_display;
+                estado.appendChild(estadoBadge);
+                fila.appendChild(estado);
+            }
+
+            tbody.appendChild(fila);
+        });
+    });
+}
+
 // ===== PAGINACIÓN =====
 function updatePagination(totalItems) {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -740,6 +862,11 @@ function initializeEventListeners() {
     // Filtros
     document.getElementById('filtrarFechas').addEventListener('click', filtrarPorFechas);
 
+    const filtroEstadoReceta = document.getElementById('filtroEstadoReceta');
+    if (filtroEstadoReceta) {
+        filtroEstadoReceta.addEventListener('change', loadRegistroRecetasTable);
+    }
+
     const btnExportarSinMovimiento = document.getElementById('btnExportarSinMovimiento');
     if (btnExportarSinMovimiento) {
         btnExportarSinMovimiento.addEventListener('click', abrirModalExportarSinMovimiento);
@@ -768,6 +895,9 @@ function initializeEventListeners() {
                 case 'tendencias':
                     await exportarTendenciasPDF();
                     break;
+                case 'registro-recetas':
+                    exportarRegistroRecetas('pdf');
+                    break;
                 default:
                     alert('Vista no disponible para exportar');
             }
@@ -795,6 +925,9 @@ function initializeEventListeners() {
                     break;
                 case 'tendencias':
                     await exportarTendenciasExcel();
+                    break;
+                case 'registro-recetas':
+                    exportarRegistroRecetas('excel');
                     break;
                 default:
                     alert('Vista no disponible para exportar');
@@ -949,6 +1082,18 @@ function descargarLentoMovimientoPDF() {
     const url = `/reportes/medicamentos-lento-movimiento/pdf/?${params.toString()}`;
     window.open(url, '_blank');
     cerrarModalExportarLentoMovimiento();
+}
+
+function exportarRegistroRecetas(formato) {
+    const params = new URLSearchParams();
+    const fechaInicio = document.getElementById('fechaInicio')?.value || '';
+    const fechaFin = document.getElementById('fechaFin')?.value || '';
+    const estado = document.getElementById('filtroEstadoReceta')?.value || 'todos';
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+    params.append('estado', estado);
+
+    window.open(`/reportes/recetas/${formato}/?${params.toString()}`, '_blank');
 }
 
 // ===== UTILIDADES =====

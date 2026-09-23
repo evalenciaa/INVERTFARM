@@ -5,10 +5,11 @@ Vistas para generar reportes en PDF y Excel desde entradas (registro manual/carg
 import json
 import logging
 import os
+from html import escape
 from io import BytesIO
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
@@ -18,22 +19,23 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.drawing.image import Image as ExcelImage
 
 from django.conf import settings
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 logger = logging.getLogger(__name__)
 
 
-@csrf_exempt
 @login_required
+@require_POST
+@permission_required('farmacia.add_entrada', raise_exception=True)
 def generar_reporte_pdf(request):    
     try:
         data = json.loads(request.body)
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter,
-                              rightMargin=20*mm, leftMargin=20*mm,
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter),
+                              rightMargin=10*mm, leftMargin=10*mm,
                               topMargin=15*mm, bottomMargin=20*mm)
         styles = getSampleStyleSheet()
         elements = []
@@ -47,6 +49,16 @@ def generar_reporte_pdf(request):
             wordWrap='LTR',
             splitLongWords=True
         )
+
+        info_label_style = ParagraphStyle(
+            name='InfoLabelStyle', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=8, leading=9,
+        )
+        info_value_style = ParagraphStyle(
+            name='InfoValueStyle', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=8, leading=9,
+            wordWrap='CJK', splitLongWords=True,
+        )
         
         logo_path = os.path.join(settings.BASE_DIR, 'farmacia/static/farmacia/img/logo.jpg')
         if os.path.exists(logo_path):
@@ -59,13 +71,20 @@ def generar_reporte_pdf(request):
         elements.append(titulo)
         elements.append(Spacer(1, 8*mm))
         
-        info_data = [
-            ['Folio: ', data.get('folio', 'N/A'), 'Fecha: ', data.get('fecha', 'N/A')],
-            ['Tipo Entrada: ', data.get('tipo_entrada', 'N/A'), 'Almacén: ', data.get('almacen_nombre', 'N/A')],
-            ['Fuente Financ.: ', data.get('fuente_financiamiento_nombre', 'N/A'), 'Proceso: ', data.get('proceso', 'N/A')]
-        ]
+        info_data = []
+        for etiqueta_izquierda, valor_izquierda, etiqueta_derecha, valor_derecha in [
+            ('Folio:', data.get('folio', 'N/A'), 'Fecha:', data.get('fecha', 'N/A')),
+            ('Tipo Entrada:', data.get('tipo_entrada', 'N/A'), 'Almacén:', data.get('almacen_nombre', 'N/A')),
+            ('Fuente Financ.:', data.get('fuente_financiamiento_nombre', 'N/A'), 'Proceso:', data.get('proceso', 'N/A')),
+        ]:
+            info_data.append([
+                Paragraph(escape(str(etiqueta_izquierda)), info_label_style),
+                Paragraph(escape(str(valor_izquierda or 'N/A')), info_value_style),
+                Paragraph(escape(str(etiqueta_derecha)), info_label_style),
+                Paragraph(escape(str(valor_derecha or 'N/A')), info_value_style),
+            ])
         
-        info_table = Table(info_data, colWidths=[35*mm, 60*mm, 40*mm, 60*mm])
+        info_table = Table(info_data, colWidths=[30*mm, 80*mm, 30*mm, 100*mm])
         info_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('FONTSIZE', (0,0), (-1,-1), 9),
@@ -88,7 +107,7 @@ def generar_reporte_pdf(request):
 
         for item in data.get('items', []):
             fila = [
-                Paragraph(item.get('nombre', '')), 
+                Paragraph(escape(str(item.get('nombre', ''))), medicamento_style),
                 item.get('lote', ''),
                 item.get('presentacion', ''),
                 str(item.get('cantidad', 0)),
@@ -103,7 +122,12 @@ def generar_reporte_pdf(request):
             f"${float(data.get('total', 0)):,.2f}"
         ])
         
-        tabla = Table(datos_tabla, colWidths=[80*mm, 25*mm, 35*mm, 20*mm, 25*mm, 25*mm])
+        tabla = Table(
+            datos_tabla,
+            colWidths=[95*mm, 28*mm, 45*mm, 22*mm, 30*mm, 30*mm],
+            repeatRows=1,
+            splitByRow=1,
+        )
         tabla.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4472C4')),
             ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
@@ -131,7 +155,7 @@ def generar_reporte_pdf(request):
             ['Nombre y Firma', 'Nombre y Firma', 'Nombre y Firma']
         ]
         
-        firmas_table = Table(firmas_data, colWidths=[60*mm, 60*mm, 60*mm])
+        firmas_table = Table(firmas_data, colWidths=[80*mm, 80*mm, 80*mm])
         firmas_table.setStyle(TableStyle([
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('FONTSIZE', (0,0), (-1,-1), 9),
@@ -142,7 +166,7 @@ def generar_reporte_pdf(request):
         
         elements.append(Spacer(1, 10*mm))
         footer = Paragraph(
-            f"<font size=7>Generado el {timezone.now().strftime('%d/%m/%Y %H:%M')} por {request.user.get_full_name()} | Sistema de Gestión Farmacéutica</font>", 
+            f"<font size=7>Generado el {timezone.now().strftime('%d/%m/%Y %H:%M')} por {escape(request.user.get_full_name() or request.user.username)} | Sistema de Gestión Farmacéutica</font>",
             styles['Normal'])
         elements.append(footer)
         
@@ -157,8 +181,9 @@ def generar_reporte_pdf(request):
         return JsonResponse({'error': str(e)}, status=500)
                 
 
-@csrf_exempt
 @login_required
+@require_POST
+@permission_required('farmacia.add_entrada', raise_exception=True)
 def generar_reporte_excel(request):
     try:
         data = json.loads(request.body)

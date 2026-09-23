@@ -1,56 +1,54 @@
-document.addEventListener("DOMContentLoaded", () => {
-    const form = document.querySelector("form");
-    const errorMessage = document.getElementById("error-message");
-    const usernameInput = document.getElementById("username");
-    const passwordInput = document.getElementById("password");
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('.login-form');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const togglePassword = document.querySelector('.toggle-password');
+    const submitButton = document.querySelector('.login-button');
+    const buttonText = submitButton?.querySelector('.btn-text');
+    const errorMessage = document.getElementById('error-message');
 
-    form.addEventListener("submit", function (e) {
-        const username = usernameInput.value.trim();
-        const password = passwordInput.value.trim();
-        let isValid = true;
+    if (togglePassword && passwordInput) {
+        togglePassword.addEventListener('click', () => {
+            const isVisible = passwordInput.type === 'text';
+            passwordInput.type = isVisible ? 'password' : 'text';
+            togglePassword.setAttribute('aria-pressed', String(!isVisible));
+            togglePassword.setAttribute('aria-label', isVisible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+            togglePassword.title = isVisible ? 'Mostrar contraseña' : 'Ocultar contraseña';
+            passwordInput.focus({ preventScroll: true });
+        });
+    }
 
-        // Resetear mensajes de error
-        errorMessage.textContent = "";
-        errorMessage.style.display = "none";
-        usernameInput.classList.remove("input-error");
-        passwordInput.classList.remove("input-error");
-
-        // Validación 1: Campos vacíos
-        if (!username || !password) {
-            showError("Por favor, completa todos los campos.");
-            highlightField(usernameInput, !username);
-            highlightField(passwordInput, !password);
-            isValid = false;
-        }
-        // Validación 2: Longitud mínima
-        else if (username.length < 4 || password.length < 8) {
-            showError("Usuario mínimo 4 caracteres. Contraseña mínimo 8.");
-            highlightField(usernameInput, username.length < 4);
-            highlightField(passwordInput, password.length < 8);
-            isValid = false;
-        }
-        // Validación 3: Caracteres no permitidos (opcional)
-        else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-            showError("El usuario solo puede contener letras, números y guiones bajos.");
-            highlightField(usernameInput, true);
-            isValid = false;
-        }
-
-        if (!isValid) {
-            //e.preventDefault();
-        }
+    [usernameInput, passwordInput].forEach((input) => {
+        input?.addEventListener('input', () => {
+            input.classList.remove('input-error');
+            if (errorMessage) {
+                errorMessage.textContent = '';
+                errorMessage.classList.remove('is-visible');
+            }
+        });
     });
 
-    // Funciones auxiliares
-    function showError(message) {
-        errorMessage.textContent = message;
-        errorMessage.style.display = "block";
-    }
+    form?.addEventListener('submit', (event) => {
+        const username = usernameInput?.value.trim() || '';
+        const password = passwordInput?.value || '';
 
-    function highlightField(field, shouldHighlight) {
-        if (shouldHighlight) {
-            field.classList.add("input-error");
-            field.focus();
+        if (!username || !password) {
+            event.preventDefault();
+            usernameInput?.classList.toggle('input-error', !username);
+            passwordInput?.classList.toggle('input-error', !password);
+            if (errorMessage) {
+                errorMessage.textContent = 'Ingresa tu usuario y contraseña para continuar.';
+                errorMessage.classList.add('is-visible');
+            }
+            (!username ? usernameInput : passwordInput)?.focus();
+            return;
         }
-    }
+
+        if (submitButton && !submitButton.disabled) {
+            submitButton.classList.add('is-loading');
+            submitButton.disabled = true;
+            submitButton.setAttribute('aria-busy', 'true');
+            if (buttonText) buttonText.textContent = 'Validando acceso';
+        }
+    });
 });

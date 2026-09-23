@@ -4,7 +4,7 @@ Vistas para gestión de usuarios y grupos para usuarios con rol Administrador.
 """
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.models import Group, Permission
 from django.db.models import Count, Q
 from django.http import JsonResponse
@@ -18,6 +18,8 @@ User = get_user_model()
 
 @login_required
 @group_required('Administrador')
+@require_http_methods(['GET'])
+@permission_required('farmacia.view_usuariopersonalizado', raise_exception=True)
 def admin_usuarios(request):
     usuarios = User.objects.all().prefetch_related('groups').order_by('-date_joined')
     grupos = Group.objects.all().order_by('name')
@@ -35,6 +37,8 @@ def admin_usuarios(request):
 
 @login_required
 @group_required('Administrador')
+@require_http_methods(['GET', 'POST'])
+@permission_required('farmacia.change_usuariopersonalizado', raise_exception=True)
 def admin_usuario_detalle(request, user_id):
     usuario = get_object_or_404(User, pk=user_id)
     grupos = Group.objects.all().order_by('name')
@@ -76,6 +80,8 @@ def admin_usuario_detalle(request, user_id):
 
 @login_required
 @group_required('Administrador')
+@require_http_methods(['POST'])
+@permission_required('farmacia.add_usuariopersonalizado', raise_exception=True)
 def admin_crear_usuario(request):
     if request.method == 'POST':
         try:
@@ -116,6 +122,7 @@ def admin_crear_usuario(request):
 @login_required
 @group_required('Administrador')
 @require_http_methods(['POST'])
+@permission_required('farmacia.delete_usuariopersonalizado', raise_exception=True)
 def admin_eliminar_usuario(request, user_id):
     try:
         usuario = get_object_or_404(User, pk=user_id)
@@ -133,6 +140,8 @@ def admin_eliminar_usuario(request, user_id):
 
 @login_required
 @group_required('Administrador')
+@require_http_methods(['GET'])
+@permission_required('auth.view_group', raise_exception=True)
 def admin_grupos(request):
     grupos = Group.objects.annotate(num_usuarios=Count('user')).prefetch_related('permissions').order_by('name')
     return render(request, 'admin_grupos.html', {'grupos': grupos})
@@ -140,6 +149,8 @@ def admin_grupos(request):
 
 @login_required
 @group_required('Administrador')
+@require_http_methods(['GET', 'POST'])
+@permission_required('auth.change_group', raise_exception=True)
 def admin_grupo_detalle(request, grupo_id):
     grupo = get_object_or_404(Group, pk=grupo_id)
     todos_permisos = Permission.objects.filter(
@@ -179,6 +190,8 @@ def admin_grupo_detalle(request, grupo_id):
 
 @login_required
 @group_required('Administrador')
+@require_http_methods(['POST'])
+@permission_required('auth.add_group', raise_exception=True)
 def admin_crear_grupo(request):
     if request.method == 'POST':
         try:
@@ -205,6 +218,7 @@ def admin_crear_grupo(request):
 @login_required
 @group_required('Administrador')
 @require_http_methods(['POST'])
+@permission_required('auth.delete_group', raise_exception=True)
 def admin_eliminar_grupo(request, grupo_id):
     try:
         grupo = get_object_or_404(Group, pk=grupo_id)

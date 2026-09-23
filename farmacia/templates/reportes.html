@@ -130,7 +130,10 @@
                         <i class="fas fa-chart-line"></i> Tendencias Temporales
                     </button>
                     <button class="tab-btn" data-tab="lento-movimiento">
-                        <i class="fas fa-hourglass-half"></i>Medicamentos de Lento Movimiento
+                        <i class="fas fa-hourglass-half"></i>Lento Movimiento
+                    </button>
+                    <button class="tab-btn" data-tab="registro-recetas">
+                        <i class="fas fa-file-prescription"></i> Registro de Recetas
                     </button>
                 </div>
 
@@ -313,6 +316,50 @@
                         </div>
                         <div class="table-footer">
                             <span id="totalLentoMovimiento">0 medicamentos</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 6: Registro de Recetas -->
+                <div class="tab-content" id="tab-registro-recetas">
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-file-prescription"></i> Registro de Recetas Surtidas</h3>
+                            <div class="filter-group receta-status-filter">
+                                <label for="filtroEstadoReceta">Estado:</label>
+                                <select id="filtroEstadoReceta" class="chart-selector">
+                                    <option value="todos">Todas las recetas</option>
+                                    <option value="completa">Completas</option>
+                                    <option value="parcial">Parciales</option>
+                                    <option value="no_surtida">No surtidas</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table" id="tableRegistroRecetas">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Folio</th>
+                                        <th>Clave</th>
+                                        <th>Descripción del medicamento</th>
+                                        <th>Lote</th>
+                                        <th>Caducidad</th>
+                                        <th>Cantidad</th>
+                                        <th>Paciente</th>
+                                        <th>Responsable</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableRegistroRecetasBody">
+                                    <tr>
+                                        <td colspan="10" class="empty-table-message">Selecciona la pestaña para cargar las recetas.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-footer recetas-table-footer">
+                            <span id="totalRegistroRecetas">0 recetas</span>
                         </div>
                     </div>
                 </div>

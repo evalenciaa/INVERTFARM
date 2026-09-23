@@ -6,6 +6,7 @@ import os
 import traceback
 from datetime import date
 from decimal import Decimal
+from html import escape
 from io import BytesIO
 
 from openpyxl.styles import Alignment  # No se usa en esta, pero si hiciera un excel
@@ -27,15 +28,37 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
-from enfermeria.models import Colectivo
+from enfermeria.models import Colectivo, ColectivoMedicamento
 from farmacia.decorators import group_required
 from farmacia.models import Lote, Receta, Paciente, RecetaMedicamento
+from farmacia.services import surtir_fefo
+from farmacia.views.inventario_views import truncar_texto
+
+
+def ids_colectivos_antibioticos():
+    """IDs de colectivos con al menos un medicamento antibiótico o con código ATC."""
+    return ColectivoMedicamento.objects.filter(
+        Q(medicamento__es_antibiotico=True) |
+        (Q(medicamento__codigo_atc__isnull=False) & ~Q(medicamento__codigo_atc=''))
+    ).values('colectivo_id')
+
+
+def colectivos_por_modulo(antibioticos=False):
+    """Separa los colectivos generales de los colectivos de antibióticos."""
+    colectivos = Colectivo.objects.all()
+    if antibioticos:
+        return colectivos.filter(id__in=ids_colectivos_antibioticos())
+    return colectivos.exclude(id__in=ids_colectivos_antibioticos())
 
 
 @login_required(login_url='login')
-def lista_colectivos_farmacia(request):
+@require_http_methods(['GET'])
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
+def lista_colectivos_farmacia(request, antibioticos=False):
     """Vista de lista de colectivos para farmacia"""
-    colectivos = Colectivo.objects.select_related(
+    colectivos_base = colectivos_por_modulo(antibioticos)
+    colectivos = colectivos_base.select_related(
         'paciente', 'enfermero_solicitante', 'farmaceutico_asignado'
     ).order_by('-fecha_solicitud')
     
@@ -47,8 +70,8 @@ def lista_colectivos_farmacia(request):
     
     if busqueda:
         colectivos = colectivos.filter(
-            Q(folio__icontains=busqueda) | Q(paciente__nombre__icontains=busqueda) |
-            Q(paciente__apellido_paterno__icontains=busqueda) | Q(paciente__apellido_materno__icontains=busqueda) |
+            Q(folio__icontains=busqueda) |
+            Q(paciente__nombre_completo__icontains=busqueda) |
             Q(numero_cama__icontains=busqueda) | Q(servicio__icontains=busqueda) |
             Q(enfermero_solicitante__username__icontains=busqueda)
         )
@@ -58,28 +81,41 @@ def lista_colectivos_farmacia(request):
     hoy_fin = now_local.replace(hour=23, minute=59, second=59, microsecond=999999)
     
     stats = {
-        'total': Colectivo.objects.count(),
-        'pendientes': Colectivo.objects.filter(estado='PENDIENTE').count(),
-        'en_revision': Colectivo.objects.filter(estado='EN_REVISION').count(),
-        'respondidos': Colectivo.objects.filter(estado='RESPONDIDO').count(),
-        'completados_hoy': Colectivo.objects.filter(
+        'total': colectivos_base.count(),
+        'pendientes': colectivos_base.filter(estado='PENDIENTE').count(),
+        'en_revision': colectivos_base.filter(estado='EN_REVISION').count(),
+        'respondidos': colectivos_base.filter(estado='RESPONDIDO').count(),
+        'completados_hoy': colectivos_base.filter(
             estado='COMPLETADO', fecha_completado__gte=hoy_inicio, fecha_completado__lte=hoy_fin
         ).count(),
     }
     
-    return render(request, 'lista_colectivos_farmacia.html', {
+    template = (
+        'lista_colectivos_antibioticos_farmacia.html'
+        if antibioticos else 'lista_colectivos_farmacia.html'
+    )
+    return render(request, template, {
         'colectivos': colectivos, 'stats': stats,
         'estado_filtro': estado_filtro, 'busqueda': busqueda,
+        'modulo_antibioticos': antibioticos,
     })
+
+
+def lista_colectivos_antibioticos_farmacia(request):
+    return lista_colectivos_farmacia(request, antibioticos=True)
 
 
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
-def detalle_colectivo_farmacia(request, colectivo_id):
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
+def detalle_colectivo_farmacia(request, colectivo_id, antibioticos=False):
     """Vista de detalle de un colectivo para farmacia"""
     colectivo = get_object_or_404(
-        Colectivo.objects.select_related('paciente', 'enfermero_solicitante'),
+        colectivos_por_modulo(antibioticos).select_related(
+            'paciente', 'enfermero_solicitante'
+        ),
         id=colectivo_id
     )
 
@@ -107,23 +143,40 @@ def detalle_colectivo_farmacia(request, colectivo_id):
             'lotes': lotes_disponibles,
         })
 
-    return render(request, 'detalle_colectivo_farmacia.html', {
+    template = (
+        'detalle_colectivo_antibioticos_farmacia.html'
+        if antibioticos else 'detalle_colectivo_farmacia.html'
+    )
+    return render(request, template, {
         'colectivo': colectivo,
         'medicamentos_con_stock': medicamentos_con_stock,
-        'user': request.user
+        'user': request.user,
+        'modulo_antibioticos': antibioticos,
     })
+
+
+def detalle_colectivo_antibioticos_farmacia(request, colectivo_id):
+    return detalle_colectivo_farmacia(request, colectivo_id, antibioticos=True)
 
 
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['POST'])
 @permission_required('enfermeria.respond_colectivo', raise_exception=True)
-def responder_colectivo(request, colectivo_id):
+def responder_colectivo(request, colectivo_id, antibioticos=False):
     """Farmacia responde al colectivo indicando disponibilidad"""
-    colectivo = get_object_or_404(Colectivo, id=colectivo_id)
+    colectivo = get_object_or_404(colectivos_por_modulo(antibioticos), id=colectivo_id)
+    detalle_url = (
+        'detalle_colectivo_antibioticos_farmacia'
+        if antibioticos else 'detalle_colectivo_farmacia'
+    )
+    lista_url = (
+        'lista_colectivos_antibioticos_farmacia'
+        if antibioticos else 'lista_colectivos_farmacia'
+    )
     if colectivo.estado not in ['PENDIENTE', 'EN_REVISION']:
         messages.error(request, 'Este colectivo ya fue respondido o completado')
-        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+        return redirect(detalle_url, colectivo_id=colectivo.id)
     try:
         colectivo.respuesta_farmacia = request.POST.get('respuesta_farmacia', '')
         for medicamento in colectivo.medicamentos.all():
@@ -137,32 +190,54 @@ def responder_colectivo(request, colectivo_id):
         colectivo.farmaceutico_asignado = request.user
         colectivo.save()
         messages.success(request, f'Respuesta enviada para colectivo {colectivo.folio}')
-        return redirect('lista_colectivos_farmacia')
+        return redirect(lista_url)
     except Exception as e:
         messages.error(request, f'Error al responder: {str(e)}')
-        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+        return redirect(detalle_url, colectivo_id=colectivo.id)
+
+
+def responder_colectivo_antibioticos(request, colectivo_id):
+    return responder_colectivo(request, colectivo_id, antibioticos=True)
 
 
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['POST'])
 @permission_required('enfermeria.complete_colectivo', raise_exception=True)
-def completar_colectivo(request, colectivo_id):
+def completar_colectivo(request, colectivo_id, antibioticos=False):
     """Marca el colectivo como completado y descuenta del inventario"""
-    colectivo = get_object_or_404(Colectivo, id=colectivo_id)
-    if colectivo.estado != 'EN_REVISION':
-        messages.error(request, 'Solo se pueden completar colectivos en revisión')
-        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
     try:
         with transaction.atomic():
+            colectivo = get_object_or_404(
+                colectivos_por_modulo(antibioticos).select_for_update(),
+                id=colectivo_id,
+            )
+            if colectivo.estado != 'RESPONDIDO':
+                messages.error(
+                    request,
+                    'El colectivo debe tener una respuesta de farmacia antes de completarse.'
+                )
+                detalle_url = (
+                    'detalle_colectivo_antibioticos_farmacia'
+                    if antibioticos else 'detalle_colectivo_farmacia'
+                )
+                return redirect(detalle_url, colectivo_id=colectivo.id)
+
             for medicamento in colectivo.medicamentos.all():
-                cantidad_surtida = int(request.POST.get(f'cantidad_surtida_{medicamento.id}', 0))
-                stock_total = Lote.objects.filter(medicamento=medicamento.medicamento, existencia__gt=0).aggregate(total=Sum('existencia'))['total'] or 0
-                if cantidad_surtida > stock_total:
-                    messages.error(request, f'Stock insuficiente para {medicamento.medicamento.descripcion}.')
-                    return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
-            for medicamento in colectivo.medicamentos.all():
-                medicamento.cantidad_surtida = int(request.POST.get(f'cantidad_surtida_{medicamento.id}', 0))
+                if not medicamento.disponible:
+                    raise ValueError(
+                        f'{medicamento.medicamento.descripcion} sigue marcado como no disponible.'
+                    )
+                medicamento.cantidad_surtida = int(
+                    request.POST.get(f'cantidad_surtida_{medicamento.id}', 0)
+                )
+                if medicamento.cantidad_surtida <= 0:
+                    raise ValueError('Todas las cantidades surtidas deben ser mayores que cero.')
+                if medicamento.cantidad_surtida > medicamento.cantidad_solicitada:
+                    raise ValueError(
+                        f'No se puede surtir más de lo solicitado para '
+                        f'{medicamento.medicamento.descripcion}.'
+                    )
                 medicamento.save()
             
             receta = None
@@ -186,58 +261,12 @@ def completar_colectivo(request, colectivo_id):
                 )
 
             for medicamento in colectivo.medicamentos.all():
-                cantidad_restante = medicamento.cantidad_surtida
-                lote_usado = None
-                precio_acumulado = Decimal('0.00')
-
                 lote_elegido_id = request.POST.get(f'lote_id_{medicamento.id}')
-
-                if lote_elegido_id:
-                    lote_preferido = Lote.objects.filter(
-                        id=lote_elegido_id,
-                        medicamento=medicamento.medicamento,
-                        existencia__gt=0
-                    ).first()
-
-                    if lote_preferido and cantidad_restante > 0:
-                        lote_usado = lote_preferido
-
-                        if lote_preferido.existencia >= cantidad_restante:
-                            precio_acumulado += lote_preferido.costo_unitario * cantidad_restante
-                            lote_preferido.existencia -= cantidad_restante
-                            lote_preferido.save()
-                            cantidad_restante = 0
-                        else:
-                            precio_acumulado += lote_preferido.costo_unitario * lote_preferido.existencia
-                            cantidad_restante -= lote_preferido.existencia
-                            lote_preferido.existencia = 0
-                            lote_preferido.save()
-
-                if cantidad_restante > 0:
-                    lotes_restantes = (
-                        Lote.objects
-                        .filter(medicamento=medicamento.medicamento, existencia__gt=0)
-                        .exclude(id=lote_elegido_id)
-                        .order_by('fecha_caducidad')
-                    )
-
-                    for lote in lotes_restantes:
-                        if cantidad_restante <= 0:
-                            break
-
-                        if not lote_usado:
-                            lote_usado = lote
-
-                        if lote.existencia >= cantidad_restante:
-                            precio_acumulado += lote.costo_unitario * cantidad_restante
-                            lote.existencia -= cantidad_restante
-                            lote.save()
-                            cantidad_restante = 0
-                        else:
-                            precio_acumulado += lote.costo_unitario * lote.existencia
-                            cantidad_restante -= lote.existencia
-                            lote.existencia = 0
-                            lote.save()
+                lote_usado, precio_acumulado, _ = surtir_fefo(
+                    medicamento.medicamento_id,
+                    medicamento.cantidad_surtida,
+                    lote_elegido_id,
+                )
 
                 precio_unitario_promedio = (
                     precio_acumulado / medicamento.cantidad_surtida
@@ -260,26 +289,54 @@ def completar_colectivo(request, colectivo_id):
             colectivo.farmaceutico_asignado = request.user
             colectivo.save()
         messages.success(request, f'Colectivo {colectivo.folio} completado exitosamente.')
-        return redirect('lista_colectivos_farmacia')
+        return redirect(
+            'lista_colectivos_antibioticos_farmacia'
+            if antibioticos else 'lista_colectivos_farmacia'
+        )
     except Exception as e:
         traceback.print_exc()
         messages.error(request, f'Error al completar: {str(e)}')
-        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+        return redirect(
+            'detalle_colectivo_antibioticos_farmacia'
+            if antibioticos else 'detalle_colectivo_farmacia',
+            colectivo_id=colectivo_id,
+        )
+
+
+def completar_colectivo_antibioticos(request, colectivo_id):
+    return completar_colectivo(request, colectivo_id, antibioticos=True)
 
 
 @login_required(login_url='login')
+@require_http_methods(['GET'])
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería')
-def generar_pdf_colectivo(request, colectivo_id):
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
+def generar_pdf_colectivo(request, colectivo_id, antibioticos=False):
     """Genera PDF con la información del colectivo completado"""
     colectivo = get_object_or_404(
-        Colectivo.objects.select_related('paciente', 'enfermero_solicitante', 'farmaceutico_asignado'), id=colectivo_id
+        colectivos_por_modulo(antibioticos).select_related(
+            'paciente', 'enfermero_solicitante', 'farmaceutico_asignado'
+        ),
+        id=colectivo_id,
     )
     if colectivo.estado != 'COMPLETADO':
         messages.error(request, 'Solo se puede generar PDF de colectivos completados')
-        return redirect('detalle_colectivo_farmacia', colectivo_id=colectivo.id)
+        return redirect(
+            'detalle_colectivo_antibioticos_farmacia'
+            if antibioticos else 'detalle_colectivo_farmacia',
+            colectivo_id=colectivo.id,
+        )
     try:
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=0.45*inch,
+            rightMargin=0.45*inch,
+            topMargin=0.5*inch,
+            bottomMargin=0.5*inch,
+            pageCompression=0,
+        )
         elements = []
         styles = getSampleStyleSheet()
         
@@ -291,8 +348,21 @@ def generar_pdf_colectivo(request, colectivo_id):
             except: pass
         
         title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor('#750000'), spaceAfter=20, alignment=TA_CENTER)
-        elements.append(Paragraph(f"COLECTIVO DE MEDICAMENTOS<br/>{colectivo.folio}", title_style))
+        titulo = 'Colectivo de Antibióticos' if antibioticos else 'COLECTIVO DE MEDICAMENTOS'
+        elements.append(Paragraph(
+            f"{escape(titulo)}<br/>{escape(colectivo.folio)}", title_style
+        ))
         elements.append(Spacer(1, 0.15*inch))
+
+        info_style = ParagraphStyle(
+            'InfoColectivo', parent=styles['Normal'], fontSize=8.5,
+            leading=10, alignment=TA_LEFT, wordWrap='CJK',
+            splitLongWords=True,
+        )
+        info_header_style = ParagraphStyle(
+            'InfoHeaderColectivo', parent=info_style,
+            fontName='Helvetica-Bold', textColor=colors.white,
+        )
         
         es_colectivo_stock = colectivo.paciente is None
         if es_colectivo_stock:
@@ -324,17 +394,30 @@ def generar_pdf_colectivo(request, colectivo_id):
                 ['Farmacéutico(a):', colectivo.farmaceutico_asignado.get_full_name() or colectivo.farmaceutico_asignado.username if colectivo.farmaceutico_asignado else 'N/A'],
             ]
         
-        info_table = Table(info_data, colWidths=[2*inch, 4.5*inch])
+        fila_seccion = 5 if es_colectivo_stock else 7
+        info_data_formateada = []
+        for indice, fila in enumerate(info_data):
+            estilo = (
+                info_header_style
+                if indice in (0, fila_seccion)
+                else info_style
+            )
+            info_data_formateada.append([
+                Paragraph(escape(str(celda or '')), estilo)
+                for celda in fila
+            ])
+
+        info_table = Table(info_data_formateada, colWidths=[2*inch, 4.5*inch])
         info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#750000')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('BACKGROUND', (0, 5 if es_colectivo_stock else 7), (-1, 5 if es_colectivo_stock else 7), colors.HexColor('#750000')),
-            ('TEXTCOLOR', (0, 5 if es_colectivo_stock else 7), (-1, 5 if es_colectivo_stock else 7), colors.whitesmoke),
+            ('BACKGROUND', (0, fila_seccion), (-1, fila_seccion), colors.HexColor('#750000')),
+            ('TEXTCOLOR', (0, fila_seccion), (-1, fila_seccion), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTNAME', (0, 5 if es_colectivo_stock else 7), (-1, 5 if es_colectivo_stock else 7), 'Helvetica-Bold'),
+            ('FONTNAME', (0, fila_seccion), (-1, fila_seccion), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
         ]))
         elements.append(info_table)
@@ -342,31 +425,88 @@ def generar_pdf_colectivo(request, colectivo_id):
         
         cell_style = ParagraphStyle('CellStyle', parent=styles['Normal'], fontSize=8, leading=10, alignment=TA_LEFT)
         center_style = ParagraphStyle('CenterStyle', parent=styles['Normal'], fontSize=8, leading=10, alignment=TA_CENTER)
+        table_header_style = ParagraphStyle(
+            'TableHeaderColectivo', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=7.5, leading=8.5,
+            alignment=TA_CENTER, textColor=colors.white,
+            wordWrap='CJK', splitLongWords=True,
+        )
         
-        medicamentos_data = [['#', 'CLAVE', 'DESCRIPCIÓN', 'SOLICITADO', 'SURTIDO']]
-        for idx, item in enumerate(colectivo.medicamentos.all(), 1):
-            medicamentos_data.append([
-                Paragraph(str(idx), center_style),
-                Paragraph(item.medicamento.clave if item.medicamento else 'N/A', cell_style),
-                Paragraph(item.medicamento.descripcion if item.medicamento else 'N/A', cell_style),
-                Paragraph(str(item.cantidad_solicitada), center_style),
-                Paragraph(str(item.cantidad_surtida), center_style)
-            ])
-        
-        medicamentos_table = Table(medicamentos_data, colWidths=[0.3*inch, 1.2*inch, 3.8*inch, 0.9*inch, 0.9*inch], repeatRows=1)
+        if antibioticos:
+            medicamentos_data = [[
+                Paragraph('CLAVE', table_header_style),
+                Paragraph('DESCRIPCIÓN', table_header_style),
+                Paragraph('CATEGORÍA AWaRe', table_header_style),
+                Paragraph('CÓDIGO ATC', table_header_style),
+            ]]
+            for item in colectivo.medicamentos.select_related('medicamento').all():
+                medicamento = item.medicamento
+                medicamentos_data.append([
+                    Paragraph(escape(medicamento.clave or 'N/A'), cell_style),
+                    Paragraph(escape(truncar_texto(medicamento.descripcion or 'N/A', 220)), cell_style),
+                    Paragraph(escape(medicamento.categoria_aware or 'N/A'), center_style),
+                    Paragraph(escape(medicamento.codigo_atc or 'N/A'), center_style),
+                ])
+            columnas_medicamentos = [1.25*inch, 3.35*inch, 1.25*inch, 1.25*inch]
+        else:
+            medicamentos_data = [[
+                Paragraph('#', table_header_style),
+                Paragraph('CLAVE', table_header_style),
+                Paragraph('DESCRIPCIÓN', table_header_style),
+                Paragraph('SOLICITADO', table_header_style),
+                Paragraph('SURTIDO', table_header_style),
+            ]]
+            for idx, item in enumerate(colectivo.medicamentos.all(), 1):
+                medicamentos_data.append([
+                    Paragraph(str(idx), center_style),
+                    Paragraph(escape(item.medicamento.clave if item.medicamento else 'N/A'), cell_style),
+                    Paragraph(
+                        escape(truncar_texto(
+                            item.medicamento.descripcion if item.medicamento else 'N/A',
+                            220,
+                        )),
+                        cell_style,
+                    ),
+                    Paragraph(str(item.cantidad_solicitada), center_style),
+                    Paragraph(str(item.cantidad_surtida), center_style)
+                ])
+            columnas_medicamentos = [0.3*inch, 1.2*inch, 3.8*inch, 0.9*inch, 0.9*inch]
+
+        medicamentos_table = Table(
+            medicamentos_data,
+            colWidths=columnas_medicamentos,
+            repeatRows=1,
+            splitByRow=1,
+            hAlign='CENTER',
+        )
         medicamentos_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#750000')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f0f0')]),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ]))
         elements.append(medicamentos_table)
         
         doc.build(elements)
         response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="Colectivo_{colectivo.folio}.pdf"'
+        prefijo_archivo = 'Colectivo_Antibioticos' if antibioticos else 'Colectivo'
+        response['Content-Disposition'] = (
+            f'attachment; filename="{prefijo_archivo}_{colectivo.folio}.pdf"'
+        )
         return response
     except Exception as e:
         messages.error(request, f'Error al generar PDF: {str(e)}')
-        return redirect('lista_colectivos_farmacia')
+        return redirect(
+            'lista_colectivos_antibioticos_farmacia'
+            if antibioticos else 'lista_colectivos_farmacia'
+        )
+
+
+def generar_pdf_colectivo_antibioticos(request, colectivo_id):
+    return generar_pdf_colectivo(request, colectivo_id, antibioticos=True)

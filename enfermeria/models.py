@@ -8,6 +8,10 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.timezone import now
 import html
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 # Create your models here.
 
@@ -114,42 +118,19 @@ class Colectivo(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    class Meta:
-        ordering = ['-fecha_solicitud']
-        verbose_name = 'Colectivo'
-        verbose_name_plural = 'Colectivos'
-        indexes = [
-            models.Index(fields=['tipo_colectivo', 'estado']),
-            models.Index(fields=['fecha_solicitud']),
-        ]
-    
     def __str__(self):
         if self.tipo_colectivo == 'PACIENTE':
-            return f"{self.folio} - {self.paciente.nombre} ({self.get_estado_display()})"
+            paciente = self.paciente.nombre_completo if self.paciente else 'Sin paciente'
+            return f"{self.folio} - {paciente} ({self.get_estado_display()})"
         else:
             return f"{self.folio} - Stock {self.servicio} - {self.get_turno_display()} ({self.get_estado_display()})"
     
     def save(self, *args, **kwargs):
         if not self.folio:
-            # Generar folio con prefijo según tipo
-            fecha = timezone.now().strftime('%Y%m%d')
-            
-            if self.tipo_colectivo == 'STOCK':
-                prefijo = 'STK'
-            else:
-                prefijo = 'COL'
-            
-            ultimo = Colectivo.objects.filter(
-                folio__startswith=f'{prefijo}-{fecha}'
-            ).order_by('-folio').first()
-            
-            if ultimo:
-                ultimo_num = int(ultimo.folio.split('-')[-1])
-                nuevo_num = ultimo_num + 1
-            else:
-                nuevo_num = 1
-            
-            self.folio = f'{prefijo}-{fecha}-{nuevo_num:04d}'
+            from farmacia.services import generar_folio
+
+            prefijo = 'STK' if self.tipo_colectivo == 'STOCK' else 'COL'
+            self.folio = generar_folio(prefijo, Colectivo, 'folio')
         
         super().save(*args, **kwargs)
     
@@ -637,9 +618,9 @@ def enviar_notificacion_colectivo(colectivo):
         )
         msg.attach_alternative(mensaje_html, "text/html")
         msg.send()
-        print(f"✅ Notificación enviada para colectivo {colectivo.folio}")
+        logger.info('Notificación enviada para colectivo %s', colectivo.folio)
     except Exception as e:
-        print(f"❌ Error al enviar notificación: {e}")
+        logger.exception('Error al enviar notificación del colectivo %s', colectivo.folio)
 
 
 '''@receiver(post_save, sender=Colectivo)

@@ -1,0 +1,46 @@
+INVENTFARM - ACCIONES PENDIENTES PARA PRODUCCION
+Actualizado: 17/09/2026
+
+Este archivo contiene exclusivamente las acciones del plan recomendado que se
+decidieron posponer. No incluye las tareas autorizadas para las fases 1, 2 y 3.
+
+FASE 1 - SEGURIDAD BASICA PENDIENTE
+
+1. Separar la configuracion de desarrollo y produccion.
+2. Configurar en produccion:
+   - DEBUG=False.
+   - SECRET_KEY larga, aleatoria y exclusiva del entorno.
+   - ALLOWED_HOSTS y CSRF_TRUSTED_ORIGINS explicitos.
+   - Redireccion obligatoria de HTTP a HTTPS.
+   - SESSION_COOKIE_SECURE=True y CSRF_COOKIE_SECURE=True.
+   - HSTS, inicialmente con un periodo corto y aumento gradual.
+3. Rotar antes del lanzamiento la SECRET_KEY y las credenciales de base de
+   datos y correo.
+4. Sustituir mensajes que exponen excepciones internas por respuestas
+   genericas y conservar el detalle solamente en logs privados.
+
+FASE 4 - OPERACION Y PREPRODUCCION PENDIENTE COMPLETA
+
+1. Preparar el servidor WSGI/ASGI de produccion y el proxy HTTPS.
+2. Configurar la publicacion de archivos estaticos y el manejo seguro de
+   archivos media.
+3. Configurar logs con rotacion, retencion y alertas de errores.
+4. Incorporar un endpoint de salud para aplicacion, base de datos y servicios
+   indispensables.
+5. Guardar backups cifrados fuera del servidor de aplicacion.
+6. Ensayar y documentar una restauracion completa de base de datos y media.
+7. Crear el procedimiento de despliegue y rollback.
+8. Preparar un ambiente staging con datos anonimizados.
+9. Ejecutar pruebas de aceptacion con usuarios representativos de cada rol.
+10. Ejecutar pruebas de carga y concurrencia en staging.
+11. Definir la ventana de despliegue, responsables y criterios de abortar o
+    revertir la liberacion.
+
+CRITERIOS DE SALIDA A PRODUCCION PENDIENTES
+
+1. Ejecutar manage.py check --deploy con la configuracion real de produccion
+   y resolver todas las advertencias aplicables.
+2. Confirmar que HTTPS, cookies seguras, hosts y CSRF funcionan en el dominio
+   definitivo.
+3. Verificar una restauracion real de backup.
+4. Completar la aceptacion en staging y aprobar el procedimiento de rollback.

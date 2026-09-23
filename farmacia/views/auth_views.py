@@ -5,10 +5,12 @@ Vistas de autenticación: inicio, login, logout, bienvenida (principal).
 import logging
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils import timezone
 from axes.models import AccessAttempt
 from axes.handlers.proxy import AxesProxyHandler
 
@@ -22,10 +24,12 @@ def inicio(request):
     return redirect('login')
 
 
+@login_required(login_url='login')
 def vista_farmacia(request):
     return render(request, 'farmacia.html')
 
 
+@login_required(login_url='login')
 def vista_farmacia_g(request):
     """Vista para el inventario por lotes"""
     return render(request, 'farmacia_g.html', {
@@ -118,32 +122,54 @@ def logout_view(request):
 
 
 @never_cache
+@login_required(login_url='login')
 def bienvenida(request):
-    from django.contrib.auth.decorators import login_required
-    # Decorated dynamically, applied in __init__.py
-    def tiene_acceso(user, grupos_requeridos):
-        if user.is_superuser or user.rol == 'ADMIN':
+    def tiene_acceso(user, grupos_requeridos, permiso=None):
+        if user.is_superuser:
             return True
-        return user.groups.filter(name__in=grupos_requeridos).exists()
+        pertenece_al_grupo = user.groups.filter(name__in=grupos_requeridos).exists()
+        return pertenece_al_grupo and (permiso is None or user.has_perm(permiso))
+
+    grupos_farmacia = [
+        'Administrador', 'Farmacéutico', 'Farmaceutico', 'Jefe de Farmacia',
+        'Jefe farmacia', 'Capturista_Farmacia', 'Supervisor_Farmacia',
+    ]
+    grupos_enfermeria = [
+        'Administrador', 'Enfermero', 'Enfermero/a', 'Jefe de Enfermería',
+        'Jefe enfermeros', 'Enfermeria',
+    ]
+    es_administrador = request.user.is_superuser or request.user.groups.filter(
+        name='Administrador'
+    ).exists()
 
     modulos = [
         {
             'nombre': 'Farmacia',
-            'imagen': 'farmacia/img/farmacia.png',
             'descripcion': 'Gestión de medicamentos y lotes',
-            'url': 'farmacia_g',
-            'acceso': tiene_acceso(request.user, ['Capturista_Farmacia', 'Supervisor_Farmacia'])
+            'url': 'farmacia',
+            'acceso': tiene_acceso(request.user, grupos_farmacia),
         },
         {
             'nombre': 'Enfermería',
-            'imagen': 'farmacia/img/enfermeria.png',
-            'descripcion': 'Gestión de pacientes y tratamientos',
-            'url': None,
-            'acceso': tiene_acceso(request.user, ['Enfermeria'])
+            'descripcion': 'Gestión de pacientes y colectivos',
+            'url': 'enfermeria_principal',
+            'acceso': tiene_acceso(
+                request.user,
+                grupos_enfermeria,
+                'enfermeria.view_colectivo',
+            ),
         },
     ]
 
     return render(request, 'principal.html', {
         'modulos': modulos,
-        'last_login': request.user.last_login
+        'last_login': request.user.last_login,
+        'farmacia_acceso': modulos[0]['acceso'],
+        'enfermeria_acceso': modulos[1]['acceso'],
+        'fecha_actual': timezone.localdate(),
+        'can_admin_users': es_administrador and request.user.has_perm(
+            'farmacia.view_usuariopersonalizado'
+        ),
+        'can_manage_backups': request.user.is_superuser or request.user.rol == 'ADMIN',
+        'can_view_alertas': request.user.has_perm('farmacia.view_lote'),
     })

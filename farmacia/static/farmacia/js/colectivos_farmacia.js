@@ -273,12 +273,15 @@ function validarStockDisponible() {
     });
     
     const btnConfirmar = document.getElementById('btn-confirmar-final');
+    const pdfHabilitado = window.COLECTIVOS_FARMACIA_CONFIG?.pdfHabilitado !== false;
     if (btnConfirmar) {
         btnConfirmar.disabled = !todoDisponible;
         if (!todoDisponible) {
             btnConfirmar.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Stock Insuficiente';
         } else {
-            btnConfirmar.innerHTML = '<i class="fas fa-check-double"></i> Confirmar y Generar PDF';
+            btnConfirmar.innerHTML = pdfHabilitado
+                ? '<i class="fas fa-check-double"></i> Confirmar y Generar PDF'
+                : '<i class="fas fa-check-double"></i> Confirmar Surtido';
         }
     }
 }
@@ -327,18 +330,25 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => {
                 if (response.redirected) {
-                    // Éxito - Abrir PDF en nueva ventana
-                    const colectivoId = url.match(/\/(\d+)\//)[1];
-                    window.open(`/colectivos-farmacia/${colectivoId}/pdf/`, '_blank');
+                    const config = window.COLECTIVOS_FARMACIA_CONFIG || {};
+                    if (config.pdfHabilitado !== false) {
+                        const colectivoId = url.match(/\/(\d+)\//)[1];
+                        const pdfUrl = config.pdfUrl || `/colectivos-farmacia/${colectivoId}/pdf/`;
+                        window.open(pdfUrl, '_blank');
+                    }
                     
                     // Cerrar modal
                     cerrarModalSurtido();
                     
                     // Mostrar mensaje de éxito
-                    alert('Colectivo completado exitosamente. El PDF se descargará automáticamente.');
+                    alert(
+                        config.pdfHabilitado === false
+                            ? 'Colectivo de antibióticos completado exitosamente.'
+                            : 'Colectivo completado exitosamente. El PDF se descargará automáticamente.'
+                    );
                     
                     // Redirigir a lista
-                    window.location.href = '/colectivos-farmacia/';
+                    window.location.href = config.listaUrl || '/colectivos-farmacia/';
                 } else {
                     throw new Error('Error al completar el colectivo');
                 }

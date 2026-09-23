@@ -29,6 +29,16 @@ class AuditoriaMiddleware(MiddlewareMixin):
             ip = request.META.get('REMOTE_ADDR')
         _thread_locals.ip = ip
 
+    def process_response(self, request, response):
+        # Evita atribuir tareas automáticas posteriores al último usuario del hilo.
+        _thread_locals.user = None
+        _thread_locals.ip = None
+        return response
+
+    def process_exception(self, request, exception):
+        _thread_locals.user = None
+        _thread_locals.ip = None
+
 # ===== SIGNALS PARA LOGIN/LOGOUT =====
 # Esto registra automáticamente cuando alguien entra o sale del sistema
 

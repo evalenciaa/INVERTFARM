@@ -40,7 +40,7 @@ function confirmarCancelacion() {
         // Crear formulario y enviarlo
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/enfermeria/colectivos/${colectivoId}/cancelar/`;
+        form.action = this.dataset.cancelarUrl || `/enfermeria/colectivos/${colectivoId}/cancelar/`;
         
         // CSRF Token
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -340,7 +340,8 @@ function configurarAutocompletado(id) {
  */
 async function buscarMedicamentos(query, suggestionsDiv, input, hiddenId, btnAgregar) {
     try {
-        const response = await fetch(`/enfermeria/api/buscar-medicamentos/?q=${encodeURIComponent(query)}`);
+        const medicamentosUrl = window.APP_URLS?.buscarMedicamentos || '/enfermeria/api/buscar-medicamentos/';
+        const response = await fetch(`${medicamentosUrl}?q=${encodeURIComponent(query)}`);
         const data = await response.json();
         
         if (data.results && data.results.length > 0) {
@@ -423,6 +424,7 @@ function agregarMedicamentoAlFormulario(id) {
     const medIdTemp = document.getElementById(`med-id-temp-${id}`);
     const cantidadTemp = document.getElementById(`cantidad-temp-${id}`);
     const inputText = document.getElementById(`input-med-${id}`);
+    const listaPermanente = document.getElementById('medicamentos-agregados-lista');
     
     // Validar que haya medicamento seleccionado
     if (!medIdTemp || !medIdTemp.value) {
@@ -435,9 +437,58 @@ function agregarMedicamentoAlFormulario(id) {
         alert('La cantidad debe ser mayor a 0');
         return;
     }
-    
-    // ✅ Agregar al contenedor
-    listaPermanente.insertAdjacentHTML('beforeend', medicamentoPermanenteHTML);
+
+    if (!listaPermanente || !inputText) {
+        alert('No fue posible agregar el medicamento. Recarga la página e inténtalo nuevamente.');
+        return;
+    }
+
+    const duplicado = Array.from(
+        document.querySelectorAll('input[name="medicamento_id[]"]:not(:disabled)')
+    ).some(input => input.value === medIdTemp.value);
+    if (duplicado) {
+        alert('Este medicamento ya está incluido en el colectivo. Modifica su cantidad en la lista actual.');
+        return;
+    }
+
+    const item = document.createElement('div');
+    item.className = 'medicamento-edit-item medicamento-agregado';
+    item.id = `med-agregado-${id}`;
+
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'medicamento_id[]';
+    hidden.value = medIdTemp.value;
+
+    const info = document.createElement('div');
+    info.className = 'med-info';
+    const descripcion = document.createElement('span');
+    descripcion.textContent = inputText.value;
+    info.appendChild(descripcion);
+
+    const cantidadContenedor = document.createElement('div');
+    cantidadContenedor.className = 'med-cantidad';
+    const etiqueta = document.createElement('label');
+    etiqueta.textContent = 'Cantidad';
+    const cantidad = document.createElement('input');
+    cantidad.type = 'number';
+    cantidad.name = 'cantidad[]';
+    cantidad.value = cantidadTemp.value;
+    cantidad.min = '1';
+    cantidad.max = '9999';
+    cantidad.required = true;
+    cantidad.className = 'cantidad-input';
+    cantidadContenedor.append(etiqueta, cantidad);
+
+    const eliminar = document.createElement('button');
+    eliminar.type = 'button';
+    eliminar.className = 'btn-eliminar-med';
+    eliminar.title = 'Eliminar medicamento';
+    eliminar.innerHTML = '<i class="fas fa-trash"></i>';
+    eliminar.addEventListener('click', () => eliminarMedicamentoAgregado(item.id));
+
+    item.append(hidden, info, cantidadContenedor, eliminar);
+    listaPermanente.appendChild(item);
     
     // ✅ Eliminar el formulario temporal
     if (container) {

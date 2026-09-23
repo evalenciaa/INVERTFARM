@@ -21,10 +21,38 @@ def farmacia_requerida(user):
     return user.is_authenticated and (user.rol == 'FARMACIA' or user.is_superuser)
 
 
+def medicamentos_permitidos_en_colectivos():
+    """Medicamentos activos sin ninguna marca de clasificación antibiótica."""
+    return Medicamento.objects.filter(
+        activo=True,
+        es_antibiotico=False,
+    ).filter(
+        Q(codigo_atc__isnull=True) | Q(codigo_atc='')
+    )
+
+
+def medicamentos_permitidos_en_colectivos_antibioticos():
+    """Medicamentos activos marcados como antibiótico o con código ATC."""
+    return Medicamento.objects.filter(activo=True).filter(
+        Q(es_antibiotico=True) |
+        (Q(codigo_atc__isnull=False) & ~Q(codigo_atc=''))
+    )
+
+
+def ids_colectivos_antibioticos():
+    """IDs de colectivos que contienen medicamentos clasificados como antibióticos."""
+    return ColectivoMedicamento.objects.filter(
+        Q(medicamento__es_antibiotico=True) |
+        (Q(medicamento__codigo_atc__isnull=False) & ~Q(medicamento__codigo_atc=''))
+    ).values('colectivo_id')
+
+
 # ===== VISTA PRINCIPAL DE ENFERMERÍA =====
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
 @group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
 def enfermeria_principal(request):
     """
     Vista principal del módulo de enfermería
@@ -38,7 +66,9 @@ def enfermeria_principal(request):
 # ===== LISTA DE COLECTIVOS (ENFERMERÍA) =====
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
 @group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
 def lista_colectivos_enfermeria(request):
     """
     Vista de lista de colectivos para enfermería
@@ -51,7 +81,7 @@ def lista_colectivos_enfermeria(request):
     # Query base - solo colectivos del enfermero actual
     colectivos = Colectivo.objects.filter(
         enfermero_solicitante=request.user
-    ).select_related(
+    ).exclude(id__in=ids_colectivos_antibioticos()).select_related(
         'paciente', 
         'enfermero_solicitante', 
         'farmaceutico_asignado'
@@ -88,6 +118,49 @@ def lista_colectivos_enfermeria(request):
 
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
+def lista_colectivos_antibioticos(request):
+    """Lista los colectivos de antibióticos creados por el enfermero actual."""
+    estado_filtro = request.GET.get('estado', '')
+    busqueda = request.GET.get('q', '')
+
+    colectivos = Colectivo.objects.filter(
+        enfermero_solicitante=request.user,
+        id__in=ids_colectivos_antibioticos(),
+    ).select_related(
+        'paciente', 'enfermero_solicitante', 'farmaceutico_asignado'
+    ).prefetch_related('medicamentos').distinct()
+
+    if estado_filtro:
+        colectivos = colectivos.filter(estado=estado_filtro)
+    if busqueda:
+        colectivos = colectivos.filter(
+            Q(folio__icontains=busqueda) |
+            Q(paciente__nombre_completo__icontains=busqueda) |
+            Q(numero_cama__icontains=busqueda)
+        )
+
+    stats = {
+        'total': colectivos.count(),
+        'pendientes': colectivos.filter(estado='PENDIENTE').count(),
+        'respondidos': colectivos.filter(estado='RESPONDIDO').count(),
+        'completados': colectivos.filter(estado='COMPLETADO').count(),
+        'cancelados': colectivos.filter(estado='CANCELADO').count(),
+    }
+    return render(request, 'lista_colectivos_antibioticos.html', {
+        'colectivos': colectivos,
+        'stats': stats,
+        'estado_filtro': estado_filtro,
+        'busqueda': busqueda,
+        'user': request.user,
+        'modulo_antibioticos': True,
+    })
+
+
+@never_cache
+@login_required(login_url='login')
 @require_http_methods(['GET', 'POST'])
 @permission_required('enfermeria.create_colectivo', raise_exception=True)
 def crear_colectivo(request):
@@ -95,17 +168,6 @@ def crear_colectivo(request):
     Formulario para crear un nuevo colectivo (Paciente o Stock)
     """
     if request.method == 'POST':
-        # ✅ DEBUG: Ver datos recibidos
-        print("=" * 50)
-        print("📥 DATOS RECIBIDOS DEL FORMULARIO:")
-        print(f"   tipo_colectivo: {request.POST.get('tipo_colectivo')}")
-        print(f"   paciente: {request.POST.get('paciente')}")
-        print(f"   paciente_input: {request.POST.get('paciente-input')}")
-        print(f"   numero_cama: {request.POST.get('numero_cama')}")
-        print(f"   turno: {request.POST.get('turno')}")
-        print(f"   servicio: {request.POST.get('servicio')}")
-        print("=" * 50)
-        
         # ✅ MANEJAR CREACIÓN DE PACIENTE NUEVO
         post_data = request.POST.copy()  # Copiar para poder modificar
         tipo_colectivo = post_data.get('tipo_colectivo')
@@ -121,10 +183,8 @@ def crear_colectivo(request):
                         nombre_completo=paciente_nombre
                     )
                     post_data['paciente'] = paciente_nuevo.id  # ← Actualizar datos POST
-                    print(f"✅ Paciente nuevo creado: {paciente_nuevo.nombre_completo} (ID: {paciente_nuevo.id})")
                 except Exception as e:
                     messages.error(request, f'Error al crear paciente: {str(e)}')
-                    print(f"❌ ERROR al crear paciente: {e}")
         
         # Crear formulario con los datos actualizados
         form = ColectivoForm(post_data)
@@ -135,16 +195,44 @@ def crear_colectivo(request):
         
         if form.is_valid():
             # Validar que haya al menos un medicamento
-            medicamentos_validos = [
-                (med_id, cant) for med_id, cant in zip(medicamentos_ids, cantidades)
-                if med_id and cant and int(cant) > 0
-            ]
+            try:
+                medicamentos_validos = [
+                    (str(med_id).strip(), int(cant))
+                    for med_id, cant in zip(medicamentos_ids, cantidades)
+                    if med_id and cant and int(cant) > 0
+                ]
+            except (TypeError, ValueError):
+                medicamentos_validos = []
             
             if not medicamentos_validos:
                 messages.error(request, 'Debe agregar al menos un medicamento al colectivo')
                 return render(request, 'crear_colectivo.html', {
                     'form': form,
-                    'medicamentos': Medicamento.objects.filter(activo=True).order_by('descripcion')
+                    'medicamentos': medicamentos_permitidos_en_colectivos().order_by('descripcion')
+                })
+
+            ids_solicitados = {med_id for med_id, _ in medicamentos_validos}
+            if len(ids_solicitados) != len(medicamentos_validos):
+                messages.error(request, 'No puedes agregar el mismo medicamento más de una vez.')
+                return render(request, 'crear_colectivo.html', {
+                    'form': form,
+                    'medicamentos': medicamentos_permitidos_en_colectivos().order_by('descripcion')
+                })
+
+            medicamentos_encontrados = {
+                str(pk): medicamento
+                for pk, medicamento in medicamentos_permitidos_en_colectivos()
+                .in_bulk(ids_solicitados)
+                .items()
+            }
+            if len(medicamentos_encontrados) != len(ids_solicitados):
+                messages.error(
+                    request,
+                    'Los colectivos generales no permiten medicamentos antibióticos ni medicamentos con código ATC.'
+                )
+                return render(request, 'crear_colectivo.html', {
+                    'form': form,
+                    'medicamentos': medicamentos_permitidos_en_colectivos().order_by('descripcion')
                 })
             
             try:
@@ -157,15 +245,11 @@ def crear_colectivo(request):
                     
                     # Agregar medicamentos
                     for med_id, cantidad in medicamentos_validos:
-                        try:
-                            medicamento = Medicamento.objects.get(id=med_id)
-                            ColectivoMedicamento.objects.create(
-                                colectivo=colectivo,
-                                medicamento=medicamento,
-                                cantidad_solicitada=int(cantidad)
-                            )
-                        except Medicamento.DoesNotExist:
-                            continue
+                        ColectivoMedicamento.objects.create(
+                            colectivo=colectivo,
+                            medicamento=medicamentos_encontrados[med_id],
+                            cantidad_solicitada=cantidad
+                        )
                         
                     from enfermeria.models import enviar_notificacion_colectivo
                     enviar_notificacion_colectivo(colectivo)
@@ -181,32 +265,123 @@ def crear_colectivo(request):
                     
             except Exception as e:
                 messages.error(request, f'Error al crear colectivo: {str(e)}')
-                print(f"❌ ERROR: {e}")
-                import traceback
-                traceback.print_exc()
         else:
-            # ✅ DEBUG: Mostrar errores del formulario
-            print("❌ ERRORES DEL FORMULARIO:")
             for field, errors in form.errors.items():
-                print(f"   {field}: {errors}")
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
     else:
         form = ColectivoForm()
     
     # Contexto
-    medicamentos = Medicamento.objects.filter(activo=True).order_by('descripcion')
+    medicamentos = medicamentos_permitidos_en_colectivos().order_by('descripcion')
     
     return render(request, 'crear_colectivo.html', {
         'form': form,
         'medicamentos': medicamentos,
         'user': request.user
     })
+
+
+@never_cache
+@login_required(login_url='login')
+@require_http_methods(['GET', 'POST'])
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.create_colectivo', raise_exception=True)
+def crear_colectivo_antibioticos(request):
+    """Crea un colectivo que admite exclusivamente antibióticos o medicamentos con ATC."""
+    medicamentos_permitidos = medicamentos_permitidos_en_colectivos_antibioticos()
+
+    if request.method == 'POST':
+        post_data = request.POST.copy()
+        if post_data.get('tipo_colectivo') == 'PACIENTE':
+            paciente_id = post_data.get('paciente')
+            paciente_nombre = post_data.get('paciente-input', '').strip()
+            if not paciente_id and paciente_nombre:
+                try:
+                    paciente_nuevo = Paciente.objects.create(nombre_completo=paciente_nombre)
+                    post_data['paciente'] = paciente_nuevo.id
+                except Exception as exc:
+                    messages.error(request, f'Error al crear paciente: {str(exc)}')
+
+        form = ColectivoForm(post_data)
+        medicamentos_ids = request.POST.getlist('medicamento_id[]')
+        cantidades = request.POST.getlist('cantidad[]')
+
+        if form.is_valid():
+            try:
+                medicamentos_validos = [
+                    (str(med_id).strip(), int(cantidad))
+                    for med_id, cantidad in zip(medicamentos_ids, cantidades)
+                    if med_id and cantidad and int(cantidad) > 0
+                ]
+            except (TypeError, ValueError):
+                medicamentos_validos = []
+
+            if not medicamentos_validos:
+                messages.error(request, 'Debe agregar al menos un antibiótico al colectivo.')
+            else:
+                ids_solicitados = {med_id for med_id, _ in medicamentos_validos}
+                if len(ids_solicitados) != len(medicamentos_validos):
+                    messages.error(request, 'No puedes agregar el mismo medicamento más de una vez.')
+                else:
+                    medicamentos_encontrados = {
+                        str(pk): medicamento
+                        for pk, medicamento in medicamentos_permitidos.in_bulk(ids_solicitados).items()
+                    }
+                    if len(medicamentos_encontrados) != len(ids_solicitados):
+                        messages.error(
+                            request,
+                            'El colectivo de antibióticos solo permite medicamentos marcados como '
+                            'antibióticos o con código ATC.'
+                        )
+                    else:
+                        try:
+                            with transaction.atomic():
+                                colectivo = form.save(commit=False)
+                                colectivo.enfermero_solicitante = request.user
+                                colectivo.estado = 'PENDIENTE'
+                                colectivo.save()
+                                for med_id, cantidad in medicamentos_validos:
+                                    ColectivoMedicamento.objects.create(
+                                        colectivo=colectivo,
+                                        medicamento=medicamentos_encontrados[med_id],
+                                        cantidad_solicitada=cantidad,
+                                    )
+
+                                from enfermeria.models import enviar_notificacion_colectivo
+                                transaction.on_commit(lambda: enviar_notificacion_colectivo(colectivo))
+
+                            messages.success(
+                                request,
+                                f'Colectivo de antibióticos {colectivo.folio} creado exitosamente.'
+                            )
+                            return redirect(
+                                'detalle_colectivo_antibioticos', colectivo_id=colectivo.id
+                            )
+                        except Exception as exc:
+                            messages.error(
+                                request, f'Error al crear colectivo de antibióticos: {str(exc)}'
+                            )
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+    else:
+        form = ColectivoForm()
+
+    return render(request, 'crear_colectivo_antibioticos.html', {
+        'form': form,
+        'medicamentos': medicamentos_permitidos.order_by('descripcion'),
+        'user': request.user,
+        'modulo_antibioticos': True,
+    })
     
     
 
 @require_http_methods(['GET'])
 @login_required
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.create_colectivo', raise_exception=True)
 def buscar_pacientes_autocomplete(request):  # ← Nuevo nombre
     """
     API para autocompletar pacientes por nombre o CURP (para crear colectivos)
@@ -241,14 +416,18 @@ def buscar_pacientes_autocomplete(request):  # ← Nuevo nombre
 # ===== VER DETALLE DE COLECTIVO (ENFERMERÍA) =====
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
 @group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
 def detalle_colectivo_enfermeria(request, colectivo_id):
     """
     Vista de detalle de un colectivo para enfermería
     Permite editar si está en estado RESPONDIDO
     """
     colectivo = get_object_or_404(
-        Colectivo.objects.select_related('paciente', 'farmaceutico_asignado'),
+        Colectivo.objects.exclude(
+            id__in=ids_colectivos_antibioticos()
+        ).select_related('paciente', 'farmaceutico_asignado'),
         id=colectivo_id,
         enfermero_solicitante=request.user  # Solo puede ver sus propios colectivos
     )
@@ -262,6 +441,29 @@ def detalle_colectivo_enfermeria(request, colectivo_id):
     })
 
 
+@never_cache
+@login_required(login_url='login')
+@require_http_methods(['GET'])
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
+def detalle_colectivo_antibioticos(request, colectivo_id):
+    """Muestra el detalle de un colectivo de antibióticos del enfermero actual."""
+    colectivo = get_object_or_404(
+        Colectivo.objects.filter(
+            id__in=ids_colectivos_antibioticos()
+        ).select_related('paciente', 'farmaceutico_asignado'),
+        id=colectivo_id,
+        enfermero_solicitante=request.user,
+    )
+    medicamentos = colectivo.medicamentos.select_related('medicamento').all()
+    return render(request, 'detalle_colectivo_antibioticos.html', {
+        'colectivo': colectivo,
+        'medicamentos': medicamentos,
+        'user': request.user,
+        'modulo_antibioticos': True,
+    })
+
+
 # ===== CANCELAR COLECTIVO =====
 @never_cache
 @login_required(login_url='login')
@@ -272,7 +474,7 @@ def cancelar_colectivo(request, colectivo_id):
     Cancelar un colectivo (solo si está PENDIENTE o RESPONDIDO)
     """
     colectivo = get_object_or_404(
-        Colectivo,
+        Colectivo.objects.exclude(id__in=ids_colectivos_antibioticos()),
         id=colectivo_id,
         enfermero_solicitante=request.user
     )
@@ -287,118 +489,149 @@ def cancelar_colectivo(request, colectivo_id):
     return redirect('lista_colectivos_enfermeria')
 
 
+@never_cache
+@login_required(login_url='login')
+@require_http_methods(['POST'])
+@permission_required('enfermeria.delete_colectivo', raise_exception=True)
+def cancelar_colectivo_antibioticos(request, colectivo_id):
+    """Cancela un colectivo de antibióticos propio que siga abierto."""
+    colectivo = get_object_or_404(
+        Colectivo.objects.filter(id__in=ids_colectivos_antibioticos()),
+        id=colectivo_id,
+        enfermero_solicitante=request.user,
+    )
+    if colectivo.estado in ['PENDIENTE', 'RESPONDIDO']:
+        colectivo.estado = 'CANCELADO'
+        colectivo.save(update_fields=['estado', 'updated_at'])
+        messages.success(request, f'Colectivo de antibióticos {colectivo.folio} cancelado.')
+    else:
+        messages.error(request, 'No se puede cancelar un colectivo completado.')
+    return redirect('lista_colectivos_antibioticos')
+
+
 # ===== EDITAR Y REENVIAR COLECTIVO =====
+def _editar_colectivo_por_tipo(
+    request, colectivo_id, medicamentos_permitidos, colectivos_permitidos,
+    detalle_url, etiqueta,
+):
+    medicamentos_ids = [valor.strip() for valor in request.POST.getlist('medicamento_id[]')]
+    cantidades = request.POST.getlist('cantidad[]')
+    if len(medicamentos_ids) != len(cantidades):
+        messages.error(request, 'La lista de medicamentos está incompleta. Intenta nuevamente.')
+        return redirect(detalle_url, colectivo_id=colectivo_id)
+
+    try:
+        medicamentos_solicitados = []
+        for medicamento_id, cantidad in zip(medicamentos_ids, cantidades):
+            if not medicamento_id or not str(cantidad).strip():
+                raise ValueError('Todos los medicamentos deben incluir una cantidad.')
+            cantidad_entera = int(cantidad)
+            if cantidad_entera <= 0:
+                raise ValueError('Las cantidades deben ser mayores que cero.')
+            medicamentos_solicitados.append((medicamento_id, cantidad_entera))
+    except (TypeError, ValueError) as exc:
+        messages.error(request, str(exc) or 'Hay una cantidad inválida.')
+        return redirect(detalle_url, colectivo_id=colectivo_id)
+
+    if not medicamentos_solicitados:
+        messages.error(request, 'Debe haber al menos un medicamento en el colectivo.')
+        return redirect(detalle_url, colectivo_id=colectivo_id)
+    ids_unicos = {medicamento_id for medicamento_id, _ in medicamentos_solicitados}
+    if len(ids_unicos) != len(medicamentos_solicitados):
+        messages.error(request, 'No puedes agregar el mismo medicamento más de una vez.')
+        return redirect(detalle_url, colectivo_id=colectivo_id)
+
+    medicamentos_encontrados = {
+        str(pk): medicamento
+        for pk, medicamento in medicamentos_permitidos.in_bulk(ids_unicos).items()
+    }
+    if ids_unicos - set(medicamentos_encontrados):
+        messages.error(request, f'El medicamento no pertenece al módulo de {etiqueta}.')
+        return redirect(detalle_url, colectivo_id=colectivo_id)
+
+    try:
+        with transaction.atomic():
+            colectivo = get_object_or_404(
+                colectivos_permitidos.select_for_update(),
+                id=colectivo_id,
+                enfermero_solicitante=request.user,
+            )
+            if colectivo.estado != 'RESPONDIDO':
+                messages.error(request, 'Solo se pueden editar colectivos respondidos por farmacia.')
+                return redirect(detalle_url, colectivo_id=colectivo.id)
+
+            colectivo.medicamentos.exclude(medicamento_id__in=ids_unicos).delete()
+            for medicamento_id, cantidad in medicamentos_solicitados:
+                ColectivoMedicamento.objects.update_or_create(
+                    colectivo=colectivo,
+                    medicamento=medicamentos_encontrados[medicamento_id],
+                    defaults={
+                        'cantidad_solicitada': cantidad,
+                        'cantidad_surtida': 0,
+                        'disponible': True,
+                        'comentario_farmacia': '',
+                    },
+                )
+
+            observaciones = request.POST.get('observaciones', '').strip()
+            if observaciones:
+                colectivo.observaciones_enfermeria = observaciones
+            colectivo.estado = 'PENDIENTE'
+            colectivo.fecha_respuesta_farmacia = None
+            colectivo.respuesta_farmacia = ''
+            colectivo.farmaceutico_asignado = None
+            colectivo.save(update_fields=[
+                'observaciones_enfermeria', 'estado', 'fecha_respuesta_farmacia',
+                'respuesta_farmacia', 'farmaceutico_asignado', 'updated_at',
+            ])
+
+            from enfermeria.models import enviar_notificacion_colectivo
+            transaction.on_commit(lambda: enviar_notificacion_colectivo(colectivo))
+
+        messages.success(request, f'{etiqueta.capitalize()} {colectivo.folio} actualizado y reenviado.')
+        return redirect(detalle_url, colectivo_id=colectivo.id)
+    except Exception as exc:
+        messages.error(request, f'Error al editar {etiqueta}: {str(exc)}')
+        return redirect(detalle_url, colectivo_id=colectivo_id)
+
+
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['POST'])
 @permission_required('enfermeria.change_colectivo', raise_exception=True)
-@require_http_methods(["POST"])
 def editar_colectivo(request, colectivo_id):
-    """
-    Editar un colectivo respondido y reenviarlo a farmacia
-    """
-    # Importar el modelo de farmacia
-    from farmacia.models import Medicamento
-    
-    colectivo = get_object_or_404(
-        Colectivo,
-        id=colectivo_id,
-        enfermero_solicitante=request.user
+    """Actualiza todos los renglones y reenvía un colectivo respondido."""
+    return _editar_colectivo_por_tipo(
+        request,
+        colectivo_id,
+        medicamentos_permitidos_en_colectivos(),
+        Colectivo.objects.exclude(id__in=ids_colectivos_antibioticos()),
+        'detalle_colectivo_enfermeria',
+        'colectivo',
     )
-    
-    if colectivo.estado != 'RESPONDIDO':
-        messages.error(request, 'Solo se pueden editar colectivos respondidos por farmacia')
-        return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
-    
-    try:
-        with transaction.atomic():
-            # ✅ Actualizar observaciones
-            observaciones = request.POST.get('observaciones', '').strip()
-            if observaciones:
-                colectivo.observaciones_enfermeria = observaciones
-            
-            # ✅ Obtener TODOS los medicamento_id[] y cantidad[]
-            medicamentos_ids = request.POST.getlist('medicamento_id[]')
-            cantidades = request.POST.getlist('cantidad[]')
-            
-            print(f"📥 Datos recibidos del formulario:")
-            print(f"   medicamentos_ids: {medicamentos_ids}")
-            print(f"   cantidades: {cantidades}")
-            
-            # ✅ Filtrar y validar datos
-            medicamentos_validos = []
-            
-            for med_id, cantidad in zip(medicamentos_ids, cantidades):
-                # Verificar que ambos valores existan y no estén vacíos
-                if med_id and cantidad and str(med_id).strip() and str(cantidad).strip():
-                    try:
-                        # ✅ med_id es un string como "MED-0007", NO convertir a int
-                        med_id_str = str(med_id).strip()
-                        cantidad_int = int(cantidad)
-                        
-                        # Verificar que la cantidad sea positiva
-                        if cantidad_int > 0:
-                            medicamentos_validos.append({
-                                'id': med_id_str,  # ✅ Guardar como string
-                                'cantidad': cantidad_int
-                            })
-                            print(f"   ✅ Medicamento válido: ID={med_id_str}, Cantidad={cantidad_int}")
-                        else:
-                            print(f"   ⚠️ Cantidad inválida: {cantidad_int}")
-                    except (ValueError, TypeError) as e:
-                        print(f"   ❌ Error al procesar: med_id={med_id}, cantidad={cantidad}, error={e}")
-                        continue
-                else:
-                    print(f"   ⏭️ Par ignorado (vacío o deshabilitado): med_id={med_id}, cantidad={cantidad}")
-            
-            print(f"📊 Total medicamentos válidos: {len(medicamentos_validos)}")
-            
-            # ✅ Validar que haya al menos un medicamento
-            if not medicamentos_validos:
-                messages.error(request, 'Debe haber al menos un medicamento en el colectivo')
-                return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
-            
-            # ✅ Eliminar todos los medicamentos actuales
-            colectivo.medicamentos.all().delete()
-            print(f"🗑️ Medicamentos anteriores eliminados")
-            
-            # ✅ Agregar medicamentos válidos
-            for item in medicamentos_validos:
-                try:
-                    # ✅ Buscar medicamento por ID string
-                    medicamento = Medicamento.objects.get(id=item['id'])
-                    ColectivoMedicamento.objects.create(
-                        colectivo=colectivo,
-                        medicamento=medicamento,
-                        cantidad_solicitada=item['cantidad']
-                    )
-                    print(f"   ➕ Agregado: {medicamento.clave} - Cantidad: {item['cantidad']}")
-                except Medicamento.DoesNotExist:
-                    print(f"   ❌ Medicamento no encontrado: ID={item['id']}")
-                    messages.error(request, f'Medicamento con ID {item["id"]} no encontrado')
-                    return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
-            
-            # ✅ Cambiar estado a PENDIENTE nuevamente
-            colectivo.estado = 'PENDIENTE'
-            colectivo.fecha_respuesta_farmacia = None
-            colectivo.respuesta_farmacia = ''
-            colectivo.save()
-            
-            print(f"✅ Colectivo {colectivo.folio} actualizado correctamente")
-            messages.success(request, f'Colectivo {colectivo.folio} actualizado y reenviado a farmacia')
-            return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
-            
-    except Exception as e:
-        print(f"❌ ERROR: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        messages.error(request, f'Error al editar colectivo: {str(e)}')
-        return redirect('detalle_colectivo_enfermeria', colectivo_id=colectivo.id)
 
+
+@never_cache
+@login_required(login_url='login')
+@require_http_methods(['POST'])
+@permission_required('enfermeria.change_colectivo', raise_exception=True)
+def editar_colectivo_antibioticos(request, colectivo_id):
+    """Actualiza y reenvía un colectivo de antibióticos respondido."""
+    return _editar_colectivo_por_tipo(
+        request,
+        colectivo_id,
+        medicamentos_permitidos_en_colectivos_antibioticos(),
+        Colectivo.objects.filter(id__in=ids_colectivos_antibioticos()),
+        'detalle_colectivo_antibioticos',
+        'colectivo de antibióticos',
+    )
 
 
 
 @login_required
+@require_http_methods(['GET'])
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.create_colectivo', raise_exception=True)
 def api_buscar_medicamentos(request):
     """API para autocompletado de medicamentos"""
     from farmacia.models import Medicamento
@@ -408,9 +641,8 @@ def api_buscar_medicamentos(request):
     if len(query) < 2:
         return JsonResponse({'results': []})
     
-    medicamentos = Medicamento.objects.filter(
+    medicamentos = medicamentos_permitidos_en_colectivos().filter(
         Q(clave__icontains=query) | Q(descripcion__icontains=query),
-        activo=True
     ).order_by('descripcion')[:50]
     
     results = [{
@@ -420,17 +652,37 @@ def api_buscar_medicamentos(request):
         'text': f"{med.clave} - {med.descripcion}"
     } for med in medicamentos]
     
-    print(f"🔍 Búsqueda: '{query}' → {len(results)} resultados")
-    if results:
-        print(f"   Ejemplo: ID={results[0]['id']} (tipo: {type(results[0]['id'])})")
-    
     return JsonResponse({'results': results})
+
+
+@login_required
+@require_http_methods(['GET'])
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.create_colectivo', raise_exception=True)
+def api_buscar_medicamentos_antibioticos(request):
+    """API de autocompletado exclusiva para antibióticos o medicamentos con ATC."""
+    query = request.GET.get('q', '')
+    if len(query) < 2:
+        return JsonResponse({'results': []})
+
+    medicamentos = medicamentos_permitidos_en_colectivos_antibioticos().filter(
+        Q(clave__icontains=query) | Q(descripcion__icontains=query),
+    ).order_by('descripcion')[:50]
+    return JsonResponse({'results': [{
+        'id': medicamento.id,
+        'clave': medicamento.clave,
+        'descripcion': medicamento.descripcion,
+        'text': f'{medicamento.clave} - {medicamento.descripcion}',
+    } for medicamento in medicamentos]})
 
 
 
 
 # ===== API: BUSCAR PACIENTES =====
 @login_required
+@require_http_methods(['GET'])
+@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('enfermeria.create_colectivo', raise_exception=True)
 def api_buscar_pacientes(request):
     """
     API para autocompletado de pacientes
@@ -457,7 +709,9 @@ def api_buscar_pacientes(request):
 # ===== LISTA DE COLECTIVOS (FARMACIA) =====
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
 @user_passes_test(farmacia_requerida, login_url='principal')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
 def lista_colectivos_farmacia(request):
     """
     Vista de lista de colectivos para farmacia
@@ -512,7 +766,9 @@ def lista_colectivos_farmacia(request):
 # ===== VER DETALLE Y RESPONDER COLECTIVO (FARMACIA) =====
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
 @user_passes_test(farmacia_requerida, login_url='principal')
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
 def detalle_colectivo_farmacia(request, colectivo_id):
     """
     Vista de detalle de un colectivo para farmacia
@@ -558,6 +814,7 @@ def detalle_colectivo_farmacia(request, colectivo_id):
 @login_required(login_url='login')
 @user_passes_test(farmacia_requerida, login_url='principal')
 @require_http_methods(["POST"])
+@permission_required('enfermeria.respond_colectivo', raise_exception=True)
 def responder_colectivo(request, colectivo_id):
     """
     Farmacia responde al colectivo indicando disponibilidad
@@ -600,6 +857,7 @@ def responder_colectivo(request, colectivo_id):
 @login_required(login_url='login')
 @user_passes_test(farmacia_requerida, login_url='principal')
 @require_http_methods(["POST"])
+@permission_required('enfermeria.complete_colectivo', raise_exception=True)
 def completar_colectivo(request, colectivo_id):
     """
     Marca el colectivo como completado y descuenta del inventario
@@ -663,7 +921,7 @@ def completar_colectivo(request, colectivo_id):
         colectivo.fecha_completado = timezone.now()
         colectivo.farmaceutico_asignado = request.user
         colectivo.save()
-        
+
         messages.success(request, f'Colectivo {colectivo.folio} completado exitosamente')
         return redirect('generar_pdf_colectivo', colectivo_id=colectivo.id)
         
@@ -675,6 +933,8 @@ def completar_colectivo(request, colectivo_id):
 # ===== GENERAR PDF DEL COLECTIVO =====
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET'])
+@permission_required('enfermeria.view_colectivo', raise_exception=True)
 def generar_pdf_colectivo(request, colectivo_id):
     """
     Genera PDF con la información del colectivo completado
@@ -813,6 +1073,7 @@ def generar_pdf_colectivo(request, colectivo_id):
     
 @never_cache
 @login_required
+@require_http_methods(['POST'])
 @permission_required('enfermeria.change_colectivo', raise_exception=True)
 def editar_reenviar_colectivo(request, colectivo_id):
     """Vista para editar y reenviar un colectivo que fue respondido por farmacia"""

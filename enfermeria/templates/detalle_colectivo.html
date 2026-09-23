@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Colectivo {{ colectivo.folio }} - Enfermería</title>
+    <title>{% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivo{% endif %} {{ colectivo.folio }} - Enfermería</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/detalle.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -23,9 +23,9 @@
                     Enfermería
                 </a>
                 <span class="separator">›</span>
-                <a href="{% url 'lista_colectivos_enfermeria' %}">
+                <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}">
                     <i class="fas fa-users"></i>
-                    Colectivos
+                    {% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %}
                 </a>
                 <span class="separator">›</span>
                 <a href="#" class="active">
@@ -38,7 +38,7 @@
     <div class="main-content">
         <div class="header">
             <div>
-                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo</h1>
+                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}</h1>
                 <p>Información completa de la solicitud</p>
             </div>
         </div>
@@ -237,12 +237,12 @@
 
             <!-- Botones de Acción -->
             <div class="acciones-detalle">
-                <a href="{% url 'lista_colectivos_enfermeria' %}" class="btn btn-secondary">
+                <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Volver a Lista
                 </a>
                 
                 {% if colectivo.estado == 'COMPLETADO' %}
-                <a href="{% url 'generar_pdf_colectivo' colectivo.id %}" class="btn btn-primary" target="_blank">
+                <a href="{% if modulo_antibioticos %}{% url 'generar_pdf_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'generar_pdf_colectivo' colectivo.id %}{% endif %}" class="btn btn-primary" target="_blank">
                     <i class="fas fa-file-pdf"></i> Descargar PDF
                 </a>
                 {% endif %}
@@ -260,6 +260,7 @@
                     id="btn-cancelar-colectivo"
                     data-folio="{{ colectivo.folio }}"
                     data-colectivo-id="{{ colectivo.id }}"
+                    data-cancelar-url="{% if modulo_antibioticos %}{% url 'cancelar_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'cancelar_colectivo' colectivo.id %}{% endif %}"
                 >
                     <i class="fas fa-ban"></i> Cancelar Colectivo
                 </button>
@@ -277,7 +278,7 @@
                     <button class="modal-close" onclick="cerrarModalEdicion()">&times;</button>
                 </div>
                 
-                <form id="form-editar-colectivo" method="POST" action="{% url 'editar_colectivo' colectivo.id %}">
+                <form id="form-editar-colectivo" method="POST" action="{% if modulo_antibioticos %}{% url 'editar_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'editar_colectivo' colectivo.id %}{% endif %}">
                     {% csrf_token %}
                     
                     <div class="modal-body">
@@ -303,10 +304,10 @@
                                     <label>Cantidad</label>
                                     <input type="number" 
                                         name="cantidad[]" 
-                                        value="{{ item.cantidadsolicitada }}" 
+                                        value="{{ item.cantidad_solicitada }}"
                                         min="1" max="9999" 
                                         class="cantidad-input">
-                                    <span class="cantidad-original">(Original: {{ item.cantidadsolicitada }})</span>
+                                    <span class="cantidad-original">(Original: {{ item.cantidad_solicitada }})</span>
                                 </div>
                                 
                                 <!-- ✅ BOTÓN ELIMINAR -->
@@ -370,7 +371,9 @@
 
     <script>
     // Configuración de URLs para JavaScript
-    window.APP_URLS = { buscarMedicamentos: "{% url 'api_buscar_medicamentos' %}" };
+    window.APP_URLS = {
+        buscarMedicamentos: "{% if modulo_antibioticos %}{% url 'api_buscar_medicamentos_antibioticos' %}{% else %}{% url 'api_buscar_medicamentos' %}{% endif %}"
+    };
     </script>
     <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
     <script src="{% static 'enfermeria/js/detalle_colectivo.js' %}"></script>

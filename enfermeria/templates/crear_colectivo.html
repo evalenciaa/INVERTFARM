@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Crear Colectivo - Enfermería</title>
+    <title>Crear {% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivo{% endif %} - Enfermería</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/formularios.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/colectivos.css' %}">
@@ -31,14 +31,14 @@
                 Enfermería
             </a>
             <span class="separator">›</span>
-            <a href="{% url 'lista_colectivos_enfermeria' %}">
+            <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}">
                 <i class="fas fa-users"></i>
-                Colectivos
+                {% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %}
             </a>
             <span class="separator">›</span>
             <a href="#" class="active">
                 <i class="fas fa-file-medical"></i>
-                Nuevo Colectivo
+                Nuevo Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}
             </a>
             <span class="separator">›</span>
             <a href="{% url 'inv_gene_f' %}" class="btn-back" target="_blank">
@@ -51,7 +51,7 @@
     <div class="main-content">
         <div class="header">
             <div>
-                <h1><i class="fas fa-plus-circle"></i> Crear Nuevo Colectivo</h1>
+                <h1><i class="fas fa-plus-circle"></i> Crear Nuevo Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}</h1>
                 <p>Solicitud de medicamentos a farmacia</p>
             </div>
         </div>
@@ -68,7 +68,7 @@
 
         <!-- Formulario -->
         <div class="form-container">
-            <form method="POST" id="form-colectivo">
+            <form method="POST" id="form-colectivo" data-medicamentos-url="{% if modulo_antibioticos %}{% url 'api_buscar_medicamentos_antibioticos' %}{% else %}{% url 'api_buscar_medicamentos' %}{% endif %}">
                 {% csrf_token %}
                 
                 <!-- Sección: Tipo de Colectivo -->
@@ -200,7 +200,11 @@
                     
                     <div class="alert alert-info">
                         <i class="fas fa-lightbulb"></i>
+                        {% if modulo_antibioticos %}
+                        Agrega medicamentos marcados como antibióticos o con código ATC. Puedes agregar varios medicamentos.
+                        {% else %}
                         Agrega los medicamentos que necesitas para este colectivo. Puedes agregar varios medicamentos.
+                        {% endif %}
                     </div>
                     
                     <div class="form-row">
@@ -279,7 +283,7 @@
 
                 <!-- Botones de acción -->
                 <div class="form-actions">
-                    <a href="{% url 'lista_colectivos_enfermeria' %}" class="btn btn-secondary">
+                    <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}" class="btn btn-secondary">
                         <i class="fas fa-times"></i> Cancelar
                     </a>
                     <button type="submit" class="btn btn-primary">

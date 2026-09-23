@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Colectivos - Enfermería</title>
+    <title>{% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %} - Enfermería</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/colectivos.css' %}">
@@ -30,9 +30,9 @@
                 Enfermería
             </a>
             <span class="separator">›</span>
-            <a href="/enfermeria/colectivos/" class="active">
+            <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}" class="active">
                 <i class="fas fa-users"></i>
-                Colectivos
+                {% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %}
             </a>
             <span class="separator">›</span>
             <a href="{% url 'inv_gene_f' %}" class="btn-back" target="_blank">
@@ -45,12 +45,12 @@
     <div class="main-content">
         <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <h1><i class="fas fa-users"></i> Mis Colectivos</h1>
-                <p>Gestiona tus solicitudes de medicamentos a farmacia</p>
+                <h1><i class="fas {% if modulo_antibioticos %}fa-capsules{% else %}fa-users{% endif %}"></i> {% if modulo_antibioticos %}Mis Colectivos de Antibióticos{% else %}Mis Colectivos{% endif %}</h1>
+                <p>{% if modulo_antibioticos %}Gestiona tus solicitudes exclusivas de antibióticos a farmacia{% else %}Gestiona tus solicitudes de medicamentos a farmacia{% endif %}</p>
             </div>
-            <a href="{% url 'crear_colectivo' %}" class="btn-nuevo">
+            <a href="{% if modulo_antibioticos %}{% url 'crear_colectivo_antibioticos' %}{% else %}{% url 'crear_colectivo' %}{% endif %}" class="btn-nuevo">
                 <i class="fas fa-plus"></i>
-                Nuevo Colectivo
+                {% if modulo_antibioticos %}Nuevo Colectivo de Antibióticos{% else %}Nuevo Colectivo{% endif %}
             </a>
         </div>
 
@@ -103,7 +103,7 @@
         <!-- Grid de Colectivos -->
         <div class="colectivos-grid">
             {% for colectivo in colectivos %}
-            <div class="colectivo-card" onclick="location.href='{% url 'detalle_colectivo_enfermeria' colectivo.id %}';">
+            <div class="colectivo-card" onclick="location.href='{% if modulo_antibioticos %}{% url 'detalle_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'detalle_colectivo_enfermeria' colectivo.id %}{% endif %}';">
                 <span class="estado-badge estado-{{ colectivo.estado }}">
                     {{ colectivo.get_estado_display }}
                 </span>
@@ -143,6 +143,9 @@
         </div>
     </div>
 
+    <script>
+        window.COLECTIVOS_LISTA_URL = "{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}";
+    </script>
     <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
 
             <div class="page-footer">

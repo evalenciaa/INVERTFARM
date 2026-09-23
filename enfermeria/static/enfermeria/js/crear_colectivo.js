@@ -127,7 +127,9 @@ function inicializarBuscadorMedicamentos() {
         }
         
         timeoutId = setTimeout(() => {
-            fetch(`/enfermeria/api/buscar-medicamentos/?q=${encodeURIComponent(query)}`)
+            const form = document.getElementById('form-colectivo');
+            const medicamentosUrl = form?.dataset.medicamentosUrl || '/enfermeria/api/buscar-medicamentos/';
+            fetch(`${medicamentosUrl}?q=${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(data => {
                     mostrarResultadosMedicamentos(data.results);

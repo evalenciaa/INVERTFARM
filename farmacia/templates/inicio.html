@@ -7,85 +7,153 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>INVENTFARM - Inicio de Sesión</title>
+    <meta name="description" content="Acceso al sistema de farmacia e inventario hospitalario INVENTFARM">
+    <title>Acceso | INVENTFARM</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/inicio.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <h1>Hospital Materno Infantil - IMSS Bienestar</h1>
-    </header>
+    <main class="login-shell">
+        <section class="brand-panel" aria-labelledby="system-name">
+            <div class="brand-glow brand-glow-top" aria-hidden="true"></div>
+            <div class="brand-glow brand-glow-bottom" aria-hidden="true"></div>
 
-    <main class="container">
-        <div class="left-panel">
-            <img src="{% static 'farmacia/img/IMSS-BIENESTAR.jpg' %}" alt="IMSS Bienestar" class="logo">
-        </div>
-        
-        <div class="right-panel">
-            <form method="POST">
-                {% csrf_token %}
-                <h2>Iniciar Sesión</h2>
-                
+            <div class="brand-content">
+                <div class="institutional-brand">
+                    <div class="institutional-logo-frame">
+                        <img src="{% static 'farmacia/img/imss-bienestar-horizontal.png' %}"
+                             alt="Servicios de Salud IMSS-Bienestar"
+                             class="institutional-logo">
+                    </div>
+                </div>
+
+                <div class="brand-message">
+                    <span class="eyebrow">Sistema institucional</span>
+                    <h1 id="system-name">INVENT<span>FARM</span></h1>
+                    <p>Control de farmacia e inventario hospitalario en una interfaz clara, segura y unificada.</p>
+                </div>
+
+                <ul class="benefit-list" aria-label="Características del sistema">
+                    <li>
+                        <span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 7 9 18l-5-5"/></svg></span>
+                        Trazabilidad de entradas y salidas
+                    </li>
+                    <li>
+                        <span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+                        Acceso protegido por perfil y permisos
+                    </li>
+                    <li>
+                        <span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19V3"/></svg></span>
+                        Información para decisiones oportunas
+                    </li>
+                </ul>
+            </div>
+
+            <div class="brand-footer">
+                <span class="status-dot" aria-hidden="true"></span>
+                Plataforma de uso institucional
+            </div>
+        </section>
+
+        <section class="access-panel" aria-labelledby="login-title">
+            <div class="access-header">
+                <span class="access-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span>
+                <span>Farmacia hospitalaria</span>
+            </div>
+
+            <div class="login-card">
+                <div class="login-heading">
+                    <span class="section-kicker">Bienvenido</span>
+                    <h2 id="login-title">Iniciar sesión</h2>
+                    <p>Ingresa tus credenciales institucionales para continuar.</p>
+                </div>
+
                 {% if messages %}
-                <div class="messages">
-                    {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }}">
-                        <i class="fas {% if message.tags == 'error' %}fa-exclamation-circle{% else %}fa-check-circle{% endif %}"></i>
-                        {{ message }}
+                    <div class="messages" aria-live="polite">
+                        {% for message in messages %}
+                            <div class="alert {% if message.tags == 'error' %}alert-danger{% elif message.tags == 'warning' %}alert-warning{% elif message.tags == 'success' %}alert-success{% else %}alert-info{% endif %}" role="alert">
+                                <span class="alert-icon" aria-hidden="true">
+                                    {% if message.tags == 'success' %}
+                                        <svg viewBox="0 0 24 24"><path d="M20 7 9 18l-5-5"/></svg>
+                                    {% elif message.tags == 'warning' %}
+                                        <svg viewBox="0 0 24 24"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+                                    {% else %}
+                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+                                    {% endif %}
+                                </span>
+                                <span>{{ message }}</span>
+                            </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                </div>
                 {% endif %}
-                
-                <div class="form-group">
-                    <label for="username">Usuario:</label>
-                    <input type="text" id="username" name="username" required autocomplete="username" placeholder="Ingrese su usuario">
-                </div>
-                
-                <div class="form-group">
-                    <label for="password">Contraseña:</label>
-                    <div class="password-container">
-                        <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Ingrese su contraseña">
-                        <i class="toggle-password fas fa-eye" title="Mostrar contraseña"></i>
+
+                <form class="login-form" method="post" novalidate>
+                    {% csrf_token %}
+                    {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+
+                    <div class="field-group">
+                        <label for="username">Usuario</label>
+                        <div class="input-control">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                            <input type="text" id="username" name="username"
+                                   value="{{ username|default:'' }}"
+                                   placeholder="Escribe tu usuario" autocomplete="username"
+                                   autocapitalize="none" spellcheck="false" required
+                                   {% if not bloqueado %}autofocus{% endif %}>
+                        </div>
                     </div>
-                </div>
+
+                    <div class="field-group">
+                        <label for="password">Contraseña</label>
+                        <div class="input-control password-control">
+                            <svg class="field-icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                            <input type="password" id="password" name="password"
+                                   placeholder="Escribe tu contraseña"
+                                   autocomplete="current-password" required>
+                            <button type="button" class="toggle-password"
+                                    aria-label="Mostrar contraseña" aria-controls="password"
+                                    aria-pressed="false" title="Mostrar contraseña">
+                                <svg class="eye-open" aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                                <svg class="eye-closed" aria-hidden="true" viewBox="0 0 24 24"><path d="m3 3 18 18"/><path d="M10.6 6.2A9.8 9.8 0 0 1 12 6c6.5 0 10 6 10 6a16.8 16.8 0 0 1-3 3.8"/><path d="M6.1 6.1C3.4 8 2 12 2 12s3.5 6 10 6a9.7 9.7 0 0 0 3-.5"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="error-message" class="client-error" role="alert" aria-live="assertive"></div>
+
+                    <button type="submit" class="login-button" {% if bloqueado %}disabled{% endif %}>
+                        <span class="btn-text">{% if bloqueado %}Acceso bloqueado{% else %}Ingresar al sistema{% endif %}</span>
+                        <span class="loading-spinner" aria-hidden="true"></span>
+                        {% if not bloqueado %}<svg class="button-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>{% endif %}
+                    </button>
+                </form>
 
                 {% if bloqueado %}
-                    <div class="alert alert-danger" role="alert">
-                        <i class="fas fa-lock"></i>
-                        <strong>⛔ Cuenta bloqueada por seguridad</strong>
-                        <p>Demasiados intentos fallidos. Intenta de nuevo en 1 hora o contacta al administrador.</p>
+                    <div class="security-notice security-danger" role="alert">
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                        <div><strong>Cuenta bloqueada temporalmente</strong><p>Espera una hora antes de volver a intentarlo o contacta al administrador.</p></div>
                     </div>
-                {% elif intentos_restantes %}
-                    <div class="alert alert-warning" role="alert">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>⚠️ Credenciales incorrectas</strong>
-                        <p>Te quedan <strong>{{ intentos_restantes }}</strong> intento(s) antes del bloqueo temporal.</p>
+                {% elif intentos_restantes or intentos_restantes == 0 %}
+                    <div class="security-notice security-warning" role="alert">
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+                        <div><strong>Intento de acceso incorrecto</strong><p>Te quedan {{ intentos_restantes }} intento{{ intentos_restantes|pluralize }} antes del bloqueo temporal.</p></div>
                     </div>
                 {% else %}
-                    <div class="alert alert-info alert-sm" role="alert">
-                        <small>
-                            <i class="fas fa-shield-alt"></i>
-                            Por seguridad, después de 5 intentos fallidos tu cuenta será bloqueada temporalmente por 1 hora.
-                        </small>
+                    <div class="security-notice">
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+                        <div><strong>Acceso protegido</strong><p>Después de cinco intentos fallidos, la cuenta se bloquea temporalmente durante una hora.</p></div>
                     </div>
                 {% endif %}
 
-                
-                <button type="submit" class="btn-login">
-                    <span class="btn-text">Ingresar</span>
-                    <div class="loading-spinner"></div>
-                </button>
-                
-                <div id="error-message" class="error-message"></div>
-            </form>
-            
-            <div class="login-footer">
-                <p>¿Problemas para acceder? <a href="mailto:soporte@inventfarm.com" class="support-link">
-                    <i class="fas fa-envelope"></i> Contactar al administrador
-                </a></p>
+                <div class="support-note">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.8 1c0 2-2.3 2.1-2.3 4"/><path d="M12 18h.01"/></svg>
+                    <p>¿Problemas para acceder? <a href="mailto:soporte@inventfarm.com">Contacta al administrador del sistema.</a></p>
+                </div>
             </div>
-        </div>
+
+            <footer class="access-footer">
+                <span>INVENTFARM</span><span aria-hidden="true">•</span><span>Servicios de Salud IMSS-Bienestar</span>
+            </footer>
+        </section>
     </main>
 
     <script src="{% static 'farmacia/js/inicio.js' %}" defer></script>

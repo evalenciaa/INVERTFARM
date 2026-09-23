@@ -1,0 +1,230 @@
+.aware-balance-section {
+    margin: 2rem 0;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.aware-balance-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    background: var(--color-light);
+    border-bottom: 2px solid var(--color-border);
+}
+
+.aware-balance-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0 0 0.2rem;
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.aware-balance-header p {
+    margin: 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.chart-type-control {
+    flex: 0 0 190px;
+}
+
+.chart-type-control label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #555;
+}
+
+.aware-balance-grid {
+    display: grid;
+    grid-template-columns: minmax(420px, 0.9fr) minmax(460px, 1.1fr);
+    gap: 1.5rem;
+    padding: 1.5rem;
+}
+
+.aware-summary-card,
+.aware-chart-card {
+    min-width: 0;
+    padding: 1.25rem;
+    border: 1px solid #d9dde2;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.aware-table-wrap {
+    overflow-x: auto;
+}
+
+.aware-summary-table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.aware-summary-table th,
+.aware-summary-table td {
+    padding: 0.85rem 0.75rem;
+    border: 1px solid #3f3f3f;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.aware-summary-table thead th {
+    background: #8f7a63;
+    color: #fff;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.aware-summary-table thead th:first-child,
+.aware-summary-table td:first-child {
+    width: 54%;
+    text-align: left;
+}
+
+.aware-label {
+    font-weight: 700;
+}
+
+.aware-access {
+    color: #315b20;
+}
+
+.aware-watch {
+    color: #c47b00;
+}
+
+.aware-reserve {
+    color: #9b0000;
+}
+
+.aware-total-row {
+    background: #f2f3f5;
+    font-weight: 800;
+}
+
+.aware-empty-note {
+    margin: 0.8rem 0 0;
+    color: #6c757d;
+    font-size: 0.82rem;
+}
+
+.aware-chart-card h4 {
+    margin: 0 0 0.75rem;
+    text-align: center;
+    color: #4b4b4b;
+    font-size: 1rem;
+}
+
+.aware-chart-container {
+    position: relative;
+    min-height: 340px;
+}
+
+.aware-chart-container canvas {
+    width: 100% !important;
+    height: 340px !important;
+}
+
+.aware-chart-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    color: #6c757d;
+    text-align: center;
+}
+
+.aware-chart-empty i {
+    font-size: 2.5rem;
+    color: #adb5bd;
+}
+
+.aware-export-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.35rem 0 0;
+    color: #6c757d;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.aware-export-divider::before,
+.aware-export-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #d9dde2;
+}
+
+.btn-exportar-access {
+    color: #fff;
+    background: #315b20;
+}
+
+.btn-exportar-watch {
+    color: #2f2500;
+    background: #ffb700;
+}
+
+.btn-exportar-reserve {
+    color: #fff;
+    background: #9b0000;
+}
+
+.btn-exportar-access:hover,
+.btn-exportar-reserve:hover {
+    color: #fff;
+    filter: brightness(1.08);
+}
+
+.btn-exportar-watch:hover {
+    color: #2f2500;
+    filter: brightness(1.04);
+}
+
+.aware-chart-empty[hidden] {
+    display: none;
+}
+
+@media (max-width: 1050px) {
+    .aware-balance-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 680px) {
+    .aware-balance-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .chart-type-control {
+        flex-basis: auto;
+        width: 100%;
+    }
+
+    .aware-balance-grid {
+        padding: 1rem;
+    }
+
+    .aware-summary-card,
+    .aware-chart-card {
+        padding: 0.8rem;
+    }
+}

@@ -366,30 +366,60 @@ function actualizarCPM(elemento) {
 function actualizarEstadoAlerta(medicamentoId, nuevoCPM) {
     const fila = document.querySelector(`tr[data-medicamento-id="${medicamentoId}"]`);
     if (!fila) return;
-    
-    const existencia = parseInt(fila.dataset.existencia);
-    const porcentaje = nuevoCPM > 0 ? (existencia / nuevoCPM) * 100 : 0;
-    
-    // Actualizar icono de estado
+
+    const existencia = Math.max(parseInt(fila.dataset.existencia, 10) || 0, 0);
+    const cpm = Math.max(parseInt(nuevoCPM, 10) || 0, 0);
+    const stockMaximo = (cpm * 2) + 10;
+    const excedente = Math.max(existencia - stockMaximo, 0);
+    const porcentaje = Math.round((existencia / stockMaximo) * 1000) / 10;
+    let estado, clase, icono, titulo;
+
+    if (existencia === 0) {
+        estado = 'desabasto';
+        clase = 'badge-critico';
+        icono = 'fa-times-circle';
+        titulo = 'Desabasto';
+    } else if (existencia < cpm) {
+        estado = 'bajo';
+        clase = 'badge-bajo';
+        icono = 'fa-exclamation-triangle';
+        titulo = 'Stock bajo';
+    } else if (existencia <= stockMaximo) {
+        estado = 'adecuado';
+        clase = 'badge-adecuado';
+        icono = 'fa-check-circle';
+        titulo = 'Stock adecuado';
+    } else {
+        estado = 'excedente';
+        clase = 'badge-excedente';
+        icono = 'fa-boxes-stacked';
+        titulo = `Excedente: ${excedente}`;
+    }
+
+    fila.dataset.cpm = cpm;
+    fila.dataset.stockMaximo = stockMaximo;
+    fila.dataset.excedente = excedente;
+    fila.dataset.porcentaje = porcentaje;
+    fila.dataset.estado = estado;
+
+    const badgeExistencia = fila.querySelector('.badge-existencia');
+    if (badgeExistencia) {
+        badgeExistencia.classList.remove(
+            'badge-critico', 'badge-bajo', 'badge-adecuado', 'badge-excedente'
+        );
+        badgeExistencia.classList.add(clase);
+    }
+
     const celdaEstado = fila.querySelector('td:nth-child(5)');
     if (celdaEstado) {
-        let icono, titulo;
-        
-        if (porcentaje <= 50) {
-            icono = '🔴';
-            titulo = 'Stock CRÍTICO (≤ 50% CPM)';
-        } else if (porcentaje <= 100) {
-            icono = '🟡';
-            titulo = 'Stock BAJO (≤ 100% CPM)';
-        } else {
-            icono = '✅';
-            titulo = 'Stock SUFICIENTE';
-        }
-        
         celdaEstado.innerHTML = `
-            <span class="alerta-icono" title="${titulo}">${icono}</span>
-            <br>
-            <small>${Math.round(porcentaje)}%</small>
+            <span class="badge ${clase}">
+                <i class="fas ${icono}"></i>
+                <span class="estado-contenido">
+                    <strong>${titulo}</strong>
+                    <small>${porcentaje}% de máx. ${stockMaximo}</small>
+                </span>
+            </span>
         `;
     }
 }
@@ -578,51 +608,38 @@ function getCookie(name) {
 // ===== EXPORTAR INVENTARIO GENERAL =====
 
 function exportarInventarioGeneral() {
-    // Crear un dropdown con opciones
-    const exportOptions = `
-        <div class="export-menu">
-            <button class="export-option" onclick="exportarExcelGeneral()">
-                <i class="fas fa-file-excel"></i> Exportar a Excel
-            </button>
-            <button class="export-option" onclick="exportarPdfGeneral()">
-                <i class="fas fa-file-pdf"></i> Exportar a PDF
-            </button>
-        </div>
-    `;
-    
-    // O simplemente hacer ambas descargas con un menú
-    const menu = document.createElement('div');
-    menu.className = 'export-dropdown';
-    menu.innerHTML = exportOptions;
-    menu.style.position = 'fixed';
-    menu.style.top = '100px';
-    menu.style.right = '20px';
-    menu.style.zIndex = '1000';
-    menu.style.backgroundColor = 'white';
-    menu.style.border = '1px solid #ddd';
-    menu.style.borderRadius = '8px';
-    menu.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-    menu.style.minWidth = '200px';
-    
-    document.body.appendChild(menu);
-    
-    // Remover menú al hacer clic fuera
-    setTimeout(() => {
-        document.addEventListener('click', function removeMenu(e) {
-            if (!menu.contains(e.target) && e.target.className !== 'btn-success') {
-                menu.remove();
-                document.removeEventListener('click', removeMenu);
-            }
-        });
-    }, 100);
+    abrirModalExportar();
 }
 
-function exportarExcelGeneral() {
-    window.location.href = '/exportar_inventario_general_excel/';
+function abrirModalExportar() {
+    document.getElementById('modal-overlay-exportar').style.display = 'block';
+    document.getElementById('modal-exportar').style.display = 'flex';
 }
 
-function exportarPdfGeneral() {
-    window.location.href = '/exportar_inventario_general_pdf/';
+function cerrarModalExportar() {
+    document.getElementById('modal-overlay-exportar').style.display = 'none';
+    document.getElementById('modal-exportar').style.display = 'none';
+}
+
+function descargarExportacionGeneral(atributoUrl) {
+    const modal = document.getElementById('modal-exportar');
+    const url = modal?.dataset[atributoUrl];
+    if (url) {
+        cerrarModalExportar();
+        window.location.href = url;
+    }
+}
+
+function descargarExcelGeneral() {
+    descargarExportacionGeneral('excelUrl');
+}
+
+function descargarPDFGeneral() {
+    descargarExportacionGeneral('pdfUrl');
+}
+
+function descargarPDFExcedentes() {
+    descargarExportacionGeneral('excedentesUrl');
 }
 
 function aplicarFiltros() {

@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from datetime import date, timedelta
 from django.contrib.auth.models import AbstractUser
@@ -12,10 +12,13 @@ from django.utils import timezone
 from django.db import transaction
 import uuid
 import html
+import logging
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.template.loader import render_to_string
+
+logger = logging.getLogger(__name__)
 
 
 class Departamento(models.Model):
@@ -141,6 +144,23 @@ class PermisosPersonalizados(models.Model):
             ("manage_catalogos", "Puede gestionar catálogos (presentaciones, proveedores)"),
             ("manage_cpm", "Puede gestionar CPM de medicamentos"),
         ]
+
+
+class FolioConsecutivo(models.Model):
+    tipo = models.CharField(max_length=10)
+    fecha = models.DateField()
+    ultimo_numero = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tipo', 'fecha'],
+                name='folio_consecutivo_tipo_fecha_unico',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.tipo}-{self.fecha:%Y%m%d}: {self.ultimo_numero}'
 
 
 class Proveedor(models.Model):
@@ -332,14 +352,6 @@ class Lote(models.Model):
         if self.fecha_caducidad < date.today():
             raise ValidationError("La fecha de caducidad debe ser futura")
     
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=['medicamento', 'lote_codigo'], name='unique_medicamento_lote')
-        ]
-        permissions = [
-            ('manage_lotes', 'Puede administrar lotes'),
-        ]
-    
     @classmethod
     def actualizar_inventario(cls, medicamento_id, lote_codigo, cantidad, fecha_caducidad, presentacion_id, costo_unitario=None):
         with transaction.atomic():
@@ -352,11 +364,18 @@ class Lote(models.Model):
             if costo_unitario is not None:
                 defaults['costo_unitario'] = costo_unitario
 
-            lote, created = cls.objects.get_or_create(
+            lote = cls.objects.select_for_update().filter(
                 lote_codigo=lote_codigo,
                 medicamento_id=medicamento_id,
-                defaults=defaults
-            )
+            ).first()
+            created = lote is None
+
+            if created:
+                lote = cls.objects.create(
+                    lote_codigo=lote_codigo,
+                    medicamento_id=medicamento_id,
+                    **defaults,
+                )
 
             if not created:
                 lote.existencia += cantidad
@@ -370,7 +389,14 @@ class Lote(models.Model):
             models.UniqueConstraint(
                 fields=['medicamento', 'lote_codigo'],
                 name='unique_medicamento_lote'
-            )
+            ),
+            models.CheckConstraint(
+                condition=models.Q(existencia__gte=0),
+                name='lote_existencia_no_negativa'
+            ),
+        ]
+        permissions = [
+            ('manage_lotes', 'Puede administrar lotes'),
         ]
 
 
@@ -594,7 +620,8 @@ class Entrada(models.Model):
         ('TRANSFERENCIA', 'Entrada por Transferencia'),
     ]
     
-    folio = models.CharField(max_length=50,verbose_name="Folio", blank=True, null=True, help_text="Dejar vacío para generación automática")
+    folio = models.CharField(max_length=50, verbose_name="Folio", blank=True, null=True,
+                             unique=True, help_text="Dejar vacío para generación automática")
     fecha = models.DateTimeField(default=timezone.now, verbose_name="Fecha de Entrada")
     tipo_entrada = models.CharField(max_length=20, choices=TIPO_ENTRADA, verbose_name="Tipo de Entrada")
     almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True)
@@ -608,46 +635,24 @@ class Entrada(models.Model):
     actualizado_en = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = 'Entrada de Medicamentos'
-        verbose_name_plural = 'Entradas de Medicamentos'
+        verbose_name = "Entrada de Medicamentos"
+        verbose_name_plural = "Entradas de Medicamentos"
         ordering = ['-fecha']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['folio', 'institucion'], 
-                name='folio_por_institucion',
-                condition=models.Q(folio__isnull=False)
-            ),
-        ]
         permissions = [
             ('register_entrada', 'Puede registrar entradas'),
         ]
 
-    class Meta:
-        verbose_name = "Entrada de Medicamentos"
-        verbose_name_plural = "Entradas de Medicamentos"
-        ordering = ['-fecha']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['folio', 'institucion'],
-                name='folio_por_institucion',
-                condition=models.Q(folio__isnull=False)  # Solo aplicar a folios no nulos
-            )
-        ]
-
     def clean(self):
-        """Validación personalizada para folios únicos por institución"""
+        """Valida que el folio no se repita en ninguna entrada."""
         from django.core.exceptions import ValidationError
         
         if self.folio:  # Solo validar si el folio no está vacío
-            qs = Entrada.objects.filter(
-                folio=self.folio,
-                institucion=self.institucion
-            )
+            qs = Entrada.objects.filter(folio=self.folio)
             if self.pk:  # Para actualizaciones
                 qs = qs.exclude(pk=self.pk)
             if qs.exists():
                 raise ValidationError({
-                    'folio': 'Ya existe una entrada con este folio para la institución seleccionada'
+                    'folio': 'Ya existe una entrada con este folio'
                 })
 
     def __str__(self):
@@ -656,13 +661,9 @@ class Entrada(models.Model):
     def save(self, *args, **kwargs):
         """Autogenera folio solo si no se especificó uno"""
         if not self.folio:
-            date_str = date.today().strftime('%Y%m%d')
-            last_entry = Entrada.objects.filter(
-                folio__startswith=f'ENT-{date_str}'
-            ).order_by('-folio').first()
-            
-            last_num = int(last_entry.folio.split('-')[-1]) if last_entry else 0
-            self.folio = f"ENT-{date_str}-{last_num + 1:04d}"
+            from .services import generar_folio
+
+            self.folio = generar_folio('ENT', Entrada, 'folio')
             
         super().save(*args, **kwargs)
 
@@ -800,47 +801,46 @@ def sumar_existencia(sender, instance, created, **kwargs):
         if entrada.fuente_financiamiento else None
     )
 
-    try:
-        lote_obj = Lote.objects.get(
-            lote_codigo=lote_codigo,
-            medicamento=instance.medicamento
-        )
-
-        lote_obj.existencia += cantidad
-        lote_obj.costo_unitario = instance.precio_unitario
-        lote_obj.fecha_caducidad = instance.caducidad
-        lote_obj.presentacion = instance.presentacion
-
-        lote_obj.origen = entrada.tipo_entrada
-        lote_obj.contrato = entrada.contrato
-        lote_obj.fuente_financiamiento = fuente_nombre
-
-        lote_obj.save()
-    except Lote.DoesNotExist:
-        Lote.objects.create(
-            id=f"LOT-{uuid.uuid4().hex[:10].upper()}",
-            medicamento=instance.medicamento,
-            lote_codigo=lote_codigo,
-            fecha_caducidad=instance.caducidad,
-            existencia=cantidad,
-            presentacion=instance.presentacion,
-            costo_unitario=instance.precio_unitario,
-            origen=entrada.tipo_entrada,
-            contrato=entrada.contrato,
-            fuente_financiamiento=fuente_nombre
-        )
+    with transaction.atomic():
+        try:
+            lote_obj = Lote.objects.select_for_update().get(
+                lote_codigo=lote_codigo,
+                medicamento=instance.medicamento
+            )
+            lote_obj.existencia += cantidad
+            lote_obj.costo_unitario = instance.precio_unitario
+            lote_obj.fecha_caducidad = instance.caducidad
+            lote_obj.presentacion = instance.presentacion
+            lote_obj.origen = entrada.tipo_entrada
+            lote_obj.contrato = entrada.contrato
+            lote_obj.fuente_financiamiento = fuente_nombre
+            lote_obj.save()
+        except Lote.DoesNotExist:
+            Lote.objects.create(
+                id=f"LOT-{uuid.uuid4().hex[:10].upper()}",
+                medicamento=instance.medicamento,
+                lote_codigo=lote_codigo,
+                fecha_caducidad=instance.caducidad,
+                existencia=cantidad,
+                presentacion=instance.presentacion,
+                costo_unitario=instance.precio_unitario,
+                origen=entrada.tipo_entrada,
+                contrato=entrada.contrato,
+                fuente_financiamiento=fuente_nombre
+            )
 
 
-def enviar_alerta_stock(lote, cpm_del_medicamento):
+def enviar_alerta_stock(lote, cpm_del_medicamento, existencia_total=None):
+    existencia_actual = lote.existencia if existencia_total is None else existencia_total
     # Calcular información adicional útil
-    porcentaje_stock = (lote.existencia / cpm_del_medicamento * 100) if cpm_del_medicamento > 0 else 0
-    dias_restantes = (lote.existencia / (cpm_del_medicamento / 30)) if cpm_del_medicamento > 0 else 0
+    porcentaje_stock = (existencia_actual / cpm_del_medicamento * 100) if cpm_del_medicamento > 0 else 0
+    dias_restantes = (existencia_actual / (cpm_del_medicamento / 30)) if cpm_del_medicamento > 0 else 0
     
     # Determinar nivel de criticidad
-    if lote.existencia <= (cpm_del_medicamento * 0.25):
+    if existencia_actual <= (cpm_del_medicamento * 0.25):
         nivel = "CRÍTICO"
         color = "#dc3545"
-    elif lote.existencia <= (cpm_del_medicamento * 0.5):
+    elif existencia_actual <= (cpm_del_medicamento * 0.5):
         nivel = "BAJO"
         color = "#ffc107"
     else:
@@ -867,7 +867,7 @@ def enviar_alerta_stock(lote, cpm_del_medicamento):
     
     INFORMACIÓN DEL LOTE:
     - Código de Lote: {lote.lote_codigo}
-    - Existencia Actual: {lote.existencia} unidades
+    - Existencia total del medicamento: {existencia_actual} unidades
     - Fecha de Caducidad: {lote.fecha_caducidad.strftime('%d/%m/%Y')}
     
     ANÁLISIS DE CONSUMO:
@@ -1015,8 +1015,8 @@ def enviar_alerta_stock(lote, cpm_del_medicamento):
                     <span class="value">{lote_codigo_safe}</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Existencia Actual:</span>
-                    <span class="value" style="color: {color}; font-weight: bold;">{lote.existencia} unidades</span>
+                    <span class="label">Existencia total del medicamento:</span>
+                    <span class="value" style="color: {color}; font-weight: bold;">{existencia_actual} unidades</span>
                 </div>
                 <div class="info-row">
                     <span class="label">Fecha de Caducidad:</span>
@@ -1057,11 +1057,19 @@ def enviar_alerta_stock(lote, cpm_del_medicamento):
     </html>
     """
     
+    destinatarios = getattr(settings, 'ALERTAS_STOCK_DESTINATARIOS', [])
+    if not destinatarios:
+        logger.warning(
+            "Alerta de stock detectada para %s, pero no hay destinatarios configurados",
+            lote.medicamento_id,
+        )
+        return
+
     msg = EmailMultiAlternatives(
         asunto, 
         mensaje_texto, 
         settings.DEFAULT_FROM_EMAIL, 
-        ['HMICFarmacia@gmail.com']
+        destinatarios,
     )
     msg.attach_alternative(mensaje_html, "text/html")
     msg.send()
@@ -1070,28 +1078,46 @@ def enviar_alerta_stock(lote, cpm_del_medicamento):
 
 @receiver(post_save, sender=Lote)
 def verificar_existencia_cpm(sender, instance, **kwargs):
-    
-    try:
-        # Esta es la ruta para obtener el CPM que SÍ usas en tu inventario
-        cpm_real = instance.medicamento.cpm_medicamento.valor
-    except (Medicamento.cpm_medicamento.RelatedObjectDoesNotExist, AttributeError):
-        # Si el medicamento no tiene un CPM general, no hacemos nada
-        cpm_real = 0
+    # Las actualizaciones internas de la bandera no deben volver a evaluar la alerta.
+    if kwargs.get('update_fields') == frozenset({'alerta_stock_enviada'}):
+        return
 
-    # Si no hay CPM real, detenemos la función
-    if cpm_real == 0:
-        return 
+    medicamento_id = instance.medicamento_id
+    lote_id = instance.pk
 
-    # Comparamos la existencia del LOTE contra el CPM (general) del MEDICAMENTO
-    if instance.existencia <= (cpm_real // 2) and not instance.alerta_stock_enviada:
-        
-        # Le pasamos el CPM real (ej. 50) a la función de correo
-        enviar_alerta_stock(instance, cpm_real) 
-        
-        instance.alerta_stock_enviada = True
-        instance.save(update_fields=["alerta_stock_enviada"])
-    
-    # Reseteamos la alerta si el stock vuelve a subir
-    elif instance.existencia > (cpm_real // 2) and instance.alerta_stock_enviada:
-        instance.alerta_stock_enviada = False
-        instance.save(update_fields=["alerta_stock_enviada"])
+    def evaluar_despues_del_commit():
+        from .cpm import actualizar_cpm_medicamento
+
+        cpm_real = actualizar_cpm_medicamento(medicamento_id).valor
+        lotes = Lote.objects.filter(medicamento_id=medicamento_id)
+        existencia_total = lotes.aggregate(total=models.Sum('existencia'))['total'] or 0
+        alerta_enviada = lotes.filter(alerta_stock_enviada=True).exists()
+        stock_bajo = cpm_real > 0 and existencia_total <= cpm_real * 0.5
+
+        if stock_bajo and not alerta_enviada:
+            lotes.update(alerta_stock_enviada=True)
+            try:
+                from .tasks import enviar_alerta_stock_lote
+                enviar_alerta_stock_lote.delay(lote_id, cpm_real, existencia_total)
+            except Exception:
+                logger.exception(
+                    "No se pudo encolar la alerta de stock del medicamento %s",
+                    medicamento_id,
+                )
+                lotes.update(alerta_stock_enviada=False)
+        elif not stock_bajo and alerta_enviada:
+            lotes.update(alerta_stock_enviada=False)
+
+    transaction.on_commit(evaluar_despues_del_commit)
+
+
+@receiver([post_save, post_delete], sender=RecetaMedicamento)
+def actualizar_cpm_por_salida(sender, instance, **kwargs):
+    """Mantiene el CPM sincronizado al crear, corregir o eliminar una salida."""
+    medicamento_id = instance.medicamento_id
+
+    def actualizar_despues_del_commit():
+        from .cpm import actualizar_cpm_medicamento
+        actualizar_cpm_medicamento(medicamento_id)
+
+    transaction.on_commit(actualizar_despues_del_commit)

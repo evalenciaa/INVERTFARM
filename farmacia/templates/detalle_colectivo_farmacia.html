@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Colectivo {{ colectivo.folio }} - Farmacia</title>
+    <title>{% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivo{% endif %} {{ colectivo.folio }} - Farmacia</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/detalle.css' %}">
     <link rel="stylesheet" href="{% static 'farmacia/css/colectivos_farmacia.css' %}">
@@ -26,9 +26,9 @@
                 Farmacia
             </a>
             <span class="separator">›</span>
-            <a href="{% url 'lista_colectivos_farmacia' %}">
+            <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}">
                 <i class="fas fa-users"></i>
-                Colectivos
+                {% if modulo_antibioticos %}Colectivos de Antibióticos{% else %}Colectivos{% endif %}
             </a>
             <span class="separator">›</span>
             <a href="#" class="active">
@@ -41,7 +41,7 @@
     <div class="main-content">
         <div class="header">
             <div>
-                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo</h1>
+                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}</h1>
                 <p>Revisión y surtido de medicamentos</p>
             </div>
         </div>
@@ -131,7 +131,7 @@
             <div class="respuesta-form">
                 <h4><i class="fas fa-clipboard-check"></i> Revisar Disponibilidad de Medicamentos</h4>
                 
-                <form method="POST" action="{% url 'responder_colectivo' colectivo.id %}" id="form-responder">
+                <form method="POST" action="{% if modulo_antibioticos %}{% url 'responder_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'responder_colectivo' colectivo.id %}{% endif %}" id="form-responder">
                     {% csrf_token %}
                     
                     <!-- Medicamentos -->
@@ -199,7 +199,7 @@
                     </div>
                     
                     <div class="form-actions">
-                        <a href="{% url 'lista_colectivos_farmacia' %}" class="btn btn-secondary">
+                        <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> Cancelar
                         </a>
                         <button type="submit" class="btn btn-responder">
@@ -210,8 +210,8 @@
             </div>
             {% endif %}
 
-            <!-- FORMULARIO DE COMPLETAR (EN_REVISION - segunda revisión) -->
-            {% if colectivo.estado == 'EN_REVISION' and colectivo.respuesta_farmacia %}
+            <!-- FORMULARIO DE COMPLETAR DESPUÉS DE RESPONDER LA REVISIÓN -->
+            {% if colectivo.estado == 'RESPONDIDO' %}
             <div class="completar-form">
                 <h4><i class="fas fa-check-double"></i> Confirmar Surtido del Colectivo</h4>
                 
@@ -220,7 +220,7 @@
                     Al completar, se descontará automáticamente del inventario usando el método FEFO (primero lo que caduca primero).
                 </div>
                 
-                <form method="POST" action="{% url 'completar_colectivo' colectivo.id %}" id="form-completar">
+                <form method="POST" action="{% if modulo_antibioticos %}{% url 'completar_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'completar_colectivo' colectivo.id %}{% endif %}" id="form-completar">
                     {% csrf_token %}
                     
                     <table class="med-table">
@@ -280,7 +280,7 @@
                     </table>
                     
                     <div class="form-actions" style="margin-top: 20px;">
-                        <a href="{% url 'lista_colectivos_farmacia' %}" class="btn btn-secondary">
+                        <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> Cancelar
                         </a>
                         <button type="submit" class="btn btn-completar">
@@ -338,21 +338,16 @@
 
             <!-- Botones de acción -->
             <div class="acciones-detalle">
-                <a href="{% url 'lista_colectivos_farmacia' %}" class="btn btn-secondary">
+                <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Volver a Lista
                 </a>
                 
                 {% if colectivo.estado == 'COMPLETADO' %}
-                <a href="{% url 'generar_pdf_colectivo' colectivo.id %}" class="btn btn-primary" target="_blank">
+                <a href="{% if modulo_antibioticos %}{% url 'generar_pdf_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'generar_pdf_colectivo' colectivo.id %}{% endif %}" class="btn btn-primary" target="_blank">
                     <i class="fas fa-file-pdf"></i> Descargar PDF
                 </a>
                 {% endif %}
                 
-                {% if colectivo.estado == 'EN_REVISION' %}
-                <button type="button" class="btn btn-success" id="btn-confirmar-surtido">
-                    <i class="fas fa-check-circle"></i> Confirmar Surtido y Generar PDF
-                </button>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -365,7 +360,7 @@
                 <button class="modal-close" onclick="cerrarModalSurtido()">&times;</button>
             </div>
             
-            <form id="form-confirmar-surtido" method="POST" action="{% url 'completar_colectivo' colectivo.id %}">
+            <form id="form-confirmar-surtido" method="POST" action="{% if modulo_antibioticos %}{% url 'completar_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'completar_colectivo' colectivo.id %}{% endif %}">
                 {% csrf_token %}
                 
                 <div class="modal-body">
@@ -450,6 +445,14 @@
         </div>
     </div>
 
+    <script>
+        window.COLECTIVOS_FARMACIA_CONFIG = {
+            pdfHabilitado: true,
+            listaUrl: "{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}",
+            pdfUrl: "{% if modulo_antibioticos %}{% url 'generar_pdf_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'generar_pdf_colectivo' colectivo.id %}{% endif %}"
+        };
+        window.COLECTIVOS_LISTA_URL = window.COLECTIVOS_FARMACIA_CONFIG.listaUrl;
+    </script>
     <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
     <script src="{% static 'farmacia/js/colectivos_farmacia.js' %}"></script>
 

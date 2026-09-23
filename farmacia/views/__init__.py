@@ -11,7 +11,12 @@ from .inventario_views import (
     tiene_acceso_farmacia, guardar_descripcion, inventario_general,
     editar_cpm_medicamento, eliminar_lote, registro_medicamento,
     actualizar_cpm, eliminar_medicamento, buscar_catalogo_antibiotico, api_reportes_antibioticos_ddd,
-    inventario_antibioticos
+    inventario_antibioticos, exportar_inventario_antibioticos_excel,
+    exportar_inventario_antibioticos_pdf,
+    exportar_inventario_antibioticos_access_pdf,
+    exportar_inventario_antibioticos_watch_pdf,
+    exportar_inventario_antibioticos_reserve_pdf,
+    truncar_texto
 )
 from .entrada_views import (
     entrada_medicamentos, guardar_entradas,
@@ -26,7 +31,12 @@ from .pdf_views import generar_reporte_pdf, generar_reporte_excel
 from .api_views import RegisterAPIView, LoginAPIView, buscar_instituciones_autocomplete
 from .colectivo_views import (
     lista_colectivos_farmacia, detalle_colectivo_farmacia, responder_colectivo,
-    completar_colectivo, generar_pdf_colectivo
+    completar_colectivo, generar_pdf_colectivo,
+    lista_colectivos_antibioticos_farmacia,
+    detalle_colectivo_antibioticos_farmacia,
+    responder_colectivo_antibioticos,
+    completar_colectivo_antibioticos,
+    generar_pdf_colectivo_antibioticos,
 )
 from .admin_views import (
     admin_usuarios, admin_usuario_detalle, admin_crear_usuario, admin_eliminar_usuario,
@@ -38,8 +48,10 @@ from .backup_views import (
 )
 from .reporte_views import (
     exportar_inventario_excel, exportar_inventario_pdf, exportar_inventario_general_excel,
-    exportar_inventario_general_pdf, reportes_farmacia, api_reportes_kpis,
-    api_reportes_salidas, api_reportes_medicamentos_top, api_reportes_pacientes_frecuentes,
+    exportar_inventario_general_pdf, exportar_inventario_general_excedentes_pdf,
+    reportes_farmacia, api_reportes_kpis,
+    api_reportes_salidas, api_registro_recetas, exportar_registro_recetas_pdf,
+    exportar_registro_recetas_excel, api_reportes_medicamentos_top, api_reportes_pacientes_frecuentes,
     api_reportes_tendencias, exportar_proximos_caducar_pdf, api_medicamentos_sin_movimiento, exportar_medicamentos_sin_movimiento_excel, 
     exportar_medicamentos_sin_movimiento_pdf, api_medicamentos_lento_movimiento, exportar_medicamentos_lento_movimiento_pdf, 
     exportar_medicamentos_lento_movimiento_excel,

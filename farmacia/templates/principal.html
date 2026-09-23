@@ -4,140 +4,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>INVENTFARM - Sistema de Gestión</title>
-    <link rel="stylesheet" href="{% static 'farmacia/css/sidebar.css' %}">
-    <link rel="stylesheet" href="{% static 'farmacia/css/principal.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="description" content="Panel principal del sistema INVENTFARM">
+    <title>Panel principal | INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/principal.css' %}?v=20260922-2">
 </head>
 <body>
-    <!-- Header con logos -->
-    <div class="page-header">
-        <div class="logo-header">
-            <img src="{% static 'farmacia/img/logo.jpg' %}" alt="Logo Hospital">
-        </div>
-    </div>
+    <div class="app-container is-collapsed" id="app-container">
+        <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand">
+                <div class="brand-logo-frame">
+                    <img src="{% static 'farmacia/img/imss-bienestar-horizontal.png' %}" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo">
+                </div>
+                <span class="brand-monogram" aria-hidden="true">IF</span>
+            </div>
 
-    <!-- Contenedor principal -->
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
             <nav class="sidebar-nav">
-                <ul style="list-style: none; padding: 0; margin: 0;">
-                    {% if user.is_superuser or 'Administrador' in user.groups.values_list|join:',' %}
-                    <li class="nav-item">
-                        <a href="{% url 'admin_usuarios' %}">
-                            <i class="fas fa-users-cog"></i>
-                            <span>Config. Usuarios</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if user.is_superuser or 'Administrador' in user.groups.values_list|join:',' %}
-                    <li class="nav-item">
-                        <a href="{% url 'panel_backups' %}">
-                            <i class="fas fa-database"></i>
-                            <span>Copias de Seguridad</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    <li class="nav-item active">
-                        <a href="{% url 'principal' %}">
-                            <i class="fas fa-home"></i>
-                            <span>Inicio</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{% url 'farmacia' %}">
-                            <i class="fas fa-pills"></i>
-                            <span>Farmacia</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{% url 'enfermeria_principal' %}">
-                            <i class="fas fa-user-nurse"></i>
-                            <span>Enfermería</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#">
-                            <i class="fas fa-tshirt"></i>
-                            <span>Ropería</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#">
-                            <i class="fas fa-boxes"></i>
-                            <span>Almacén</span>
-                        </a>
-                    </li>
-                </ul>
+                <span class="nav-section-label">Navegación</span>
+                <a href="{% url 'principal' %}" class="nav-link is-active" aria-current="page" title="Inicio">
+                    <span class="nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg>
+                    </span>
+                    <span class="nav-label">Inicio</span>
+                </a>
+
+                {% if farmacia_acceso %}<a href="{% url 'farmacia' %}" class="nav-link" title="Farmacia">{% else %}<span class="nav-link" aria-disabled="true" title="Sin acceso a Farmacia">{% endif %}
+                    <span class="nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg>
+                    </span>
+                    <span class="nav-label">Farmacia</span>
+                {% if farmacia_acceso %}</a>{% else %}</span>{% endif %}
+                {% if enfermeria_acceso %}<a href="{% url 'enfermeria_principal' %}" class="nav-link" title="Enfermería">{% else %}<span class="nav-link" aria-disabled="true" title="Sin acceso a Enfermería">{% endif %}
+                    <span class="nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg>
+                    </span>
+                    <span class="nav-label">Enfermería</span>
+                {% if enfermeria_acceso %}</a>{% else %}</span>{% endif %}
+
+                {% if can_admin_users or can_manage_backups %}
+                    <span class="nav-section-label nav-section-secondary">Administración</span>
+                {% endif %}
+                {% if can_admin_users %}
+                    <a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg>
+                        </span>
+                        <span class="nav-label">Config. usuarios</span>
+                    </a>
+                {% endif %}
+                {% if can_manage_backups %}
+                    <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+                        </span>
+                        <span class="nav-label">Copias de seguridad</span>
+                    </a>
+                {% endif %}
             </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <span class="user-avatar" aria-hidden="true">{% if request.user.first_name or request.user.last_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|slice:':2'|upper }}{% endif %}</span>
+                    <span class="user-copy">
+                        <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+                        <small>{% if request.user.is_superuser %}Administrador{% else %}{{ request.user.get_rol_display }}{% endif %}</small>
+                    </span>
+                </div>
+                <a href="{% url 'logout' %}" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg>
+                </a>
+            </div>
         </aside>
 
-        <!-- Contenido principal -->
-        <main class="main-content">
-            <div class="welcome-container">
-                <div class="welcome-message">
-                    <h1>Bienvenido a INVENTFARM</h1>
-                    <p class="system-description">
-                        Sistema integral de gestión de inventarios para el Hospital Materno Infantil IMSS Bienestar
-                    </p>
-                    <div class="user-welcome">
-                        <p><strong>Has iniciado sesión como:</strong> {{ request.user.get_full_name|default:request.user.username }}</p>
-                        {% if request.user.is_superuser %}
-                            <p class="admin-notice">(Cuenta con privilegios de administrador)</p>
-                        {% else %}
-                            <p class="admin-notice">Rol: {{ request.user.get_rol_display }}</p>
-                        {% endif %}
+        <div class="workspace">
+            <header class="workspace-header">
+                <div class="header-leading">
+                    <div>
+                        <span class="header-eyebrow">Sistema institucional</span>
+                        <h1>Panel principal</h1>
                     </div>
                 </div>
-                
-                <div class="welcome-image">
-                    <img src="{% static 'farmacia/img/nacimiento.jpg' %}" alt="Hospital">
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Footer horizontal con usuario (DISEÑO EN L) -->
-    <div class="sidebar-footer-horizontal">
-        <div class="footer-user-info">
-            <i class="fas fa-user-circle"></i>
-            <div class="footer-user-details">
-                <span class="footer-username">{{ request.user.get_full_name|default:request.user.username }}</span>
-                <span class="footer-user-role">
-                    {% if request.user.is_superuser %}
-                        Administrador
-                    {% else %}
-                        {{ request.user.get_rol_display }}
+                <div class="header-actions">
+                    <time id="current-date" datetime="{{ fecha_actual|date:'Y-m-d' }}">{{ fecha_actual|date:"j" }} de {{ fecha_actual|date:"F" }} de {{ fecha_actual|date:"Y" }}</time>
+                    <span class="role-chip">
+                        <span class="role-dot" aria-hidden="true"></span>
+                        {% if request.user.is_superuser %}Administrador{% else %}{{ request.user.get_rol_display }}{% endif %}
+                    </span>
+                    {% if can_view_alertas %}
+                        <a href="{% url 'alertas' %}" class="notification-button" aria-label="Ver alertas de inventario" title="Alertas de inventario">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+                            <span class="notification-dot" aria-hidden="true"></span>
+                        </a>
                     {% endif %}
-                </span>
-            </div>
+                </div>
+            </header>
+
+            <main class="dashboard-content">
+                <section class="hospital-hero" aria-labelledby="welcome-title">
+                    <img src="{% static 'farmacia/img/nacimiento.jpg' %}" alt="Hospital" class="hospital-image">
+                    <div class="hero-overlay" aria-hidden="true"></div>
+                    <div class="hero-content">
+                        <span class="hero-kicker">Gestión hospitalaria</span>
+                        <h2 id="welcome-title">Bienvenido a INVENTFARM</h2>
+                        <p>Sistema integral de gestión de inventarios para el Hospital Materno Infantil IMSS-Bienestar.</p>
+                        <div class="session-summary">
+                            <span class="session-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+                            </span>
+                            <span><strong>Sesión protegida</strong><small>Acceso según rol y permisos asignados</small></span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="modules-section" aria-labelledby="modules-title">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-kicker">Accesos principales</span>
+                            <h2 id="modules-title">Módulos del sistema</h2>
+                        </div>
+                        <span class="section-note">Selecciona un módulo para comenzar</span>
+                    </div>
+
+                    <div class="module-grid">
+                        {% if farmacia_acceso %}<a href="{% url 'farmacia' %}" class="module-card module-primary">{% else %}<div class="module-card module-primary" aria-disabled="true" title="Sin acceso a Farmacia">{% endif %}
+                            <span class="module-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span>
+                            <span class="module-body"><strong>Farmacia</strong><small>Medicamentos, lotes y movimientos</small></span>
+                            <span class="module-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+                        {% if farmacia_acceso %}</a>{% else %}</div>{% endif %}
+                        {% if enfermeria_acceso %}<a href="{% url 'enfermeria_principal' %}" class="module-card">{% else %}<div class="module-card" aria-disabled="true" title="Sin acceso a Enfermería">{% endif %}
+                            <span class="module-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span>
+                            <span class="module-body"><strong>Enfermería</strong><small>Pacientes y colectivos</small></span>
+                            <span class="module-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+                        {% if enfermeria_acceso %}</a>{% else %}</div>{% endif %}
+                    </div>
+                </section>
+
+                <footer class="dashboard-footer">
+                    <span>INVENTFARM</span>
+                    <span>Servicios de Salud IMSS-Bienestar</span>
+                </footer>
+            </main>
         </div>
-        <a href="{% url 'logout' %}" class="footer-logout-btn">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Cerrar Sesión</span>
-        </a>
     </div>
 
-    <script>
-        // Toggle sidebar collapse
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
-            
-            // Detectar clic en cualquier parte para colapsar/expandir
-            sidebar.addEventListener('mouseenter', function() {
-                this.classList.remove('collapsed');
-            });
-            
-            sidebar.addEventListener('mouseleave', function() {
-                this.classList.add('collapsed');
-            });
-            
-            // Iniciar colapsado en pantallas pequeñas
-            if (window.innerWidth <= 768) {
-                sidebar.classList.add('collapsed');
-            }
-        });
-    </script>
+    <script src="{% static 'farmacia/js/principal.js' %}?v=20260922-2"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ import gzip
 import os
 import tarfile
 from datetime import datetime
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -16,8 +17,20 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
 
+def _ruta_backup_segura(filename):
+    """Resuelve un nombre simple dentro de backups e impide path traversal."""
+    if not filename or Path(filename).name != filename:
+        return None
+    backups_dir = (Path(settings.BASE_DIR) / 'backups').resolve()
+    candidato = (backups_dir / filename).resolve()
+    if candidato.parent != backups_dir:
+        return None
+    return candidato
+
+
 @never_cache
 @login_required
+@require_http_methods(['GET'])
 @user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
 def panel_backups(request):
     """Vista principal del panel de backups"""
@@ -188,11 +201,11 @@ def limpiar_backups_antiguos(backups_dir, max_backups=10):
 
 @never_cache
 @login_required
+@require_http_methods(['GET'])
 @user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
 def descargar_backup(request, filename):
-    backups_dir = os.path.join(settings.BASE_DIR, 'backups')
-    filepath = os.path.join(backups_dir, filename)
-    if not os.path.exists(filepath) or not filepath.startswith(backups_dir):
+    filepath = _ruta_backup_segura(filename)
+    if filepath is None or not filepath.is_file():
         return HttpResponse('Archivo no encontrado', status=404)
     with open(filepath, 'rb') as f:
         response = HttpResponse(f.read(), content_type='application/octet-stream')
@@ -206,9 +219,8 @@ def descargar_backup(request, filename):
 @user_passes_test(lambda u: u.is_superuser or u.rol == 'ADMIN')
 def eliminar_backup(request, filename):
     try:
-        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
-        filepath = os.path.join(backups_dir, filename)
-        if not os.path.exists(filepath) or not filepath.startswith(backups_dir):
+        filepath = _ruta_backup_segura(filename)
+        if filepath is None or not filepath.is_file():
             return JsonResponse({'success': False, 'error': 'Archivo no encontrado'}, status=404)
         os.remove(filepath)
         return JsonResponse({'success': True, 'message': f'Backup "{filename}" eliminado correctamente'})
@@ -227,9 +239,8 @@ def restaurar_backup(request):
         if not filename:
             return JsonResponse({'success': False, 'error': 'No se especificó archivo'}, status=400)
         
-        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
-        filepath = os.path.join(backups_dir, filename)
-        if not os.path.exists(filepath):
+        filepath = _ruta_backup_segura(filename)
+        if filepath is None or not filepath.is_file():
             return JsonResponse({'success': False, 'error': 'Archivo no encontrado'}, status=404)
         
         session_key = request.session.session_key

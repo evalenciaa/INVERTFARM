@@ -55,10 +55,23 @@ urlpatterns = [
     path('exportar/pdf/proximos-caducar/', views.exportar_proximos_caducar_pdf, name='exportar_proximos_caducar_pdf'),
     path('exportar_inventario_general_excel/', views.exportar_inventario_general_excel, name='exportar_inventario_general_excel'),
     path('exportar_inventario_general_pdf/', views.exportar_inventario_general_pdf, name='exportar_inventario_general_pdf'),
+    path(
+        'exportar_inventario_general_excedentes_pdf/',
+        views.exportar_inventario_general_excedentes_pdf,
+        name='exportar_inventario_general_excedentes_pdf',
+    ),
     path('api/reportes/salidas/', views.api_reportes_salidas, name='api_reportes_salidas'),
+    path('api/reportes/recetas/', views.api_registro_recetas, name='api_registro_recetas'),
+    path('reportes/recetas/pdf/', views.exportar_registro_recetas_pdf, name='exportar_registro_recetas_pdf'),
+    path('reportes/recetas/excel/', views.exportar_registro_recetas_excel, name='exportar_registro_recetas_excel'),
     path('api/reportes/medicamentos-top/', views.api_reportes_medicamentos_top, name='api_reportes_medicamentos_top'),
     path('inventario-antibioticos/', views.inventario_antibioticos, name='inventario_antibioticos'),
     path('api/reportes/antibioticos-ddd/', views.api_reportes_antibioticos_ddd, name='api_reportes_antibioticos_ddd'),
+    path('api/reportes/antibioticos/excel/', views.exportar_inventario_antibioticos_excel, name='exportar_antibioticos_excel'),
+    path('api/reportes/antibioticos/pdf/', views.exportar_inventario_antibioticos_pdf, name='exportar_antibioticos_pdf'),
+    path('api/reportes/antibioticos/pdf/access/', views.exportar_inventario_antibioticos_access_pdf, name='exportar_antibioticos_access_pdf'),
+    path('api/reportes/antibioticos/pdf/watch/', views.exportar_inventario_antibioticos_watch_pdf, name='exportar_antibioticos_watch_pdf'),
+    path('api/reportes/antibioticos/pdf/reserve/', views.exportar_inventario_antibioticos_reserve_pdf, name='exportar_antibioticos_reserve_pdf'),
     path('reportes/medicamentos-sin-movimiento/excel/', views.exportar_medicamentos_sin_movimiento_excel, name='exportar_medicamentos_sin_movimiento_excel'),
     path('reportes/medicamentos-sin-movimiento/pdf/', views.exportar_medicamentos_sin_movimiento_pdf, name='exportar_medicamentos_sin_movimiento_pdf'),
     path('api/reportes/pacientes-frecuentes/', views.api_reportes_pacientes_frecuentes, name='api_reportes_pacientes_frecuentes'),
@@ -79,6 +92,13 @@ urlpatterns = [
     path('colectivos-farmacia/<int:colectivo_id>/responder/', views.responder_colectivo, name='responder_colectivo'),
     path('colectivos-farmacia/<int:colectivo_id>/completar/', views.completar_colectivo, name='completar_colectivo'),
     path('colectivos-farmacia/<int:colectivo_id>/pdf/', views.generar_pdf_colectivo, name='generar_pdf_colectivo'),
+
+    # Rutas de colectivos de antibióticos - Farmacia
+    path('colectivos-antibioticos-farmacia/', views.lista_colectivos_antibioticos_farmacia, name='lista_colectivos_antibioticos_farmacia'),
+    path('colectivos-antibioticos-farmacia/<int:colectivo_id>/', views.detalle_colectivo_antibioticos_farmacia, name='detalle_colectivo_antibioticos_farmacia'),
+    path('colectivos-antibioticos-farmacia/<int:colectivo_id>/responder/', views.responder_colectivo_antibioticos, name='responder_colectivo_antibioticos'),
+    path('colectivos-antibioticos-farmacia/<int:colectivo_id>/completar/', views.completar_colectivo_antibioticos, name='completar_colectivo_antibioticos'),
+    path('colectivos-antibioticos-farmacia/<int:colectivo_id>/pdf/', views.generar_pdf_colectivo_antibioticos, name='generar_pdf_colectivo_antibioticos'),
     
     
     # ===== ADMINISTRACIÓN DE USUARIOS Y GRUPOS =====

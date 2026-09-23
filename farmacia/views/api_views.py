@@ -6,19 +6,38 @@ import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from axes.models import AccessAttempt
 from axes.handlers.proxy import AxesProxyHandler
 
 from farmacia.serializers import UserSerializer, LoginSerializer
 from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
+from django.views.decorators.http import require_GET
 from farmacia.models import Institucion
 
 logger = logging.getLogger(__name__)
 
 
+class EsAdministrador(BasePermission):
+    """Restringe operaciones administrativas a superusuarios o su grupo."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                user.is_superuser
+                or user.groups.filter(name='Administrador').exists()
+            )
+        )
+
+
 class RegisterAPIView(APIView):
+    permission_classes = [EsAdministrador]
+
     def post(self, request):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
@@ -85,6 +104,8 @@ class LoginAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
 
 @login_required
+@require_GET
+@permission_required('farmacia.create_transferencia', raise_exception=True)
 def buscar_instituciones_autocomplete(request):
     query = request.GET.get('q', '').strip()
     if len(query) < 2:

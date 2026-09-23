@@ -281,11 +281,6 @@ document.addEventListener('DOMContentLoaded', function() {
             ? formPaciente.dataset.urlReceta
             : formPaciente.dataset.urlTransferencia;
 
-        itemsParaSalida.forEach((item, index) => {
-            formData.append(`item_lote_${index}`, item.lote_id);
-            formData.append(`item_cantidad_${index}`, item.cantidad);
-        });
-
         if (tipo === 'TRANSFERENCIA') {
             formData.append('institucion_destino_nombre', document.getElementById('institucion-input').value.trim());
         }
@@ -412,20 +407,30 @@ document.addEventListener('DOMContentLoaded', function() {
         
         medicamentosFaltantes.forEach((item, index) => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.descripcion}</td>
-                <td class="text-center">${item.cantidad}</td>
-                <td><small class="text-muted">${item.motivo}</small></td>
-                <td class="text-center">
-                    <button 
-                        type="button" 
-                        class="btn btn-danger btn-sm btn-quitar-faltante" 
-                        data-index="${index}"
-                        title="Quitar">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </td>
-            `;
+            const descripcionCelda = document.createElement('td');
+            descripcionCelda.textContent = item.descripcion;
+
+            const cantidadCelda = document.createElement('td');
+            cantidadCelda.className = 'text-center';
+            cantidadCelda.textContent = item.cantidad;
+
+            const motivoCelda = document.createElement('td');
+            const motivoTexto = document.createElement('small');
+            motivoTexto.className = 'text-muted';
+            motivoTexto.textContent = item.motivo;
+            motivoCelda.appendChild(motivoTexto);
+
+            const accionCelda = document.createElement('td');
+            accionCelda.className = 'text-center';
+            const botonQuitar = document.createElement('button');
+            botonQuitar.type = 'button';
+            botonQuitar.className = 'btn btn-danger btn-sm btn-quitar-faltante';
+            botonQuitar.dataset.index = index;
+            botonQuitar.title = 'Quitar';
+            botonQuitar.innerHTML = '<i class="fas fa-times"></i>';
+            accionCelda.appendChild(botonQuitar);
+
+            tr.append(descripcionCelda, cantidadCelda, motivoCelda, accionCelda);
             tablaFaltantesBody.appendChild(tr);
         });
         

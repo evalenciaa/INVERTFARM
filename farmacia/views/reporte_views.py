@@ -5,21 +5,29 @@ Vistas para reportes estadísticos y exportación de inventarios a PDF y Excel.
 import os
 from datetime import datetime, timedelta
 from io import BytesIO
+from xml.sax.saxutils import escape as escape_xml
 from django.urls import reverse
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from collections import defaultdict
-from django.db.models import Sum, Count, Q, F, Value, IntegerField, Max, DecimalField
+from django.db.models import Sum, Count, Q, F, Value, IntegerField, Max, DecimalField, Prefetch
 from django.db.models.functions import Coalesce, TruncMonth
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.timezone import make_aware
+from django.views.decorators.http import require_GET
 from farmacia.decorators import group_required
-from farmacia.models import Lote, Receta, RecetaMedicamento, DetalleSalidaTransferencia
+from farmacia.cpm import calcular_estado_inventario
+from farmacia.models import (
+    DetalleSalidaTransferencia, Lote, MedicamentoNoSurtido, Receta,
+    RecetaMedicamento,
+)
 
 
 @login_required
+@require_GET
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_inventario_excel(request):
     """Exportar inventario a Excel con formato y semaforización correcta"""
     try:
@@ -230,6 +238,8 @@ def truncar_texto(valor, limite=80):
 
 
 @login_required
+@require_GET
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_inventario_pdf(request):
     """Exportar inventario por lotes a PDF en orientación horizontal"""
     try:
@@ -372,19 +382,19 @@ def exportar_inventario_pdf(request):
             costo_total = float(lote.existencia or 0) * float(lote.costo_unitario or 0)
             
             data_tabla.append([
-                Paragraph(lote.medicamento.clave or "N/A", estilo_celda_centrada),
-                Paragraph(truncar_texto(lote.medicamento.descripcion or "N/A", 260), estilo_celda),
-                Paragraph(lote.lote_codigo or "N/A", estilo_celda_centrada),
-                Paragraph(lote.presentacion.nombre if lote.presentacion else "N/A", estilo_celda_centrada),
+                Paragraph(escape_xml(str(lote.medicamento.clave or "N/A")), estilo_celda_centrada),
+                Paragraph(escape_xml(truncar_texto(lote.medicamento.descripcion or "N/A", 260)), estilo_celda),
+                Paragraph(escape_xml(str(lote.lote_codigo or "N/A")), estilo_celda_centrada),
+                Paragraph(escape_xml(str(lote.presentacion.nombre if lote.presentacion else "N/A")), estilo_celda_centrada),
                 Paragraph(str(lote.existencia or 0), estilo_celda_centrada),
                 Paragraph(f"${float(lote.costo_unitario or 0):,.2f}", estilo_celda_derecha),
                 Paragraph(
                     lote.fecha_caducidad.strftime('%d/%m/%Y') if lote.fecha_caducidad else "N/A",
                     estilo_celda_centrada
                 ),
-                Paragraph(str(getattr(lote, 'origen', None) or "N/A"), estilo_celda),
-                Paragraph(str(getattr(lote, 'contrato', None) or "N/A"), estilo_celda),
-                Paragraph(fuente_texto, estilo_celda),
+                Paragraph(escape_xml(str(getattr(lote, 'origen', None) or "N/A")), estilo_celda),
+                Paragraph(escape_xml(str(getattr(lote, 'contrato', None) or "N/A")), estilo_celda),
+                Paragraph(escape_xml(fuente_texto), estilo_celda),
                 Paragraph(f"${costo_total:,.2f}", estilo_celda_derecha),
             ])
 
@@ -456,6 +466,8 @@ def exportar_inventario_pdf(request):
 
 
 @login_required
+@require_GET
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_proximos_caducar_pdf(request):
     """Exportar PDF de medicamentos próximos a caducar (< 6 meses)"""
     try:
@@ -608,19 +620,19 @@ def exportar_proximos_caducar_pdf(request):
             costo_total = float(lote.existencia or 0) * float(lote.costo_unitario or 0)
 
             data_tabla.append([
-                Paragraph(lote.medicamento.clave or "N/A", estilo_celda_centrada),
-                Paragraph(truncar_texto(lote.medicamento.descripcion or "N/A", 260), estilo_celda),
-                Paragraph(lote.lote_codigo or "N/A", estilo_celda_centrada),
-                Paragraph(lote.presentacion.nombre if lote.presentacion else "N/A", estilo_celda_centrada),
+                Paragraph(escape_xml(str(lote.medicamento.clave or "N/A")), estilo_celda_centrada),
+                Paragraph(escape_xml(truncar_texto(lote.medicamento.descripcion or "N/A", 260)), estilo_celda),
+                Paragraph(escape_xml(str(lote.lote_codigo or "N/A")), estilo_celda_centrada),
+                Paragraph(escape_xml(str(lote.presentacion.nombre if lote.presentacion else "N/A")), estilo_celda_centrada),
                 Paragraph(str(lote.existencia or 0), estilo_celda_centrada),
                 Paragraph(f"${float(lote.costo_unitario or 0):,.2f}", estilo_celda_derecha),
                 Paragraph(
                     lote.fecha_caducidad.strftime('%d/%m/%Y') if lote.fecha_caducidad else "N/A",
                     estilo_celda_centrada
                 ),
-                Paragraph(str(getattr(lote, 'origen', None) or "N/A"), estilo_celda),
-                Paragraph(str(getattr(lote, 'contrato', None) or "N/A"), estilo_celda),
-                Paragraph(fuente_texto, estilo_celda),
+                Paragraph(escape_xml(str(getattr(lote, 'origen', None) or "N/A")), estilo_celda),
+                Paragraph(escape_xml(str(getattr(lote, 'contrato', None) or "N/A")), estilo_celda),
+                Paragraph(escape_xml(fuente_texto), estilo_celda),
                 Paragraph(f"${costo_total:,.2f}", estilo_celda_derecha),
             ])
 
@@ -706,6 +718,8 @@ def exportar_proximos_caducar_pdf(request):
         return HttpResponse(f'Error: {str(e)}', status=400)
 
 @login_required
+@require_GET
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_inventario_general_excel(request):
     """Exportar inventario general a Excel"""
     try:
@@ -774,105 +788,222 @@ def exportar_inventario_general_excel(request):
         return HttpResponse(f'Error: {str(e)}', status=400)
 
 
-@login_required
-def exportar_inventario_general_pdf(request):
-    """Exportar inventario general a PDF (descripción con wrap)"""
+def _obtener_datos_inventario_general(solo_excedentes=False):
+    inventario = Lote.objects.values(
+        'medicamento__id', 'medicamento__clave', 'medicamento__descripcion',
+    ).annotate(
+        existencia_total=Sum('existencia'),
+        cpm_medicamento=Coalesce(
+            F('medicamento__cpm_medicamento__valor'),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+    ).order_by('medicamento__descripcion')
+
+    datos = []
+    for item in inventario:
+        item.update(calcular_estado_inventario(
+            item['existencia_total'], item['cpm_medicamento'],
+        ))
+        if solo_excedentes and item['estado'] != 'excedente':
+            continue
+        datos.append(item)
+    return datos
+
+
+def _generar_inventario_general_pdf(request, solo_excedentes=False):
     try:
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import letter, landscape
-        from reportlab.lib.units import inch
         from reportlab.lib import colors
-        from reportlab.platypus import Table, TableStyle, Paragraph
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        from reportlab.lib.pagesizes import landscape, letter
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_LEFT
+        from reportlab.lib.units import inch
+        from reportlab.platypus import (
+            Image, LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle,
+        )
+        from xml.sax.saxutils import escape
 
-        inventario = Lote.objects.values('medicamento__id', 'medicamento__clave', 'medicamento__descripcion').annotate(
-            existencia_total=Sum('existencia'),
-            cpm_medicamento=Coalesce(F('medicamento__cpm_medicamento__valor'), Value(0), output_field=IntegerField())
-        ).filter(existencia_total__gt=0).order_by('medicamento__descripcion')
-
+        inventario = _obtener_datos_inventario_general(solo_excedentes)
         buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=landscape(letter))
-        width, height = landscape(letter)
-
-        logo_path = os.path.join(settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg')
-        logo_width, logo_height = 7.0 * inch, 1.0 * inch
-        x_logo = (width - logo_width) / 2
-        y_logo = height - (0.75 * inch) - logo_height
-
-        if os.path.exists(logo_path):
-            try: p.drawImage(logo_path, x_logo, y_logo, width=logo_width, height=logo_height, preserveAspectRatio=True)
-            except: pass
-
-        y_actual = y_logo - (0.25 * inch)
-        p.setFont("Helvetica-Bold", 16)
-        p.drawCentredString(width / 2.0, y_actual, "REPORTE DE INVENTARIO GENERAL DE MEDICAMENTOS")
-        y_actual -= 20
-        p.setFont("Helvetica", 10)
-        p.drawCentredString(width / 2.0, y_actual, f"Fecha del Reporte: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-        y_actual -= 20
-        nombre_usuario = (request.user.get_full_name() or request.user.username).strip()
-        p.drawCentredString(width / 2.0, y_actual, f"Generado por: {nombre_usuario}")
-        y_actual -= 16
-        p.line(inch, y_actual, width - inch, y_actual)
-        y_actual -= 20
+        width, _ = landscape(letter)
+        documento = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(letter),
+            leftMargin=0.5 * inch,
+            rightMargin=0.5 * inch,
+            topMargin=0.5 * inch,
+            bottomMargin=0.6 * inch,
+            title=(
+                'Inventario general - excedentes'
+                if solo_excedentes else 'Inventario general de medicamentos'
+            ),
+        )
 
         styles = getSampleStyleSheet()
-        desc_style = ParagraphStyle("desc", parent=styles["Normal"], fontName="Helvetica", fontSize=7, leading=8, alignment=TA_LEFT)
+        titulo_style = ParagraphStyle(
+            'titulo_inventario', parent=styles['Title'], fontName='Helvetica-Bold',
+            fontSize=16, leading=20, alignment=TA_CENTER, textColor=colors.black,
+        )
+        info_style = ParagraphStyle(
+            'info_inventario', parent=styles['Normal'], fontName='Helvetica',
+            fontSize=10, leading=16, alignment=TA_CENTER,
+        )
+        desc_style = ParagraphStyle(
+            'desc_inventario', parent=styles['Normal'], fontName='Helvetica',
+            fontSize=7, leading=8.5, alignment=TA_LEFT,
+        )
+        celda_style = ParagraphStyle(
+            'celda_inventario', parent=desc_style, alignment=TA_CENTER,
+        )
 
-        data_tabla = [['Clave', 'Descripción', 'Existencia', 'CPM', 'Estado']]
+        titulo = (
+            'REPORTE DE MEDICAMENTOS CON EXCEDENTE'
+            if solo_excedentes else 'REPORTE DE INVENTARIO GENERAL DE MEDICAMENTOS'
+        )
+        nombre_usuario = (request.user.get_full_name() or request.user.username).strip()
+        elementos = []
+        logo_path = os.path.join(
+            settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg'
+        )
+        if os.path.exists(logo_path):
+            elementos.extend([
+                Image(logo_path, width=7.0 * inch, height=1.0 * inch),
+                Spacer(1, 0.2 * inch),
+            ])
+        elementos.extend([
+            Paragraph(titulo, titulo_style),
+            Spacer(1, 0.08 * inch),
+            Paragraph(
+                f"Fecha del Reporte: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+                info_style,
+            ),
+            Paragraph(f'Generado por: {escape(nombre_usuario)}', info_style),
+            Spacer(1, 0.2 * inch),
+        ])
+
+        data_tabla = [[
+            'Clave', 'Descripción', 'Existencia', 'CPM', 'Stock máximo', 'Estado'
+        ]]
+        estilos_estado = []
+        etiquetas = {
+            'desabasto': 'Desabasto',
+            'bajo': 'Stock bajo',
+            'adecuado': 'Adecuado',
+        }
+        colores_estado = {
+            'desabasto': (colors.HexColor('#dc3545'), colors.white),
+            'bajo': (colors.HexColor('#ffc107'), colors.black),
+            'adecuado': (colors.HexColor('#28a745'), colors.white),
+            'excedente': (colors.HexColor('#0d6efd'), colors.white),
+        }
         for item in inventario:
-            existencia = item['existencia_total']
-            estado = 'Adecuado'
-            if existencia <= 10: estado = 'Crítico'
-            elif existencia <= 50: estado = 'Bajo'
-            elif existencia <= 100: estado = 'Medio'
-            data_tabla.append([item['medicamento__clave'], Paragraph(item['medicamento__descripcion'] or "", desc_style), str(existencia), str(item['cpm_medicamento']), estado])
+            estado_texto = etiquetas.get(
+                item['estado'], f"Excedente: {item['excedente']}"
+            )
+            data_tabla.append([
+                Paragraph(escape(str(item['medicamento__clave'] or '')), celda_style),
+                Paragraph(
+                    escape(truncar_texto(item['medicamento__descripcion'] or '', 260)),
+                    desc_style,
+                ),
+                str(item['existencia_total']),
+                str(item['cpm_medicamento']),
+                str(item['stock_maximo']),
+                Paragraph(escape(estado_texto), celda_style),
+            ])
+            fila = len(data_tabla) - 1
+            if solo_excedentes:
+                estilos_estado.extend([
+                    ('BACKGROUND', (5, fila), (5, fila), colors.white),
+                    ('TEXTCOLOR', (5, fila), (5, fila), colors.black),
+                ])
+            else:
+                fondo, texto = colores_estado[item['estado']]
+                estilos_estado.extend([
+                    ('BACKGROUND', (5, fila), (5, fila), fondo),
+                    ('TEXTCOLOR', (5, fila), (5, fila), texto),
+                ])
 
-        ancho_disponible = width - (2 * inch)
-        pesos = {"clave": 1.2, "descripcion": 6.0, "existencia": 1.1, "cpm": 0.9, "estado": 1.1}
-        total_pesos = sum(pesos.values())
-        col_widths = [ancho_disponible * (p / total_pesos) for p in pesos.values()]
+        if not inventario:
+            mensaje = (
+                'No se encontraron medicamentos con excedente.'
+                if solo_excedentes else 'No hay medicamentos registrados en el inventario.'
+            )
+            elementos.append(Paragraph(mensaje, info_style))
+        else:
+            ancho_disponible = width - inch
+            pesos = (1.25, 5.4, 1.0, 0.8, 1.15, 1.45)
+            total_pesos = sum(pesos)
+            col_widths = [ancho_disponible * (peso / total_pesos) for peso in pesos]
+            tabla = LongTable(
+                data_tabla, colWidths=col_widths, repeatRows=1,
+                splitByRow=1, hAlign='CENTER',
+            )
+            tabla.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.darkred),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, 0), 7),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 7),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+                ('ALIGN', (2, 1), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('LEFTPADDING', (0, 1), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 1), (-1, -1), 4),
+                ('TOPPADDING', (0, 1), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+                *estilos_estado,
+            ]))
+            elementos.append(tabla)
 
-        tabla = Table(data_tabla, colWidths=col_widths)
-        tabla.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.darkred),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 7),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('VALIGN', (0, 1), (-1, -1), 'TOP'),
-            ('ALIGN', (1, 1), (1, -1), 'LEFT'),
-            ('LEFTPADDING', (1, 1), (1, -1), 4),
-            ('RIGHTPADDING', (1, 1), (1, -1), 4),
-        ]))
+        def dibujar_pie(canvas, doc):
+            canvas.saveState()
+            canvas.setFont('Helvetica', 8)
+            canvas.setFillColor(colors.HexColor('#555555'))
+            canvas.drawCentredString(
+                width / 2, 0.28 * inch,
+                f'Documento generado por INVENTFARM - Página {doc.page}',
+            )
+            canvas.restoreState()
 
-        wrap_height = tabla.wrapOn(p, width - 2*inch, height)[1]
-        y_tabla = y_actual - wrap_height - 20
-        if y_tabla < (inch * 2.5):
-            p.showPage()
-            y_tabla = height - inch - wrap_height
-
-        tabla.drawOn(p, inch, y_tabla)
-        p.setFont("Helvetica", 9)
-        p.drawCentredString(width / 2.0, inch * 0.5, "Documento generado por INVENTFARM")
-
-        p.showPage()
-        p.save()
+        documento.build(
+            elementos, onFirstPage=dibujar_pie, onLaterPages=dibujar_pie,
+        )
         buffer.seek(0)
         response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="Inventario_General_{datetime.now().strftime("%d%m%Y")}.pdf"'
+        prefijo = 'Inventario_General_Excedentes' if solo_excedentes else 'Inventario_General'
+        response['Content-Disposition'] = (
+            f'attachment; filename="{prefijo}_{datetime.now().strftime("%d%m%Y")}.pdf"'
+        )
         return response
     except Exception as e:
         return HttpResponse(f'Error: {str(e)}', status=400)
 
 
 @login_required
+@require_GET
+@permission_required('farmacia.export_reportes', raise_exception=True)
+def exportar_inventario_general_pdf(request):
+    """Exporta todo el inventario general con paginación real."""
+    return _generar_inventario_general_pdf(request, solo_excedentes=False)
+
+
+@login_required
+@require_GET
+@permission_required('farmacia.export_reportes', raise_exception=True)
+def exportar_inventario_general_excedentes_pdf(request):
+    """Exporta únicamente medicamentos cuya existencia supera el stock máximo."""
+    return _generar_inventario_general_pdf(request, solo_excedentes=True)
+
+
+@login_required
+@require_GET
 @permission_required('farmacia.view_reportes', raise_exception=True)
 def reportes_farmacia(request):
     return render(request, 'reportes.html', {'user': request.user})
@@ -907,6 +1038,8 @@ def obtener_medicamentos_sin_movimiento(fecha_inicio, fecha_fin):
     )
 
 @login_required
+@require_GET
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def api_reportes_kpis(request):
     try:
         fecha_fin = timezone.now().date()
@@ -953,7 +1086,9 @@ def api_reportes_kpis(request):
 
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def api_reportes_salidas(request):
     try:
         fecha_fin = timezone.now().date()
@@ -1094,10 +1229,450 @@ def api_reportes_salidas(request):
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def _filtros_registro_recetas(request):
+    fecha_fin = timezone.now().date()
+    fecha_inicio = fecha_fin - timedelta(days=90)
+    estado = request.GET.get('estado', 'todos')
+    estados_validos = {'todos', *dict(Receta.ESTADO_CHOICES).keys()}
+
+    if estado not in estados_validos:
+        raise ValueError('El estado solicitado no es válido.')
+
+    try:
+        if request.GET.get('fecha_inicio'):
+            fecha_inicio = datetime.strptime(
+                request.GET['fecha_inicio'], '%Y-%m-%d'
+            ).date()
+        if request.GET.get('fecha_fin'):
+            fecha_fin = datetime.strptime(
+                request.GET['fecha_fin'], '%Y-%m-%d'
+            ).date()
+    except ValueError as exc:
+        raise ValueError('El rango de fechas no es válido.') from exc
+
+    if fecha_inicio > fecha_fin:
+        raise ValueError('La fecha inicial no puede ser posterior a la fecha final.')
+
+    return fecha_inicio, fecha_fin, estado
+
+
+def _obtener_datos_registro_recetas(fecha_inicio, fecha_fin, estado='todos'):
+    """Construye el registro agrupado usado por pantalla, PDF y Excel."""
+
+    items_surtidos = RecetaMedicamento.objects.select_related(
+        'medicamento', 'lote'
+    ).order_by('pk')
+    items_no_surtidos = MedicamentoNoSurtido.objects.order_by('pk')
+
+    recetas = (
+        Receta.objects
+        .filter(fecha_surtido__range=[fecha_inicio, fecha_fin])
+        .exclude(
+            Q(id_folio__startswith='COL-') |
+            Q(id_folio__startswith='STK-')
+        )
+        .select_related('paciente', 'surtido_por')
+        .prefetch_related(
+            Prefetch('recetamedicamento_set', queryset=items_surtidos),
+            Prefetch('medicamentos_no_surtidos', queryset=items_no_surtidos),
+        )
+        .order_by('-fecha_surtido', '-pk')
+    )
+    if estado != 'todos':
+        recetas = recetas.filter(estado=estado)
+
+    datos = []
+    total_renglones = 0
+    for receta in recetas:
+        responsable = 'N/A'
+        if receta.surtido_por:
+            responsable = receta.surtido_por.get_full_name().strip()
+            if not responsable:
+                responsable = receta.surtido_por.username
+
+        medicamentos = [{
+            'tipo': 'surtido',
+            'clave': item.medicamento.clave or 'N/A',
+            'descripcion': item.medicamento.descripcion,
+            'lote': item.lote.lote_codigo if item.lote else 'N/A',
+            'caducidad': (
+                item.lote.fecha_caducidad.strftime('%Y-%m-%d')
+                if item.lote and item.lote.fecha_caducidad else 'N/A'
+            ),
+            'cantidad': item.cantidad_surtida,
+            'motivo': '',
+        } for item in receta.recetamedicamento_set.all()]
+
+        medicamentos.extend({
+            'tipo': 'no_surtido',
+            'clave': 'N/A',
+            'descripcion': faltante.medicamento_descripcion,
+            'lote': 'N/A',
+            'caducidad': 'N/A',
+            'cantidad': faltante.cantidad_solicitada,
+            'motivo': faltante.motivo,
+        } for faltante in receta.medicamentos_no_surtidos.all())
+
+        if not medicamentos:
+            medicamentos.append({
+                'tipo': 'sin_detalle',
+                'clave': 'N/A',
+                'descripcion': 'Sin detalle de medicamentos registrado',
+                'lote': 'N/A',
+                'caducidad': 'N/A',
+                'cantidad': 0,
+                'motivo': '',
+            })
+
+        total_renglones += len(medicamentos)
+        datos.append({
+            'id': receta.pk,
+            'folio': receta.id_folio,
+            'fecha': receta.fecha_surtido.strftime('%Y-%m-%d'),
+            'paciente': receta.paciente.nombre_completo,
+            'responsable': responsable,
+            'estado': receta.estado,
+            'estado_display': receta.get_estado_display(),
+            'medicamentos': medicamentos,
+        })
+
+    return datos, total_renglones
+
+
+@login_required
+@require_GET
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_reportes', raise_exception=True)
+def api_registro_recetas(request):
+    """Devuelve recetas agrupadas con renglones surtidos y no surtidos."""
+    try:
+        fecha_inicio, fecha_fin, estado = _filtros_registro_recetas(request)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+    datos, total_renglones = _obtener_datos_registro_recetas(
+        fecha_inicio, fecha_fin, estado
+    )
+    return JsonResponse({
+        'success': True,
+        'data': datos,
+        'total_recetas': len(datos),
+        'total_renglones': total_renglones,
+    })
+
+
+def _filas_exportacion_recetas(datos):
+    for receta in datos:
+        for medicamento in receta['medicamentos']:
+            descripcion = medicamento['descripcion']
+            if medicamento['tipo'] == 'no_surtido':
+                descripcion = f"{descripcion} | NO SURTIDO: {medicamento['motivo']}"
+            yield {
+                'fecha': receta['fecha'],
+                'folio': receta['folio'],
+                'clave': medicamento['clave'],
+                'descripcion': descripcion,
+                'lote': medicamento['lote'],
+                'caducidad': medicamento['caducidad'],
+                'cantidad': medicamento['cantidad'],
+                'paciente': receta['paciente'],
+                'responsable': receta['responsable'],
+                'estado': receta['estado'],
+                'estado_display': receta['estado_display'],
+                'tipo': medicamento['tipo'],
+            }
+
+
+@login_required
+@require_GET
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.export_reportes', raise_exception=True)
+def exportar_registro_recetas_pdf(request):
+    """Exporta el registro de recetas respetando fechas y estado seleccionados."""
+    from html import escape
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import landscape, letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import inch, mm
+    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    try:
+        fecha_inicio, fecha_fin, estado = _filtros_registro_recetas(request)
+    except ValueError as exc:
+        return HttpResponse(str(exc), status=400)
+
+    datos, _ = _obtener_datos_registro_recetas(fecha_inicio, fecha_fin, estado)
+    filas = list(_filas_exportacion_recetas(datos))
+    buffer = BytesIO()
+    page_width, page_height = landscape(letter)
+    documento = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        leftMargin=8 * mm,
+        rightMargin=8 * mm,
+        topMargin=8 * mm,
+        bottomMargin=12 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    titulo_style = ParagraphStyle(
+        'TituloRegistroRecetas', parent=styles['Title'], fontName='Helvetica-Bold',
+        fontSize=15, leading=17, alignment=1, spaceAfter=3,
+    )
+    meta_style = ParagraphStyle(
+        'MetaRegistroRecetas', parent=styles['Normal'], fontName='Helvetica',
+        fontSize=8, leading=10, alignment=1, spaceAfter=1,
+    )
+    header_style = ParagraphStyle(
+        'HeaderRegistroRecetas', parent=styles['Normal'], fontName='Helvetica-Bold',
+        fontSize=6.5, leading=7.5, alignment=1, textColor=colors.white,
+    )
+    cell_style = ParagraphStyle(
+        'CeldaRegistroRecetas', parent=styles['Normal'], fontName='Helvetica',
+        fontSize=6.5, leading=7.5, alignment=0, splitLongWords=True,
+        wordWrap='CJK',
+    )
+    centered_style = ParagraphStyle(
+        'CeldaCentradaRegistroRecetas', parent=cell_style, alignment=1,
+    )
+
+    elementos = []
+    logo_path = os.path.join(
+        settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg'
+    )
+    if os.path.exists(logo_path):
+        logo = Image(logo_path, width=245 * mm, height=25 * mm)
+        logo.hAlign = 'CENTER'
+        elementos.extend([logo, Spacer(1, 2 * mm)])
+
+    etiqueta_estado = 'Todas' if estado == 'todos' else dict(Receta.ESTADO_CHOICES)[estado]
+    usuario = (request.user.get_full_name() or request.user.username).strip()
+    elementos.append(Paragraph('REGISTRO DE RECETAS SURTIDAS', titulo_style))
+    elementos.append(Paragraph(
+        f"Periodo: {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} - Estado: {escape(etiqueta_estado)}",
+        meta_style,
+    ))
+    elementos.append(Paragraph(
+        f"Generado: {timezone.localtime().strftime('%d/%m/%Y %H:%M')} - Responsable: {escape(usuario)}",
+        meta_style,
+    ))
+    elementos.append(Spacer(1, 3 * mm))
+
+    headers = [
+        'Fecha', 'Folio', 'Clave', 'Descripción del medicamento', 'Lote',
+        'Caducidad', 'Cantidad', 'Paciente', 'Responsable', 'Estado',
+    ]
+    tabla_datos = [[Paragraph(header, header_style) for header in headers]]
+    estilos_filas = []
+    for indice, fila in enumerate(filas, start=1):
+        tabla_datos.append([
+            Paragraph(escape(datetime.strptime(fila['fecha'], '%Y-%m-%d').strftime('%d/%m/%Y')), centered_style),
+            Paragraph(escape(fila['folio']), centered_style),
+            Paragraph(escape(fila['clave']), centered_style),
+            Paragraph(escape(truncar_texto(fila['descripcion'], 180)), cell_style),
+            Paragraph(escape(fila['lote']), centered_style),
+            Paragraph(
+                escape(datetime.strptime(fila['caducidad'], '%Y-%m-%d').strftime('%d/%m/%Y'))
+                if fila['caducidad'] != 'N/A' else 'N/A',
+                centered_style,
+            ),
+            Paragraph(str(fila['cantidad']), centered_style),
+            Paragraph(escape(truncar_texto(fila['paciente'], 80)), cell_style),
+            Paragraph(escape(truncar_texto(fila['responsable'], 60)), cell_style),
+            Paragraph(escape(fila['estado_display']), centered_style),
+        ])
+        if fila['tipo'] == 'no_surtido':
+            estilos_filas.append(('BACKGROUND', (0, indice), (-1, indice), colors.HexColor('#FFF7E6')))
+        color_estado = {
+            'completa': '#D1FAE5', 'parcial': '#FEF3C7', 'no_surtida': '#FEE2E2',
+        }[fila['estado']]
+        estilos_filas.append(('BACKGROUND', (9, indice), (9, indice), colors.HexColor(color_estado)))
+
+    if not filas:
+        tabla_datos.append([
+            Paragraph('No se encontraron recetas para los filtros seleccionados.', centered_style),
+            *[Paragraph('', centered_style) for _ in range(9)],
+        ])
+        estilos_filas.append(('SPAN', (0, 1), (-1, 1)))
+
+    tabla = Table(
+        tabla_datos,
+        colWidths=[18*mm, 25*mm, 20*mm, 50*mm, 22*mm, 20*mm, 14*mm, 32*mm, 28*mm, 22*mm],
+        repeatRows=1,
+        splitByRow=1,
+        hAlign='CENTER',
+    )
+    tabla.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8B0000')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.35, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F4F4F4')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2.5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2.5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        *estilos_filas,
+    ]))
+    elementos.append(tabla)
+
+    def dibujar_pie(canvas, doc):
+        canvas.saveState()
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColor(colors.HexColor('#555555'))
+        canvas.drawCentredString(
+            page_width / 2, 0.28 * inch,
+            f'INVENTFARM - Pagina {doc.page}',
+        )
+        canvas.restoreState()
+
+    documento.build(elementos, onFirstPage=dibujar_pie, onLaterPages=dibujar_pie)
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = (
+        f'attachment; filename="Registro_Recetas_{estado}_{timezone.now().strftime("%d%m%Y")}.pdf"'
+    )
+    return response
+
+
+@login_required
+@require_GET
+@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.export_reportes', raise_exception=True)
+def exportar_registro_recetas_excel(request):
+    """Exporta el registro de recetas a Excel con el mismo filtro de la pestaña."""
+    import xlsxwriter
+
+    try:
+        fecha_inicio, fecha_fin, estado = _filtros_registro_recetas(request)
+    except ValueError as exc:
+        return HttpResponse(str(exc), status=400)
+
+    datos, _ = _obtener_datos_registro_recetas(fecha_inicio, fecha_fin, estado)
+    filas = list(_filas_exportacion_recetas(datos))
+    output = BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    worksheet = workbook.add_worksheet('Registro de Recetas')
+
+    title_format = workbook.add_format({
+        'bg_color': '#8B0000', 'font_color': 'white', 'bold': True,
+        'align': 'center', 'valign': 'vcenter', 'font_size': 14,
+    })
+    meta_format = workbook.add_format({'italic': True, 'align': 'left', 'font_size': 10})
+    header_format = workbook.add_format({
+        'bg_color': '#8B0000', 'font_color': 'white', 'bold': True,
+        'align': 'center', 'valign': 'vcenter', 'border': 1, 'text_wrap': True,
+    })
+    text_format = workbook.add_format({
+        'align': 'left', 'valign': 'top', 'border': 1, 'text_wrap': True,
+    })
+    centered_format = workbook.add_format({
+        'align': 'center', 'valign': 'top', 'border': 1, 'text_wrap': True,
+    })
+    date_format = workbook.add_format({
+        'align': 'center', 'valign': 'top', 'border': 1, 'num_format': 'dd/mm/yyyy',
+    })
+    missing_format = workbook.add_format({
+        'align': 'left', 'valign': 'top', 'border': 1, 'text_wrap': True,
+        'bg_color': '#FFF7E6',
+    })
+    status_formats = {
+        'completa': workbook.add_format({'align': 'center', 'valign': 'top', 'border': 1, 'bold': True, 'bg_color': '#D1FAE5', 'font_color': '#065F46'}),
+        'parcial': workbook.add_format({'align': 'center', 'valign': 'top', 'border': 1, 'bold': True, 'bg_color': '#FEF3C7', 'font_color': '#92400E'}),
+        'no_surtida': workbook.add_format({'align': 'center', 'valign': 'top', 'border': 1, 'bold': True, 'bg_color': '#FEE2E2', 'font_color': '#991B1B'}),
+    }
+
+    worksheet.set_column('A:A', 13)
+    worksheet.set_column('B:B', 24)
+    worksheet.set_column('C:C', 20)
+    worksheet.set_column('D:D', 55)
+    worksheet.set_column('E:E', 20)
+    worksheet.set_column('F:F', 13)
+    worksheet.set_column('G:G', 12)
+    worksheet.set_column('H:H', 32)
+    worksheet.set_column('I:I', 28)
+    worksheet.set_column('J:J', 15)
+
+    logo_path = os.path.join(
+        settings.BASE_DIR, 'farmacia', 'static', 'farmacia', 'img', 'logo.jpg'
+    )
+    if os.path.exists(logo_path):
+        worksheet.insert_image('A1', logo_path, {'x_scale': 0.75, 'y_scale': 0.75})
+
+    etiqueta_estado = 'Todas' if estado == 'todos' else dict(Receta.ESTADO_CHOICES)[estado]
+    usuario = (request.user.get_full_name() or request.user.username).strip()
+    worksheet.merge_range('A3:J3', 'REGISTRO DE RECETAS SURTIDAS', title_format)
+    worksheet.merge_range(
+        'A4:J4',
+        f'Periodo: {fecha_inicio.strftime("%d/%m/%Y")} al {fecha_fin.strftime("%d/%m/%Y")} - Estado: {etiqueta_estado}',
+        meta_format,
+    )
+    worksheet.merge_range(
+        'A5:J5',
+        f'Generado: {timezone.localtime().strftime("%d/%m/%Y %H:%M")} - Responsable: {usuario}',
+        meta_format,
+    )
+
+    headers = [
+        'Fecha', 'Folio', 'Clave', 'Descripción del medicamento', 'Lote',
+        'Caducidad', 'Cantidad', 'Paciente', 'Responsable', 'Estado',
+    ]
+    header_row = 6
+    for column, header in enumerate(headers):
+        worksheet.write(header_row, column, header, header_format)
+
+    row = header_row + 1
+    for fila in filas:
+        base_format = missing_format if fila['tipo'] == 'no_surtido' else text_format
+        worksheet.write_datetime(row, 0, datetime.strptime(fila['fecha'], '%Y-%m-%d'), date_format)
+        worksheet.write(row, 1, fila['folio'], centered_format)
+        worksheet.write(row, 2, fila['clave'], centered_format)
+        worksheet.write(row, 3, fila['descripcion'], base_format)
+        worksheet.write(row, 4, fila['lote'], centered_format)
+        if fila['caducidad'] != 'N/A':
+            worksheet.write_datetime(row, 5, datetime.strptime(fila['caducidad'], '%Y-%m-%d'), date_format)
+        else:
+            worksheet.write(row, 5, 'N/A', centered_format)
+        worksheet.write_number(row, 6, fila['cantidad'], centered_format)
+        worksheet.write(row, 7, fila['paciente'], text_format)
+        worksheet.write(row, 8, fila['responsable'], text_format)
+        worksheet.write(row, 9, fila['estado_display'], status_formats[fila['estado']])
+        row += 1
+
+    if not filas:
+        worksheet.merge_range(
+            row, 0, row, 9,
+            'No se encontraron recetas para los filtros seleccionados.',
+            centered_format,
+        )
+        row += 1
+
+    worksheet.freeze_panes(header_row + 1, 0)
+    worksheet.autofilter(header_row, 0, max(header_row, row - 1), 9)
+    worksheet.set_landscape()
+    worksheet.fit_to_pages(1, 0)
+    worksheet.set_paper(1)
+    worksheet.set_margins(0.25, 0.25, 0.5, 0.5)
+
+    workbook.close()
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = (
+        f'attachment; filename="Registro_Recetas_{estado}_{timezone.now().strftime("%d%m%Y")}.xlsx"'
+    )
+    return response
     
     
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_medicamentos_sin_movimiento_pdf(request):
     """Exportar medicamentos sin movimiento a PDF"""
     try:
@@ -1233,8 +1808,8 @@ def exportar_medicamentos_sin_movimiento_pdf(request):
 
         for item in medicamentos:
             data_tabla.append([
-                Paragraph(item['medicamento__clave'] or "N/A", estilo_celda_centrada),
-                Paragraph(truncar_texto(item['medicamento__descripcion'] or "N/A", 180), estilo_celda),
+                Paragraph(escape_xml(str(item['medicamento__clave'] or "N/A")), estilo_celda_centrada),
+                Paragraph(escape_xml(truncar_texto(item['medicamento__descripcion'] or "N/A", 180)), estilo_celda),
                 Paragraph(str(item['existencia_total'] or 0), estilo_celda_centrada),
             ])
 
@@ -1305,7 +1880,9 @@ def exportar_medicamentos_sin_movimiento_pdf(request):
     
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_medicamentos_sin_movimiento_excel(request):
     try:
         import xlsxwriter
@@ -1438,7 +2015,9 @@ def exportar_medicamentos_sin_movimiento_excel(request):
 
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def api_medicamentos_sin_movimiento(request):
     try:
         fecha_fin = timezone.now().date()
@@ -1475,7 +2054,9 @@ def api_medicamentos_sin_movimiento(request):
         }, status=500)
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def api_reportes_medicamentos_top(request):
     try:
         fecha_fin = timezone.now().date()
@@ -1492,7 +2073,9 @@ def api_reportes_medicamentos_top(request):
 
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def api_reportes_pacientes_frecuentes(request):
     try:
         fecha_fin = timezone.now().date()
@@ -1509,7 +2092,9 @@ def api_reportes_pacientes_frecuentes(request):
 
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def api_reportes_tendencias(request):
     try:
         fecha_fin = timezone.now().date()
@@ -1525,7 +2110,9 @@ def api_reportes_tendencias(request):
     
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.view_reportes', raise_exception=True)
 def api_medicamentos_lento_movimiento(request):
     try:
         fecha_fin = timezone.now().date()
@@ -1660,7 +2247,9 @@ def api_medicamentos_lento_movimiento(request):
         
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_medicamentos_lento_movimiento_pdf(request):
     """Exportar medicamentos de lento movimiento a PDF"""
     try:
@@ -1876,10 +2465,10 @@ def exportar_medicamentos_lento_movimiento_pdf(request):
 
         for item in data:
             data_tabla.append([
-                Paragraph(item['clave'], estilo_celda_centrada),
-                Paragraph(truncar_texto(item['descripcion'], 120), estilo_celda),
-                Paragraph(item['lote'], estilo_celda_centrada),
-                Paragraph(item['caducidad'], estilo_celda_centrada),
+                Paragraph(escape_xml(str(item['clave'])), estilo_celda_centrada),
+                Paragraph(escape_xml(truncar_texto(item['descripcion'], 120)), estilo_celda),
+                Paragraph(escape_xml(str(item['lote'])), estilo_celda_centrada),
+                Paragraph(escape_xml(str(item['caducidad'])), estilo_celda_centrada),
                 Paragraph(str(item['salidas']), estilo_celda_centrada),
                 Paragraph(str(item['existencia_actual']), estilo_celda_centrada),
             ])
@@ -1957,7 +2546,9 @@ def exportar_medicamentos_lento_movimiento_pdf(request):
 
 
 @login_required
+@require_GET
 @group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@permission_required('farmacia.export_reportes', raise_exception=True)
 def exportar_medicamentos_lento_movimiento_excel(request):
     try:
         import os

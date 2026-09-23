@@ -167,6 +167,11 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+ALERTAS_STOCK_DESTINATARIOS = [
+    email.strip()
+    for email in os.getenv('ALERTAS_STOCK_DESTINATARIOS', '').split(',')
+    if email.strip()
+]
 
 # Celery
 CELERY_BROKER_URL = 'redis://localhost:6379/0'

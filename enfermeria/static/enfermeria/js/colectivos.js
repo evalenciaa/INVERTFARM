@@ -12,7 +12,7 @@ window.onpageshow = function(event) {
 
 // Detectar navegación desde caché
 if (performance.navigation.type === 2) {
-    window.location.replace('/enfermeria/colectivos/');
+    window.location.replace(window.COLECTIVOS_LISTA_URL || '/enfermeria/colectivos/');
 }
 
 // ===== CONFIRMACIONES =====

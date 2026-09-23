@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventario Antibióticos - INVERTFARM</title>
     <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
+    <link rel="stylesheet" href="{% static 'farmacia/css/inventario_antibioticos.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -99,7 +101,7 @@
 
                     <div class="filtro-columna">
                         <label for="filtro-mes"><i class="fas fa-calendar-alt"></i> Mes</label>
-                        <input type="month" id="filtro-mes" class="form-control" value="{{ mes_actual }}">
+                        <input type="month" id="filtro-mes" class="form-control" value="{{ mes_actual }}" data-mes-cargado="{{ mes_actual }}">
                     </div>
 
                     <div class="filtro-acciones">
@@ -109,11 +111,8 @@
                         <button class="btn btn-secondary" onclick="limpiarFiltros()">
                             <i class="fas fa-eraser"></i> Limpiar
                         </button>
-                        <button class="btn btn-success" onclick="descargarExcelAntibioticos()">
-                            <i class="fas fa-file-excel"></i> Excel
-                        </button>
-                        <button class="btn btn-danger" onclick="descargarPdfAntibioticos()">
-                            <i class="fas fa-file-pdf"></i> PDF
+                        <button class="btn btn-secondary" onclick="abrirModalExportar()" title="Exportar Inventario">
+                            <i class="fas fa-download"></i> Exportar
                         </button>
                     </div>
 
@@ -216,10 +215,118 @@
         </div>
     </section>
 
+    <section class="aware-balance-section" aria-labelledby="titulo-balance-aware">
+        <div class="aware-balance-header">
+            <div>
+                <h3 id="titulo-balance-aware">
+                    <i class="fas fa-chart-pie"></i> Balance mensual de consumo AWaRe
+                </h3>
+                <p>Distribución de DDD/ATC de los antibióticos surtidos durante el mes seleccionado.</p>
+            </div>
+            <div class="chart-type-control">
+                <label for="tipo-grafica-aware">Tipo de gráfica</label>
+                <select id="tipo-grafica-aware" class="form-control">
+                    <option value="pie">Circular</option>
+                    <option value="bar">Barras</option>
+                    <option value="doughnut">Dona</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="aware-balance-grid">
+            <div class="aware-summary-card">
+                <div class="aware-table-wrap">
+                    <table class="aware-summary-table">
+                        <thead>
+                            <tr>
+                                <th>Clasificación de Antibióticos esencial</th>
+                                <th>Sumatoria por grupo</th>
+                                <th>Porcentaje por grupo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for fila in resumen_aware %}
+                            <tr>
+                                <td class="aware-label aware-{{ fila.categoria|lower }}">{{ fila.etiqueta }}</td>
+                                <td>{{ fila.sumatoria|floatformat:4 }}</td>
+                                <td>{{ fila.porcentaje|floatformat:2 }}%</td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="aware-total-row">
+                                <td>∑ Total DDD antibióticos</td>
+                                <td>{{ total_ddd_antibioticos|floatformat:4 }}</td>
+                                <td>{% if total_ddd_antibioticos %}100{% else %}0{% endif %}%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {% if total_ddd_antibioticos == 0 %}
+                <p class="aware-empty-note">No hubo DDD/ATC calculables en el periodo; los porcentajes por grupo son 0%.</p>
+                {% endif %}
+            </div>
+
+            <div class="aware-chart-card">
+                <h4>Reporte mensual de Consumo de Antibióticos</h4>
+                <div class="aware-chart-container">
+                    <canvas id="grafica-aware" role="img" aria-label="Distribución del consumo DDD por clasificación AWaRe"></canvas>
+                    <div id="grafica-aware-vacia" class="aware-chart-empty" hidden>
+                        <i class="fas fa-chart-pie"></i>
+                        <span>No hay consumo DDD/ATC calculable para este mes.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
 </main>
+
+<div id="modal-exportar" class="modal" style="display:none">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-download"></i> Exportar Inventario</h3>
+            <button class="btn-close" onclick="cerrarModalExportar()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p>Selecciona el formato para descargar el reporte de antibióticos</p>
+            <div class="exportar-opciones">
+                <button class="btn btn-success btn-exportar" onclick="descargarExcelAntibioticos()">
+                    <i class="fas fa-file-excel"></i> Descargar Excel
+                </button>
+                <button class="btn btn-danger btn-exportar" onclick="descargarPdfAntibioticos()">
+                    <i class="fas fa-file-pdf"></i> PDF general con balance AWaRe
+                </button>
+                <div class="aware-export-divider">
+                    <span>Reportes individuales por clasificación</span>
+                </div>
+                <button class="btn btn-exportar btn-exportar-access" onclick="descargarPdfAntibioticosAware('access')">
+                    <i class="fas fa-file-pdf"></i> PDF Access
+                </button>
+                <button class="btn btn-exportar btn-exportar-watch" onclick="descargarPdfAntibioticosAware('watch')">
+                    <i class="fas fa-file-pdf"></i> PDF Watch
+                </button>
+                <button class="btn btn-exportar btn-exportar-reserve" onclick="descargarPdfAntibioticosAware('reserve')">
+                    <i class="fas fa-file-pdf"></i> PDF Reserve
+                </button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="cerrarModalExportar()">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+        </div>
+    </div>
+</div>
 
 <script>
 function aplicarFiltros() {
+    const filtroMes = document.getElementById('filtro-mes');
+    if (filtroMes.value && filtroMes.value !== filtroMes.dataset.mesCargado) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('mes', filtroMes.value);
+        window.location.href = url.toString();
+        return;
+    }
+
     const clave = document.getElementById('filtro-clave').value.toLowerCase();
     const descripcion = document.getElementById('filtro-descripcion').value.toLowerCase();
     const atc = document.getElementById('filtro-atc').value.toLowerCase();
@@ -264,14 +371,32 @@ function limpiarFiltros() {
 
 function descargarExcelAntibioticos() {
     const mes = document.getElementById('filtro-mes').value;
-    window.location.href = `/api/reportes/antibioticos-ddd/excel/?mes=${mes}`;
+    window.location.href = `/api/reportes/antibioticos/excel/?mes=${mes}`;
 }
 
 function descargarPdfAntibioticos() {
     const mes = document.getElementById('filtro-mes').value;
-    window.location.href = `/api/reportes/antibioticos-ddd/pdf/?mes=${mes}`;
+    window.location.href = `/api/reportes/antibioticos/pdf/?mes=${mes}`;
+}
+
+function descargarPdfAntibioticosAware(categoria) {
+    const categoriasPermitidas = ['access', 'watch', 'reserve'];
+    if (!categoriasPermitidas.includes(categoria)) return;
+
+    const mes = document.getElementById('filtro-mes').value;
+    window.location.href = `/api/reportes/antibioticos/pdf/${categoria}/?mes=${mes}`;
+}
+
+function abrirModalExportar() {
+    document.getElementById('modal-exportar').style.display = 'flex';
+}
+
+function cerrarModalExportar() {
+    document.getElementById('modal-exportar').style.display = 'none';
 }
 </script>
+{{ datos_grafica_aware|json_script:"datos-grafica-aware" }}
+<script src="{% static 'farmacia/js/inventario_antibioticos.js' %}"></script>
 
 </body>
 </html>

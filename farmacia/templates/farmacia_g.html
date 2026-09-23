@@ -255,7 +255,8 @@
                                 <!-- Columna 3: Lote -->
                                 <td class="lote-cell">
                                     <span class="badge-lote">
-                                        <i class="fas fa-barcode"></i> {{ lote.lote_codigo }}
+                                        <i class="fas fa-barcode" aria-hidden="true"></i>
+                                        <span class="lote-text">{{ lote.lote_codigo|default:"N/A" }}</span>
                                     </span>
                                 </td>
                                 
@@ -285,14 +286,14 @@
 
                                 <td class="contrato-cell">
                                     <span class="badge badge-contrato">
-                                        {{ lote.contrato|default:"N/A" }}
+                                        <span class="contrato-text">{{ lote.contrato|default:"N/A" }}</span>
                                     </span>
                                 </td>
 
                                 <td class="fuente-cell">
                                     <span class="badge badge-fuente">
-                                        <i class="fas fa-hand-holding-usd"></i>
-                                        {{ lote.fuente_financiamiento|default:"N/A" }}
+                                        <i class="fas fa-hand-holding-usd" aria-hidden="true"></i>
+                                        <span class="fuente-text">{{ lote.fuente_financiamiento|default:"N/A" }}</span>
                                     </span>
                                 </td>
 

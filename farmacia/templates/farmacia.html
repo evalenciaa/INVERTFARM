@@ -9,27 +9,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Barra Lateral -->
-        <aside class="sidebar">
-            <div class="sidebar-top">
-                <div class="logo">
-                    <h2>INVENTFARM</h2>
-                </div>
-            </div>
-            
-            <nav class="sidebar-nav">
-                <ul>
-                    <li class="nav-item">
-                        <a href="{% url 'principal' %}" class="return-link">
-                            <i class="fas fa-arrow-left"></i>
-                            <span>Volver al Inicio</span>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </aside>
-
         <!-- Contenido Principal -->
         <main class="main-content">
             <div class="module-header">
@@ -99,8 +78,16 @@
                     <div class="card-icon">
                         <i class="fas fa-users"></i>
                     </div>
-                    <h3>Surtir Colectivos</h3>
-                    <p>Preparar medicamentos para grupos</p>
+                    <h3>Surtir Colectivos Medicamentos</h3>
+                    <p>Aprobar colectivos de medicamentos</p>
+                </div>
+
+                <div class="module-card" onclick="location.href='{% url 'lista_colectivos_antibioticos_farmacia' %}';">
+                    <div class="card-icon">
+                        <i class="fas fa-capsules"></i>
+                    </div>
+                    <h3>Surtir Colectivos de Antibióticos</h3>
+                    <p>Aprobar colectivos de antibióticos</p>
                 </div>
 
                 <!-- Surtir Recetas -->

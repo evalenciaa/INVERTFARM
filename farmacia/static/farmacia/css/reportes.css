@@ -5,39 +5,56 @@
     box-sizing: border-box;
 }
 
+html {
+    width: 100%;
+    scrollbar-gutter: stable;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
     color: #333;
     margin: 0;
     padding: 0;
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
 }
 
 
 /* ===== CONTENEDOR PRINCIPAL ===== */
 .app-container {
-    display: flex;
+    display: block;
+    width: 100%;
     min-height: 100vh;
-    max-width: 1400px; /* ← AGREGA ESTO */
-    margin: 0 auto; /* ← AGREGA ESTO para centrar */
+    max-width: 1680px;
+    min-width: 0;
+    margin: 0 auto;
+    padding: 0 24px;
 }
 
 
 .main-content {
-    flex: 1; /* ← CAMBIA margin-left y width por esto */
-    padding: 30px 40px;
+    width: 100%;
+    min-width: 0;
+    margin: 0 auto;
+    padding: 24px 0 36px;
     transition: all 0.3s ease;
 }
 
 /* ===== HEADER DE REPORTES ===== */
 .reports-header {
     background: linear-gradient(135deg, #750000 0%, #a00000 100%);
-    padding: 30px 40px;
+    width: 100%;
+    min-width: 0;
+    min-height: 118px;
+    padding: 24px;
     border-radius: 20px;
     margin-bottom: 30px;
     box-shadow: 0 10px 30px rgba(117, 0, 0, 0.2);
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(315px, 1fr) auto auto;
+    gap: 16px;
     align-items: center;
     position: relative;
     overflow: hidden;
@@ -66,6 +83,7 @@ body {
     gap: 20px;
     position: relative;
     z-index: 1;
+    min-width: 0;
 }
 
 .back-btn {
@@ -91,11 +109,12 @@ body {
 
 .header-info h1 {
     color: white;
-    font-size: 2rem;
+    font-size: 1.75rem;
     margin-bottom: 5px;
     display: flex;
     align-items: center;
     gap: 12px;
+    white-space: nowrap;
 }
 
 .subtitle {
@@ -105,15 +124,18 @@ body {
 
 .header-actions {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
+    min-width: max-content;
+    position: relative;
+    z-index: 1;
 }
 
 .btn-export,
 .btn-refresh {
-    padding: 12px 24px;
+    padding: 11px 18px;
     border: none;
     border-radius: 10px;
     font-weight: 600;
@@ -123,6 +145,7 @@ body {
     align-items: center;
     gap: 8px;
     font-size: 0.9rem;
+    white-space: nowrap;
 }
 
 .btn-export {
@@ -235,6 +258,10 @@ body {
     border-radius: 20px;
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
     overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0 auto;
 }
 
 .tabs-nav {
@@ -243,6 +270,9 @@ body {
     border-bottom: 2px solid #e0e0e0;
     overflow-x: auto;
     scrollbar-width: none;
+    min-height: 72px;
+    padding: 0 10px;
+    align-items: stretch;
 }
 
 .tabs-nav::-webkit-scrollbar {
@@ -250,7 +280,8 @@ body {
 }
 
 .tab-btn {
-    padding: 18px 30px;
+    min-height: 70px;
+    padding: 20px 30px;
     border: none;
     background: transparent;
     color: #666;
@@ -263,6 +294,7 @@ body {
     gap: 10px;
     white-space: nowrap;
     border-bottom: 3px solid transparent;
+    flex: 0 0 auto;
 }
 
 .tab-btn:hover {
@@ -278,7 +310,10 @@ body {
 
 .tab-content {
     display: none;
-    padding: 35px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 40px;
     animation: fadeIn 0.4s ease;
 }
 
@@ -304,6 +339,9 @@ body {
     box-shadow: 0 3px 15px rgba(0, 0, 0, 0.08);
     margin-bottom: 25px;
     overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }
 
 .content-card.full-width {
@@ -370,13 +408,85 @@ body {
 
 /* ===== TABLAS ===== */
 .table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
     max-height: 600px;
+    overscroll-behavior-inline: contain;
 }
 
 .data-table {
     width: 100%;
+    min-width: 900px;
     border-collapse: collapse;
+}
+
+#tableSalidas {
+    min-width: 1450px;
+}
+
+#tableLentoMovimiento {
+    min-width: 960px;
+}
+
+#tableRegistroRecetas {
+    min-width: 1450px;
+}
+
+.receta-status-filter label {
+    color: #555;
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.receta-group-start td {
+    border-top: 3px solid #d7d7d7;
+}
+
+.receta-common-cell {
+    background: #fafafa;
+    vertical-align: top;
+}
+
+.receta-faltante-row {
+    background: #fffaf0;
+}
+
+.receta-faltante-label {
+    display: block;
+    margin-top: 5px;
+    color: #991b1b;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: normal;
+}
+
+.receta-estado-completa {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.receta-estado-parcial {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.receta-estado-no_surtida {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.empty-table-message {
+    padding: 35px !important;
+    text-align: center !important;
+    color: #777 !important;
+}
+
+.recetas-table-footer {
+    color: #555;
+    font-weight: 600;
 }
 
 .data-table thead {
@@ -402,7 +512,7 @@ body {
 
 .data-table tbody tr:hover {
     background: #f8f9fa;
-    transform: scale(1.01);
+    box-shadow: inset 4px 0 0 #750000;
 }
 
 .data-table td {
@@ -454,18 +564,27 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
     gap: 25px;
+    width: 100%;
+    min-width: 0;
 }
 
 .chart-container {
     padding: 30px;
     min-height: 350px;
     position: relative;
+    min-width: 0;
 }
 
 .chart-container-large {
     padding: 30px;
     min-height: 450px;
     position: relative;
+    min-width: 0;
+}
+
+.chart-container canvas,
+.chart-container-large canvas {
+    max-width: 100% !important;
 }
 
 /* ===== RANKING ===== */
@@ -548,28 +667,62 @@ body {
     }
 }
 
+@media (max-width: 1100px) {
+    .reports-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .header-left {
+        grid-column: 1 / -1;
+    }
+
+    .global-filter-group {
+        grid-column: 1;
+    }
+
+    .header-actions {
+        grid-column: 2;
+    }
+}
+
 @media (max-width: 768px) {
+    .app-container {
+        padding: 0 12px;
+    }
+
     .main-content {
-        margin-left: 70px;
-        padding: 20px;
-        width: calc(100% - 70px);
+        margin-left: 0;
+        padding: 16px 0 24px;
+        width: 100%;
     }
     
     .reports-header {
-        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr);
         gap: 20px;
         padding: 20px;
+        min-height: 0;
     }
     
     .header-left {
-        flex-direction: column;
-        align-items: flex-start;
+        grid-column: 1;
         width: 100%;
+    }
+
+    .header-info h1 {
+        white-space: normal;
+        font-size: 1.55rem;
+    }
+
+    .global-filter-group,
+    .header-actions {
+        grid-column: 1;
     }
     
     .header-actions {
         width: 100%;
-        justify-content: space-between;
+        min-width: 0;
+        justify-content: flex-start;
+        flex-wrap: wrap;
     }
     
     .btn-export,
@@ -583,7 +736,13 @@ body {
     }
     
     .tabs-nav {
-        flex-direction: column;
+        flex-direction: row;
+        min-height: 64px;
+    }
+
+    .tab-btn {
+        min-height: 62px;
+        padding: 16px 22px;
     }
     
     .tab-content {
@@ -827,13 +986,15 @@ body {
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
-    margin-right: 12px;
-    padding-right: 12px;
+    margin-right: 0;
+    padding-right: 16px;
     border-right: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .global-filter-group .date-input {
-    min-width: 150px;
+    width: 130px;
+    min-width: 125px;
+    padding-inline: 12px;
 }
 
 .global-filter-group .btn-filter {
@@ -850,6 +1011,14 @@ body {
         padding-right: 0;
         border-right: none;
         width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .global-filter-group .date-input,
+    .global-filter-group .btn-filter {
+        width: 100%;
+        min-width: 0;
     }
 }
 

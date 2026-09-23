@@ -74,6 +74,16 @@
                         <span class="stat-value">{{ desabasto }}</span>
                     </div>
                 </div>
+
+                <div class="stat-card stat-info">
+                    <div class="stat-icon">
+                        <i class="fas fa-boxes-stacked"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Con excedente</span>
+                        <span class="stat-value">{{ excedentes }}</span>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -120,10 +130,10 @@
                             </label>
                             <select id="filtro-estado" class="form-control">
                                 <option value="">Todos</option>
-                                <option value="sobreabasto">Sobreabasto (>100%)</option>
-                                <option value="adecuado">Adecuado (50-100%)</option>
-                                <option value="bajo">Bajo (<50%)</option>
-                                <option value="desabasto">Desabasto (0%)</option>
+                                <option value="excedente">Excedente (&gt; stock máximo)</option>
+                                <option value="adecuado">Adecuado (CPM a stock máximo)</option>
+                                <option value="bajo">Bajo (&lt; CPM)</option>
+                                <option value="desabasto">Desabasto (sin existencia)</option>
                             </select>
                         </div>
 
@@ -150,7 +160,7 @@
                 <div class="table-header">
                     <h3><i class="fas fa-table"></i> Listado de Medicamentos</h3>
                     <span class="table-count" id="count-visible">
-                        Mostrando <strong>{{ medicamentos.count }}</strong> medicamentos
+                        Mostrando <strong>{{ total_medicamentos }}</strong> medicamentos
                     </span>
                 </div>
                 <!-- Tabla de Medicamentos -->
@@ -174,6 +184,9 @@
                                     data-descripcion="{{ item.medicamento__descripcion }}"
                                     data-existencia="{{ item.existencia_total }}"
                                     data-cpm="{{ item.cpm_medicamento }}"
+                                    data-stock-maximo="{{ item.stock_maximo }}"
+                                    data-excedente="{{ item.excedente }}"
+                                    data-porcentaje="{{ item.porcentaje }}"
                                     data-estado="{{ item.estado }}">
                                     
                                     <!-- Clave -->
@@ -185,8 +198,9 @@
                                     <!-- Existencia Total -->
                                     <td class="existencia-cell">
                                         <span class="badge-existencia 
-                                            {% if item.estado == 'critico' %}badge-critico
+                                            {% if item.estado == 'desabasto' %}badge-critico
                                             {% elif item.estado == 'bajo' %}badge-bajo
+                                            {% elif item.estado == 'excedente' %}badge-excedente
                                             {% else %}badge-adecuado
                                             {% endif %}">
                                             {{ item.existencia_total }}
@@ -204,28 +218,39 @@
                                             step="1">
                                     </td>
                                     
-                                    <!-- Estado Stock con Porcentaje -->
+                                    <!-- Estado relativo al CPM y al stock máximo -->
                                     <td class="estado-cell">
-                                        {% if item.cpm_medicamento > 0 %}
-                                            {% if item.estado == 'critico' %}
-                                                <span class="badge badge-critico">
-                                                    <i class="fas fa-exclamation-circle"></i> Desabasto
-                                                    <br><small>{{ item.porcentaje }}%</small>
+                                        {% if item.estado == 'desabasto' %}
+                                            <span class="badge badge-critico">
+                                                <i class="fas fa-times-circle"></i>
+                                                <span class="estado-contenido">
+                                                    <strong>Desabasto</strong>
+                                                    <small>0% de máx. {{ item.stock_maximo }}</small>
                                                 </span>
-                                            {% elif item.estado == 'bajo' %}
-                                                <span class="badge badge-bajo">
-                                                    <i class="fas fa-exclamation-triangle"></i> Bajo
-                                                    <br><small>{{ item.porcentaje }}%</small>
+                                            </span>
+                                        {% elif item.estado == 'bajo' %}
+                                            <span class="badge badge-bajo">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                                <span class="estado-contenido">
+                                                    <strong>Stock bajo</strong>
+                                                    <small>{{ item.porcentaje }}% de máx. {{ item.stock_maximo }}</small>
                                                 </span>
-                                            {% else %}
-                                                <span class="badge badge-adecuado">
-                                                    <i class="fas fa-check-circle"></i> Adecuado
-                                                    <br><small>{{ item.porcentaje }}%</small>
+                                            </span>
+                                        {% elif item.estado == 'excedente' %}
+                                            <span class="badge badge-excedente">
+                                                <i class="fas fa-boxes-stacked"></i>
+                                                <span class="estado-contenido">
+                                                    <strong>Excedente: {{ item.excedente }}</strong>
+                                                    <small>{{ item.porcentaje }}% de máx. {{ item.stock_maximo }}</small>
                                                 </span>
-                                            {% endif %}
+                                            </span>
                                         {% else %}
-                                            <span class="badge badge-warning">
-                                                <i class="fas fa-question-circle"></i> Sin CPM
+                                            <span class="badge badge-adecuado">
+                                                <i class="fas fa-check-circle"></i>
+                                                <span class="estado-contenido">
+                                                    <strong>Stock adecuado</strong>
+                                                    <small>{{ item.porcentaje }}% de máx. {{ item.stock_maximo }}</small>
+                                                </span>
                                             </span>
                                         {% endif %}
                                     </td>
@@ -262,21 +287,38 @@
         </section>
     </main>
 
-    <!-- Menú de Exportación (Modal) -->
-    <div id="overlay-export" style="display: none;" onclick="cerrarMenuExportacion()"></div>
-    <div id="menu-exportacion" style="display: none;">
-        <h3><i class="fas fa-download"></i> Exportar Inventario</h3>
-        <div class="export-options">
-            <button class="btn-exportar-option" onclick="exportarExcel()">
-                <i class="fas fa-file-excel"></i> Exportar a Excel
-            </button>
-            <button class="btn-exportar-option" onclick="exportarPDF()">
-                <i class="fas fa-file-pdf"></i> Exportar a PDF
-            </button>
+    <!-- Modal de exportación -->
+    <div id="modal-exportar" class="modal" style="display: none;"
+         data-excel-url="{% url 'exportar_inventario_general_excel' %}"
+         data-pdf-url="{% url 'exportar_inventario_general_pdf' %}"
+         data-excedentes-url="{% url 'exportar_inventario_general_excedentes_pdf' %}">
+        <div class="modal-content modal-exportar">
+            <div class="modal-header">
+                <h3><i class="fas fa-download"></i> Exportar Inventario</h3>
+                <button class="btn-close" onclick="cerrarModalExportar()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Selecciona el formato para descargar el inventario general:</p>
+                <div class="exportar-opciones">
+                    <button class="btn btn-success btn-exportar" onclick="descargarExcelGeneral()">
+                        <i class="fas fa-file-excel"></i> Descargar Excel
+                    </button>
+                    <button class="btn btn-danger btn-exportar" onclick="descargarPDFGeneral()">
+                        <i class="fas fa-file-pdf"></i> Descargar PDF
+                    </button>
+                    <button class="btn btn-warning btn-exportar" onclick="descargarPDFExcedentes()">
+                        <i class="fas fa-boxes-stacked"></i> PDF Excedentes
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModalExportar()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
         </div>
-        <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="cerrarMenuExportacion()">
-            <i class="fas fa-times"></i> Cancelar
-        </button>
     </div>
 
 
@@ -351,6 +393,7 @@
 <div id="modal-overlay-lotes" style="display: none;" onclick="cerrarModalLotes()"></div>
 <div id="modal-overlay-editar" style="display: none;" onclick="cerrarModalEditarCPM()"></div>
 <div id="modal-overlay-eliminar" style="display: none;" onclick="cerrarModalEliminar()"></div>
+<div id="modal-overlay-exportar" style="display: none;" onclick="cerrarModalExportar()"></div>
 
 
 <form style="display:none;">{% csrf_token %}</form>

@@ -477,7 +477,7 @@ class ProcesadorCargaMasiva:
             medicamento = self.medicamentos_cache[clave]
             
             try:
-                lote = Lote.objects.get(
+                lote = Lote.objects.select_for_update().get(
                     medicamento=medicamento,
                     lote_codigo=lote_codigo
                 )

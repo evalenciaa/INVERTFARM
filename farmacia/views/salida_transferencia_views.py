@@ -13,17 +13,13 @@ from django.views.decorators.http import require_http_methods
 
 from farmacia.models import Lote, Institucion, SalidaTransferencia, DetalleSalidaTransferencia, MedicamentoNoDisponibleTransferencia
 from farmacia.pdf_utils import generar_pdf_transferencia
+from farmacia.services import descontar_lotes, generar_folio
 
 logger = logging.getLogger(__name__)
 
 
 def _generar_folio_transferencia():
-    fecha_str = timezone.now().strftime('%Y%m%d')
-    ultimo = SalidaTransferencia.objects.filter(
-        folio__startswith=f'TRF-{fecha_str}'
-    ).order_by('-folio').first()
-    num = int(ultimo.folio.split('-')[-1]) + 1 if ultimo else 1
-    return f"TRF-{fecha_str}-{num:04d}"
+    return generar_folio('TRF', SalidaTransferencia, 'folio')
 
 
 @never_cache
@@ -88,6 +84,14 @@ def registrar_salida_transferencia(request):
 
     try:
         with transaction.atomic():
+            cantidades_por_lote = {}
+            for item in items_para_guardar:
+                lote_id = str(item['lote'].id)
+                cantidades_por_lote[lote_id] = (
+                    cantidades_por_lote.get(lote_id, 0) + item['cantidad']
+                )
+            lotes_bloqueados = descontar_lotes(cantidades_por_lote)
+
             if institucion_id:
                 institucion = get_object_or_404(Institucion, pk=institucion_id)
             else:
@@ -111,7 +115,7 @@ def registrar_salida_transferencia(request):
             )
 
             for item in items_para_guardar:
-                lote = item['lote']
+                lote = lotes_bloqueados[str(item['lote'].id)]
                 cantidad = item['cantidad']
 
                 DetalleSalidaTransferencia.objects.create(
@@ -120,9 +124,6 @@ def registrar_salida_transferencia(request):
                     cantidad=cantidad,
                     costo_unitario=lote.costo_unitario
                 )
-
-                lote.existencia -= cantidad
-                lote.save(update_fields=['existencia'])
 
             for faltante in medicamentos_faltantes:
                 MedicamentoNoDisponibleTransferencia.objects.create(
@@ -149,6 +150,7 @@ def registrar_salida_transferencia(request):
 
 
 @login_required
+@require_http_methods(['GET'])
 @permission_required('farmacia.view_transferencia', raise_exception=True)
 def descargar_comprobante_transferencia(request, transferencia_id):
     try:

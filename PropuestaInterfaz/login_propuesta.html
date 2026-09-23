@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Propuesta visual de acceso para INVENTFARM">
+    <title>Acceso | INVENTFARM</title>
+    <link rel="stylesheet" href="login_propuesta.css">
+</head>
+<body>
+    <main class="login-shell">
+        <section class="brand-panel" aria-labelledby="system-name">
+            <div class="brand-glow brand-glow-top" aria-hidden="true"></div>
+            <div class="brand-glow brand-glow-bottom" aria-hidden="true"></div>
+
+            <div class="brand-content">
+                <div class="institutional-brand">
+                    <div class="institutional-logo-frame">
+                        <img
+                            src="imss-bienestar.png"
+                            alt="Servicios de Salud IMSS-Bienestar"
+                            class="institutional-logo"
+                        >
+                    </div>
+                </div>
+
+                <div class="brand-message">
+                    <span class="eyebrow">Sistema institucional</span>
+                    <h1 id="system-name">INVENT<span>FARM</span></h1>
+                    <p>
+                        Control de farmacia e inventario hospitalario en una interfaz
+                        clara, segura y unificada.
+                    </p>
+                </div>
+
+                <ul class="benefit-list" aria-label="Características del sistema">
+                    <li>
+                        <span class="benefit-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><path d="M20 7 9 18l-5-5"/></svg>
+                        </span>
+                        Trazabilidad de entradas y salidas
+                    </li>
+                    <li>
+                        <span class="benefit-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+                        </span>
+                        Acceso protegido por perfil y permisos
+                    </li>
+                    <li>
+                        <span class="benefit-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19V3"/></svg>
+                        </span>
+                        Información disponible para decisiones oportunas
+                    </li>
+                </ul>
+            </div>
+
+            <div class="brand-footer">
+                <span class="status-dot" aria-hidden="true"></span>
+                Plataforma de uso institucional
+            </div>
+        </section>
+
+        <section class="access-panel" aria-labelledby="login-title">
+            <div class="access-header">
+                <span class="access-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg>
+                </span>
+                <span>Farmacia hospitalaria</span>
+            </div>
+
+            <div class="login-card">
+                <div class="login-heading">
+                    <span class="section-kicker">Bienvenido</span>
+                    <h2 id="login-title">Iniciar sesión</h2>
+                    <p>Ingresa tus credenciales institucionales para continuar.</p>
+                </div>
+
+                <form class="login-form" action="#" method="post">
+                    <div class="field-group">
+                        <label for="usuario">Usuario</label>
+                        <div class="input-control">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                            <input
+                                type="text"
+                                id="usuario"
+                                name="username"
+                                placeholder="Escribe tu usuario"
+                                autocomplete="username"
+                                required
+                            >
+                        </div>
+                    </div>
+
+                    <div class="field-group">
+                        <div class="label-row">
+                            <label for="contrasena">Contraseña</label>
+                            <a href="#">¿Olvidaste tu contraseña?</a>
+                        </div>
+                        <div class="input-control">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                            <input
+                                type="password"
+                                id="contrasena"
+                                name="password"
+                                placeholder="Escribe tu contraseña"
+                                autocomplete="current-password"
+                                required
+                            >
+                        </div>
+                    </div>
+
+                    <label class="remember-control">
+                        <input type="checkbox" name="remember">
+                        <span>Recordar mi sesión en este equipo</span>
+                    </label>
+
+                    <button type="submit" class="login-button">
+                        <span>Ingresar al sistema</span>
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                </form>
+
+                <div class="support-note">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.8 1c0 2-2.3 2.1-2.3 4"/><path d="M12 18h.01"/></svg>
+                    <p>¿Problemas para acceder? Contacta al administrador del sistema.</p>
+                </div>
+            </div>
+
+            <footer class="access-footer">
+                <span>INVENTFARM</span>
+                <span aria-hidden="true">•</span>
+                <span>Servicios de Salud IMSS-Bienestar</span>
+            </footer>
+        </section>
+    </main>
+</body>
+</html>

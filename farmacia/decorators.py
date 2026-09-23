@@ -6,6 +6,15 @@ from django.core.exceptions import PermissionDenied
 from functools import wraps
 
 
+GROUP_ALIASES = {
+    'Farmacéutico': {'Farmacéutico', 'Farmaceutico'},
+    'Jefe de Farmacia': {'Jefe de Farmacia', 'Jefe farmacia'},
+    'Enfermero': {'Enfermero', 'Enfermero/a'},
+    'Jefe de Enfermería': {'Jefe de Enfermería', 'Jefe enfermeros'},
+    'Médico': {'Médico', 'Medico'},
+}
+
+
 def group_required(*group_names):
     """
     Decorador que verifica si el usuario pertenece a alguno de los grupos especificados.
@@ -29,8 +38,12 @@ def group_required(*group_names):
             if request.user.is_superuser:
                 return view_func(request, *args, **kwargs)
             
-            # Verificar si el usuario está en alguno de los grupos
-            if request.user.groups.filter(name__in=group_names).exists():
+            nombres_aceptados = set()
+            for group_name in group_names:
+                nombres_aceptados.update(GROUP_ALIASES.get(group_name, {group_name}))
+
+            # Aceptar el nombre canónico y variantes históricas existentes.
+            if request.user.groups.filter(name__in=nombres_aceptados).exists():
                 return view_func(request, *args, **kwargs)
             
             # Si no tiene permiso, lanzar 403
