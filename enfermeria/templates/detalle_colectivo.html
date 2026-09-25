@@ -6,42 +6,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>{% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivo{% endif %} {{ colectivo.folio }} - Enfermería</title>
-    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/enfermeria.css' %}?v=20260923-1">
     <link rel="stylesheet" href="{% static 'enfermeria/css/detalle.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/detalle_colectivo_moderno.css' %}?v=20260923-1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<body>
-        <div class="main-content-full">
-            <!-- Breadcrumb -->
-            <div class="breadcrumb-nav">
-                <a href="{% url 'principal' %}">
-                    <i class="fas fa-home"></i>
-                    Inicio
-                </a>
-                <span class="separator">›</span>
-                <a href="{% url 'enfermeria_principal' %}">
-                    <i class="fas fa-user-nurse"></i>
-                    Enfermería
-                </a>
-                <span class="separator">›</span>
-                <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}">
-                    <i class="fas fa-users"></i>
-                    {% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %}
-                </a>
-                <span class="separator">›</span>
-                <a href="#" class="active">
-                    <i class="fas fa-file-medical"></i>
-                    {{ colectivo.folio }}
-                </a>
-            </div>
-
-    <!-- Contenido Principal -->
-    <div class="main-content">
-        <div class="header">
-            <div>
-                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}</h1>
-                <p>Información completa de la solicitud</p>
-            </div>
-        </div>
+ </head>
+<body class="detail-page">
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand"><div class="brand-logo-frame"><img src="{% static 'farmacia/img/imss-bienestar-horizontal.png' %}" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div><span class="brand-monogram" aria-hidden="true">IF</span></div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="{% url 'principal' %}" class="nav-link" title="Inicio"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span><span class="nav-label">Inicio</span></a>
+                <a href="{% url 'farmacia' %}" class="nav-link" title="Farmacia"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><span class="nav-label">Farmacia</span></a>
+                <a href="{% url 'enfermeria_principal' %}" class="nav-link is-active" aria-current="page" title="Enfermería"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span><span class="nav-label">Enfermería</span></a>
+                {% if user.is_superuser or user.rol == 'ADMIN' %}
+                    <span class="nav-section-label nav-section-secondary">Administración</span>
+                    {% if perms.farmacia.view_usuariopersonalizado %}<a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span><span class="nav-label">Config. usuarios</span></a>{% endif %}
+                    <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span class="nav-label">Copias de seguridad</span></a>
+                {% endif %}
+            </nav>
+            <div class="sidebar-footer"><div class="sidebar-user"><span class="user-avatar" aria-hidden="true">{% if user.first_name or user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|slice:':2'|upper }}{% endif %}</span><span class="user-copy"><strong>{{ user.get_full_name|default:user.username }}</strong><small>{% if user.is_superuser %}Administrador{% else %}{{ user.get_rol_display }}{% endif %}</small></span></div><a href="{% url 'logout' %}" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg></a></div>
+        </aside>
+        <div class="workspace"><main class="main-content">
+            <header class="module-header detail-header">
+                <div class="module-header-icon" aria-hidden="true">{% if modulo_antibioticos %}<svg viewBox="0 0 24 24"><path d="m7 5 12 12a3 3 0 0 1-4 4L3 9a3 3 0 0 1 4-4Z"/><path d="m8 14 6-6"/><path d="M17 3v6M14 6h6"/></svg>{% else %}<svg viewBox="0 0 24 24"><path d="M7 3h8l3 3v15H7z"/><path d="M15 3v4h4M10 12h5M10 16h5"/></svg>{% endif %}</div>
+                <div class="module-header-copy"><span class="module-eyebrow">Enfermería / Solicitudes</span><h1>Detalle del Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}</h1><p>Consulta el estado, la información y los medicamentos solicitados.</p></div>
+                <div class="header-actions"><a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}" class="header-secondary"><svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Volver a colectivos</span></a><a href="{% url 'inv_gene_f' %}" class="btn-inventario" target="_blank"><svg viewBox="0 0 24 24"><path d="M4 7 12 3l8 4v10l-8 4-8-4V7Z"/><path d="m4 7 8 4 8-4"/><path d="M12 11v10"/></svg><span>Ver inventario</span></a></div>
+            </header>
 
         <!-- Mensajes -->
         {% if messages %}
@@ -268,7 +260,7 @@
                 {% endif %}
             </div>
         </div>
-    </div>
+        </main></div></div>
 
         <!-- MODAL DE EDICIÓN Y REENVÍO -->
         <div id="modal-edicion" class="modal">
@@ -378,24 +370,5 @@
     <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
     <script src="{% static 'enfermeria/js/detalle_colectivo.js' %}"></script>
 
-    <div class="page-footer">
-        <div class="footer-user-info">
-            <i class="fas fa-user-circle"></i>
-            <div class="footer-user-details">
-                <span class="footer-username">{{ user.get_full_name|default:user.username }}</span>
-                <span class="footer-user-role">
-                    {% if user.is_superuser %}
-                        Administrador
-                    {% else %}
-                        {{ user.get_rol_display }}
-                    {% endif %}
-                </span>
-            </div>
-        </div>
-        <a href="{% url 'logout' %}" class="footer-logout-btn">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Cerrar Sesión</span>
-        </a>
-    </div>
 </body>
 </html>

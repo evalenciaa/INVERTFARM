@@ -9,42 +9,32 @@
     <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'enfermeria/css/detalle.css' %}">
     <link rel="stylesheet" href="{% static 'farmacia/css/colectivos_farmacia.css' %}">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/detalle_colectivo_moderno.css' %}?v=20260923-1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
-
-    <div class="main-content-full">
-        <!-- Breadcrumb -->
-        <div class="breadcrumb-nav">
-            <a href="{% url 'principal' %}">
-                <i class="fas fa-home"></i>
-                Inicio
-            </a>
-            <span class="separator">›</span>
-            <a href="{% url 'farmacia' %}">
-                <i class="fas fa-pills"></i>
-                Farmacia
-            </a>
-            <span class="separator">›</span>
-            <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}">
-                <i class="fas fa-users"></i>
-                {% if modulo_antibioticos %}Colectivos de Antibióticos{% else %}Colectivos{% endif %}
-            </a>
-            <span class="separator">›</span>
-            <a href="#" class="active">
-                <i class="fas fa-file-medical"></i>
-                {{ colectivo.folio }}
-            </a>
-        </div>
-
-    <!-- Contenido Principal -->
-    <div class="main-content">
-        <div class="header">
-            <div>
-                <h1><i class="fas fa-file-medical"></i> Detalle del Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}</h1>
-                <p>Revisión y surtido de medicamentos</p>
-            </div>
-        </div>
+<body class="detail-page">
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand"><div class="brand-logo-frame"><img src="{% static 'farmacia/img/imss-bienestar-horizontal.png' %}" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div><span class="brand-monogram" aria-hidden="true">IF</span></div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="{% url 'principal' %}" class="nav-link" title="Inicio"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span><span class="nav-label">Inicio</span></a>
+                <a href="{% url 'farmacia' %}" class="nav-link is-active" aria-current="page" title="Farmacia"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><span class="nav-label">Farmacia</span></a>
+                <a href="{% url 'enfermeria_principal' %}" class="nav-link" title="Enfermería"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span><span class="nav-label">Enfermería</span></a>
+                {% if user.is_superuser or user.rol == 'ADMIN' %}
+                    <span class="nav-section-label nav-section-secondary">Administración</span>
+                    {% if perms.farmacia.view_usuariopersonalizado %}<a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span><span class="nav-label">Config. usuarios</span></a>{% endif %}
+                    <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span class="nav-label">Copias de seguridad</span></a>
+                {% endif %}
+            </nav>
+            <div class="sidebar-footer"><div class="sidebar-user"><span class="user-avatar" aria-hidden="true">{% if user.first_name or user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|slice:':2'|upper }}{% endif %}</span><span class="user-copy"><strong>{{ user.get_full_name|default:user.username }}</strong><small>{% if user.is_superuser %}Administrador{% else %}{{ user.get_rol_display }}{% endif %}</small></span></div><a href="{% url 'logout' %}" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg></a></div>
+        </aside>
+        <div class="workspace"><main class="main-content">
+            <header class="module-header detail-header">
+                <div class="module-header-icon" aria-hidden="true">{% if modulo_antibioticos %}<svg viewBox="0 0 24 24"><path d="m7 5 12 12a3 3 0 0 1-4 4L3 9a3 3 0 0 1 4-4Z"/><path d="m8 14 6-6"/><path d="M17 3v6M14 6h6"/></svg>{% else %}<svg viewBox="0 0 24 24"><path d="M7 3h8l3 3v15H7z"/><path d="M15 3v4h4M10 12h5M10 16h5"/></svg>{% endif %}</div>
+                <div class="module-header-copy"><span class="module-eyebrow">Farmacia / Surtimiento</span><h1>Detalle del Colectivo{% if modulo_antibioticos %} de Antibióticos{% endif %}</h1><p>Revisa la disponibilidad y confirma el surtimiento de medicamentos.</p></div>
+                <div class="header-actions"><a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}" class="header-secondary"><svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Volver a colectivos</span></a><a href="{% url 'inv_gene_f' %}" class="btn-inventario" target="_blank"><svg viewBox="0 0 24 24"><path d="M4 7 12 3l8 4v10l-8 4-8-4V7Z"/><path d="m4 7 8 4 8-4"/><path d="M12 11v10"/></svg><span>Ver inventario</span></a></div>
+            </header>
 
         <!-- Mensajes -->
         {% if messages %}
@@ -202,89 +192,11 @@
                         <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> Cancelar
                         </a>
+                        <button type="button" class="btn btn-completar" id="btn-confirmar-surtido">
+                            <i class="fas fa-check-circle"></i> Confirmar Surtido
+                        </button>
                         <button type="submit" class="btn btn-responder">
                             <i class="fas fa-reply"></i> Enviar Respuesta a Enfermería
-                        </button>
-                    </div>
-                </form>
-            </div>
-            {% endif %}
-
-            <!-- FORMULARIO DE COMPLETAR DESPUÉS DE RESPONDER LA REVISIÓN -->
-            {% if colectivo.estado == 'RESPONDIDO' %}
-            <div class="completar-form">
-                <h4><i class="fas fa-check-double"></i> Confirmar Surtido del Colectivo</h4>
-                
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i>
-                    Al completar, se descontará automáticamente del inventario usando el método FEFO (primero lo que caduca primero).
-                </div>
-                
-                <form method="POST" action="{% if modulo_antibioticos %}{% url 'completar_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'completar_colectivo' colectivo.id %}{% endif %}" id="form-completar">
-                    {% csrf_token %}
-                    
-                    <table class="med-table">
-                        <thead>
-                            <tr>
-                                <th>Medicamento</th>
-                                <th style="width: 260px; text-align: center;">Lote sugerido (FEFO)</th>
-                                <th style="width: 120px; text-align: center;">Solicitado</th>
-                                <th style="width: 120px; text-align: center;">Stock</th>
-                                <th style="width: 150px; text-align: center;">Cantidad a Surtir</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in medicamentos_con_stock %}
-                            <tr>
-                                <td>
-                                    <strong>{{ item.item.medicamento.clave }}</strong><br>
-                                    <small>{{ item.item.medicamento.descripcion }}</small>
-                                </td>
-
-                                <td style="text-align: center;">
-                                    <select name="lote_id_{{ item.item.id }}" class="form-control lote-select" {% if not item.lotes %}disabled{% endif %}>
-                                        {% for lote in item.lotes %}
-                                        <option value="{{ lote.id }}" {% if forloop.first %}selected{% endif %}>
-                                            {{ lote.lote_codigo|default:lote.id }} | Cad: {{ lote.fecha_caducidad|date:"d/m/Y" }} | Stock: {{ lote.existencia }}
-                                        </option>
-                                        {% empty %}
-                                        <option value="">Sin lotes disponibles</option>
-                                        {% endfor %}
-                                    </select>
-                                </td>
-
-                                <td style="text-align: center;">{{ item.item.cantidad_solicitada }}</td>
-
-                                <td style="text-align: center;">
-                                    <span class="{% if item.suficiente %}stock-suficiente{% else %}stock-insuficiente{% endif %}" style="padding: 5px 10px; border-radius: 5px;">
-                                        {{ item.stock_disponible }}
-                                    </span>
-                                </td>
-
-                                <td style="text-align: center;">
-                                    <input
-                                        type="number"
-                                        name="cantidad_surtida_{{ item.item.id }}"
-                                        class="cantidad-surtir-input"
-                                        value="{{ item.item.cantidad_solicitada }}"
-                                        min="0"
-                                        max="{{ item.stock_disponible }}"
-                                        data-stock="{{ item.stock_disponible }}"
-                                        data-medicamento="{{ item.item.medicamento.descripcion }}"
-                                        required
-                                    >
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    
-                    <div class="form-actions" style="margin-top: 20px;">
-                        <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos_farmacia' %}{% else %}{% url 'lista_colectivos_farmacia' %}{% endif %}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Cancelar
-                        </a>
-                        <button type="submit" class="btn btn-completar">
-                            <i class="fas fa-check-circle"></i> Completar Surtido
                         </button>
                     </div>
                 </form>
@@ -350,7 +262,7 @@
                 
             </div>
         </div>
-    </div>
+        </main></div></div>
 
         <!-- MODAL DE CONFIRMACIÓN DE SURTIDO -->
     <div id="modal-confirmar-surtido" class="modal">
@@ -456,24 +368,5 @@
     <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
     <script src="{% static 'farmacia/js/colectivos_farmacia.js' %}"></script>
 
-    <div class="page-footer">
-        <div class="footer-user-info">
-            <i class="fas fa-user-circle"></i>
-            <div class="footer-user-details">
-                <span class="footer-username">{{ user.get_full_name|default:user.username }}</span>
-                <span class="footer-user-role">
-                    {% if user.is_superuser %}
-                        Administrador
-                    {% else %}
-                        {{ user.get_rol_display }}
-                    {% endif %}
-                </span>
-            </div>
-        </div>
-        <a href="{% url 'logout' %}" class="footer-logout-btn">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Cerrar Sesión</span>
-        </a>
-    </div>
 </body>
 </html>

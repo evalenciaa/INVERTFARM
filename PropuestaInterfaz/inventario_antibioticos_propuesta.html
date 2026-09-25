@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Propuesta visual del inventario de antibióticos de INVENTFARM">
+    <title>Inventario Antibióticos | INVENTFARM</title>
+    <link rel="stylesheet" href="inventario_antibioticos_propuesta.css">
+</head>
+<body>
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand"><div class="brand-logo-frame"><img src="imss-bienestar.png" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div><span class="brand-monogram" aria-hidden="true">IF</span></div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="/principal/" class="nav-link" title="Inicio"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span><span class="nav-label">Inicio</span></a>
+                <a href="/farmacia/" class="nav-link is-active" title="Farmacia"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><span class="nav-label">Farmacia</span></a>
+                <a href="/enfermeria/" class="nav-link" title="Enfermería"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span><span class="nav-label">Enfermería</span></a>
+                <span class="nav-section-label nav-section-secondary">Administración</span>
+                <a href="/admin-usuarios/" class="nav-link" title="Configuración de usuarios"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span><span class="nav-label">Config. usuarios</span></a>
+                <a href="/backups/" class="nav-link" title="Copias de seguridad"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span class="nav-label">Copias de seguridad</span></a>
+            </nav>
+            <div class="sidebar-footer"><div class="sidebar-user"><span class="user-avatar" aria-hidden="true">UV</span><span class="user-copy"><strong>Usuario del sistema</strong><small>Administrador</small></span></div><a href="/logout/" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg></a></div>
+        </aside>
+
+        <div class="workspace"><main class="main-content">
+            <header class="module-header antibioticos-header">
+                <div class="module-header-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/><path d="M18 4v6M15 7h6"/></svg></div>
+                <div class="module-header-copy"><span class="module-eyebrow">Farmacia / Vigilancia antimicrobiana</span><h1>Inventario de Antibióticos</h1><p>Consulta el consumo DDD/ATC y la clasificación AWaRe del periodo seleccionado.</p></div>
+                <div class="header-actions"><a href="/farmacia/" class="header-secondary"><svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Volver a Farmacia</span></a></div>
+            </header>
+
+            <section class="stats-grid antibioticos-stats" aria-label="Resumen de antibióticos">
+                <article class="stat-card stat-total"><span class="stat-icon"><svg viewBox="0 0 24 24"><path d="m7 5 12 12a3 3 0 0 1-4 4L3 9a3 3 0 0 1 4-4Z"/><path d="m8 14 6-6"/></svg></span><span><small>Total antibióticos</small><strong>126</strong></span></article>
+                <article class="stat-card aware-access"><span class="stat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8 12 3 3 5-6"/></svg></span><span><small>Access</small><strong>51</strong></span></article>
+                <article class="stat-card aware-watch"><span class="stat-icon"><svg viewBox="0 0 24 24"><path d="M12 4 3 20h18L12 4Z"/><path d="M12 10v4M12 17h.01"/></svg></span><span><small>Watch</small><strong>62</strong></span></article>
+                <article class="stat-card aware-reserve"><span class="stat-icon"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/><path d="M9 12h6M12 9v6"/></svg></span><span><small>Reserve</small><strong>13</strong></span></article>
+            </section>
+
+            <section class="controls-card antibioticos-controls" aria-label="Filtros y acciones">
+                <header><h2><span class="section-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg></span>Filtros y acciones</h2></header>
+                <div class="controls-body"><div class="filter-grid antibioticos-filter-grid"><label>Clave<input type="search" placeholder="Buscar por clave..."></label><label>Descripción<input type="search" placeholder="Buscar medicamento..."></label><label>Código ATC<input type="search" placeholder="Buscar por ATC..."></label><label>Categoría AWaRe<select><option>Todas</option><option>Access</option><option>Watch</option><option>Reserve</option></select></label><label>Mes<input type="month" value="2026-09"></label><div class="filter-actions"><button type="button" class="btn btn-filter"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>Filtrar</button><button type="button" class="btn btn-clean"><svg viewBox="0 0 24 24"><path d="m4 16 8-8 8 8"/><path d="M7 16h10"/></svg>Limpiar</button><button type="button" class="btn btn-export" data-open-export><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M4 19h16"/></svg>Exportar</button></div></div></div>
+            </section>
+
+            <section class="inventory-table-card antibioticos-table-card"><header><div><span class="section-kicker">Consumo mensual</span><h2><span class="section-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 9h16M8 9v10M14 9v10"/></svg></span>Consumo de antibióticos (DDD)</h2></div><span class="table-count">Mostrando <strong>126</strong> antibióticos</span></header><div class="table-wrap"><table><thead><tr><th>Clave</th><th>Descripción</th><th>Vía</th><th>Código ATC</th><th>AWaRe</th><th>Gramos/pieza</th><th>Consumo total</th><th>Valor ATC</th><th>DDD/ATC</th></tr></thead><tbody>
+                <tr><td><strong>010.000.4253.00</strong></td><td>Amoxicilina 500 mg, cápsula</td><td>Oral</td><td><span class="atc-code">J01CA04</span></td><td><span class="aware-badge access">Access</span></td><td>0.5 g</td><td><span class="stock-value">428</span></td><td>1.0</td><td><strong>214.00</strong></td></tr>
+                <tr><td><strong>010.000.4254.00</strong></td><td>Ceftriaxona 1 g, solución inyectable</td><td>Intravenosa</td><td><span class="atc-code">J01DD04</span></td><td><span class="aware-badge watch">Watch</span></td><td>1 g</td><td><span class="stock-value">617</span></td><td>2.0</td><td><strong>308.50</strong></td></tr>
+                <tr><td><strong>010.000.4266.00</strong></td><td>Meropenem 1 g, solución inyectable</td><td>Intravenosa</td><td><span class="atc-code">J01DH02</span></td><td><span class="aware-badge reserve">Reserve</span></td><td>1 g</td><td><span class="stock-value">34</span></td><td>2.0</td><td><strong>17.00</strong></td></tr>
+            </tbody></table></div></section>
+
+            <section class="aware-balance-card" aria-labelledby="aware-title"><header><div><span class="section-kicker">Indicador de consumo</span><h2 id="aware-title"><span class="section-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l6 3"/></svg></span>Balance mensual de consumo AWaRe</h2><p>Distribución de DDD/ATC de los antibióticos surtidos durante el mes seleccionado.</p></div><label class="chart-type-control">Tipo de gráfica<select id="chart-type"><option value="donut">Dona</option><option value="pie">Circular</option><option value="bar">Barras</option></select></label></header><div class="aware-balance-grid"><div class="aware-summary-card"><table class="aware-summary-table"><thead><tr><th>Clasificación de antibióticos esencial</th><th>Sumatoria por grupo</th><th>Porcentaje por grupo</th></tr></thead><tbody><tr><td class="aware-label access">∑DDD Access</td><td>253.8333</td><td>29%</td></tr><tr><td class="aware-label watch">∑DDD Watch</td><td>616.9167</td><td>71%</td></tr><tr><td class="aware-label reserve">∑DDD Reserve</td><td>0.0000</td><td>0%</td></tr><tr class="aware-total-row"><td>∑ Total DDD antibióticos</td><td>870.7500</td><td>100%</td></tr></tbody></table></div><div class="aware-chart-card"><h3>Reporte mensual de consumo de antibióticos</h3><div class="aware-graphic donut" id="aware-graphic"><div class="donut-chart"><span>870.75<small>DDD totales</small></span></div><div class="chart-bars"><div><span>Access <b>29%</b></span><i class="access" style="--bar:29%"></i></div><div><span>Watch <b>71%</b></span><i class="watch" style="--bar:71%"></i></div><div><span>Reserve <b>0%</b></span><i class="reserve" style="--bar:0%"></i></div></div></div></div></div></section>
+        </main></div>
+    </div>
+
+    <div class="modal-backdrop" data-close-export></div>
+    <section class="export-modal antibioticos-export-modal" role="dialog" aria-modal="true" aria-labelledby="export-title" aria-hidden="true"><header><div><span class="section-kicker">Inventario de antibióticos</span><h2 id="export-title">Exportar reporte</h2></div><button type="button" class="modal-close" aria-label="Cerrar" data-close-export>×</button></header><p>Selecciona el reporte del mes consultado.</p><div class="export-options"><button type="button" class="export-option excel"><span>↗</span><strong>Descargar Excel</strong><small>Inventario y balance AWaRe</small></button><button type="button" class="export-option pdf"><span>PDF</span><strong>PDF general con balance AWaRe</strong><small>Incluye la tabla y la gráfica del periodo</small></button><div class="aware-export-divider">Reportes individuales por clasificación</div><button type="button" class="export-option access-export"><span>A</span><strong>PDF Access</strong><small>Solo medicamentos clasificados como Access</small></button><button type="button" class="export-option watch-export"><span>W</span><strong>PDF Watch</strong><small>Solo medicamentos clasificados como Watch</small></button><button type="button" class="export-option reserve-export"><span>R</span><strong>PDF Reserve</strong><small>Solo medicamentos clasificados como Reserve</small></button></div><footer><button type="button" class="btn btn-clean" data-close-export>Cancelar</button></footer></section>
+    <script src="inventario_antibioticos_propuesta.js"></script>
+</body>
+</html>

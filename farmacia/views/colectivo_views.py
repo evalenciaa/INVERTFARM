@@ -212,10 +212,11 @@ def completar_colectivo(request, colectivo_id, antibioticos=False):
                 colectivos_por_modulo(antibioticos).select_for_update(),
                 id=colectivo_id,
             )
-            if colectivo.estado != 'RESPONDIDO':
+            estados_confirmables = ['EN_REVISION', 'RESPONDIDO']
+            if colectivo.estado not in estados_confirmables:
                 messages.error(
                     request,
-                    'El colectivo debe tener una respuesta de farmacia antes de completarse.'
+                    'El colectivo debe estar en revisión o contar con una respuesta de farmacia antes de completarse.'
                 )
                 detalle_url = (
                     'detalle_colectivo_antibioticos_farmacia'
@@ -223,8 +224,10 @@ def completar_colectivo(request, colectivo_id, antibioticos=False):
                 )
                 return redirect(detalle_url, colectivo_id=colectivo.id)
 
+            confirmacion_directa = colectivo.estado == 'EN_REVISION'
+
             for medicamento in colectivo.medicamentos.all():
-                if not medicamento.disponible:
+                if not confirmacion_directa and not medicamento.disponible:
                     raise ValueError(
                         f'{medicamento.medicamento.descripcion} sigue marcado como no disponible.'
                     )
@@ -238,6 +241,8 @@ def completar_colectivo(request, colectivo_id, antibioticos=False):
                         f'No se puede surtir más de lo solicitado para '
                         f'{medicamento.medicamento.descripcion}.'
                     )
+                if confirmacion_directa:
+                    medicamento.disponible = True
                 medicamento.save()
             
             receta = None

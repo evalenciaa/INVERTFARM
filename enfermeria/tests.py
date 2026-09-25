@@ -101,6 +101,25 @@ class FlujoColectivosTests(TestCase):
         self.assertEqual(pdf['Content-Type'], 'application/pdf')
         self.assertNotIn(b'X' * 250, pdf.content)
 
+    def test_confirmar_directamente_en_revision_descuenta_inventario(self):
+        self.client.force_login(self.farmaceutico)
+
+        response = self.client.post(
+            reverse('completar_colectivo', args=[self.colectivo.id]),
+            {
+                f'cantidad_surtida_{self.item.id}': '4',
+                f'lote_id_{self.item.id}': self.lote.id,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.colectivo.refresh_from_db()
+        self.item.refresh_from_db()
+        self.lote.refresh_from_db()
+        self.assertEqual(self.colectivo.estado, 'COMPLETADO')
+        self.assertTrue(self.item.disponible)
+        self.assertEqual(self.lote.existencia, 6)
+
     def test_no_se_puede_completar_dos_veces(self):
         self.colectivo.estado = 'COMPLETADO'
         self.colectivo.save(update_fields=['estado'])
@@ -183,6 +202,8 @@ class FlujoColectivosTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.colectivo.refresh_from_db()
         self.assertEqual(self.colectivo.estado, 'EN_REVISION')
+        self.assertContains(response, 'id="btn-confirmar-surtido"', html=False)
+        self.assertContains(response, 'id="modal-confirmar-surtido"', html=False)
 
         item_alternativa = self.colectivo.medicamentos.get(medicamento=alternativa)
         response = self.client.post(
@@ -197,10 +218,6 @@ class FlujoColectivosTests(TestCase):
         self.colectivo.refresh_from_db()
         self.assertEqual(self.colectivo.estado, 'RESPONDIDO')
 
-        detalle_farmacia = self.client.get(
-            reverse('detalle_colectivo_farmacia', args=[self.colectivo.id])
-        )
-        self.assertContains(detalle_farmacia, 'id="form-completar"', html=False)
         response = self.client.post(
             reverse('completar_colectivo', args=[self.colectivo.id]),
             {

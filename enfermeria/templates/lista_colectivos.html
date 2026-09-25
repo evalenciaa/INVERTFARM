@@ -5,169 +5,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>{% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %} - Enfermería</title>
-    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
-    <link rel="stylesheet" href="{% static 'farmacia/css/tabla.css' %}">
-    <link rel="stylesheet" href="{% static 'enfermeria/css/colectivos.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>{% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %} | Enfermería</title>
+    <link rel="stylesheet" href="{% static 'enfermeria/css/enfermeria.css' %}?v=20260923-1">
+    <link rel="stylesheet" href="{% static 'enfermeria/css/lista_colectivos.css' %}?v=20260923-1">
 </head>
 <body>
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="logo-section">
-            <i class="fas fa-hospital"></i>
-            <h2>INVENTFARM</h2>
-        </div>
-        
-        <div class="breadcrumb-nav">
-            <a href="/principal/">
-                <i class="fas fa-home"></i>
-                Inicio
-            </a>
-            <span class="separator">›</span>
-            <a href="/enfermeria/">
-                <i class="fas fa-user-nurse"></i>
-                Enfermería
-            </a>
-            <span class="separator">›</span>
-            <a href="{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}" class="active">
-                <i class="fas fa-users"></i>
-                {% if modulo_antibioticos %}Colectivo de Antibióticos{% else %}Colectivos{% endif %}
-            </a>
-            <span class="separator">›</span>
-            <a href="{% url 'inv_gene_f' %}" class="btn-back" target="_blank">
-                <i class="fas fa-boxes-stacked"></i> Ver Inventario
-            </a>
-        </div>
-        
-
-    <!-- Contenido Principal -->
-    <div class="main-content">
-        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h1><i class="fas {% if modulo_antibioticos %}fa-capsules{% else %}fa-users{% endif %}"></i> {% if modulo_antibioticos %}Mis Colectivos de Antibióticos{% else %}Mis Colectivos{% endif %}</h1>
-                <p>{% if modulo_antibioticos %}Gestiona tus solicitudes exclusivas de antibióticos a farmacia{% else %}Gestiona tus solicitudes de medicamentos a farmacia{% endif %}</p>
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand">
+                <div class="brand-logo-frame"><img src="{% static 'farmacia/img/imss-bienestar-horizontal.png' %}" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div>
+                <span class="brand-monogram" aria-hidden="true">IF</span>
             </div>
-            <a href="{% if modulo_antibioticos %}{% url 'crear_colectivo_antibioticos' %}{% else %}{% url 'crear_colectivo' %}{% endif %}" class="btn-nuevo">
-                <i class="fas fa-plus"></i>
-                {% if modulo_antibioticos %}Nuevo Colectivo de Antibióticos{% else %}Nuevo Colectivo{% endif %}
-            </a>
-        </div>
-
-        <!-- Estadísticas -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number">{{ stats.total }}</div>
-                <div class="stat-label">Total</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" style="color: #FFA500;">{{ stats.pendientes }}</div>
-                <div class="stat-label">Pendientes</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" style="color: #FFD700;">{{ stats.respondidos }}</div>
-                <div class="stat-label">Respondidos</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" style="color: #28A745;">{{ stats.completados }}</div>
-                <div class="stat-label">Completados</div>
-            </div>
-        </div>
-
-        <!-- Filtros -->
-        <div class="filtros-container">
-            <form method="GET" style="display: flex; gap: 15px; flex-wrap: wrap; width: 100%;">
-                <div class="filtro-item">
-                    <label>Estado:</label>
-                    <select name="estado" onchange="this.form.submit()">
-                        <option value="">Todos</option>
-                        <option value="PENDIENTE" {% if estado_filtro == 'PENDIENTE' %}selected{% endif %}>Pendiente</option>
-                        <option value="EN_REVISION" {% if estado_filtro == 'EN_REVISION' %}selected{% endif %}>En Revisión</option>
-                        <option value="RESPONDIDO" {% if estado_filtro == 'RESPONDIDO' %}selected{% endif %}>Respondido</option>
-                        <option value="COMPLETADO" {% if estado_filtro == 'COMPLETADO' %}selected{% endif %}>Completado</option>
-                        <option value="CANCELADO" {% if estado_filtro == 'CANCELADO' %}selected{% endif %}>Cancelado</option>
-                    </select>
-                </div>
-                <div class="filtro-item">
-                    <label>Buscar:</label>
-                    <input type="text" name="q" placeholder="Folio, paciente, cama..." value="{{ busqueda }}">
-                </div>
-                <div class="filtro-item" style="display: flex; align-items: flex-end;">
-                    <button type="submit" class="btn-nuevo" style="padding: 10px 20px;">
-                        <i class="fas fa-search"></i> Filtrar
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Grid de Colectivos -->
-        <div class="colectivos-grid">
-            {% for colectivo in colectivos %}
-            <div class="colectivo-card" onclick="location.href='{% if modulo_antibioticos %}{% url 'detalle_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'detalle_colectivo_enfermeria' colectivo.id %}{% endif %}';">
-                <span class="estado-badge estado-{{ colectivo.estado }}">
-                    {{ colectivo.get_estado_display }}
-                </span>
-                
-                <div class="colectivo-folio">{{ colectivo.folio }}</div>
-                
-                <div class="colectivo-info">
-                    <i class="fas fa-user"></i> {{ colectivo.paciente.nombre_completo }}
-                </div>
-                
-                <div class="colectivo-info">
-                    <i class="fas fa-bed"></i> Cama: {{ colectivo.numero_cama }} | {{ colectivo.servicio }}
-                </div>
-                
-                <div class="colectivo-info">
-                    <i class="fas fa-pills"></i> {{ colectivo.total_medicamentos }} medicamento(s)
-                </div>
-                
-                <div class="colectivo-footer">
-                    <small style="color: #999;">
-                        <i class="far fa-clock"></i> {{ colectivo.fecha_solicitud|date:"d/m/Y H:i" }}
-                    </small>
-                    
-                    {% if colectivo.estado == 'RESPONDIDO' %}
-                        <span style="color: #FFD700; font-size: 0.9rem;">
-                            <i class="fas fa-reply"></i> Respuesta recibida
-                        </span>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="{% url 'principal' %}" class="nav-link" title="Inicio"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span><span class="nav-label">Inicio</span></a>
+                <a href="{% url 'farmacia' %}" class="nav-link" title="Farmacia"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><span class="nav-label">Farmacia</span></a>
+                <a href="{% url 'enfermeria_principal' %}" class="nav-link is-active" aria-current="page" title="Enfermería"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span><span class="nav-label">Enfermería</span></a>
+                {% if user.is_superuser or user.rol == 'ADMIN' %}
+                    <span class="nav-section-label nav-section-secondary">Administración</span>
+                    {% if perms.farmacia.view_usuariopersonalizado %}
+                    <a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span><span class="nav-label">Config. usuarios</span></a>
                     {% endif %}
-                </div>
+                    <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span class="nav-label">Copias de seguridad</span></a>
+                {% endif %}
+            </nav>
+            <div class="sidebar-footer">
+                <div class="sidebar-user"><span class="user-avatar" aria-hidden="true">{% if user.first_name or user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|slice:':2'|upper }}{% endif %}</span><span class="user-copy"><strong>{{ user.get_full_name|default:user.username }}</strong><small>{% if user.is_superuser %}Administrador{% else %}{{ user.get_rol_display }}{% endif %}</small></span></div>
+                <a href="{% url 'logout' %}" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg></a>
             </div>
-            {% empty %}
-            <div class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <p>No hay colectivos para mostrar</p>
-            </div>
-            {% endfor %}
+        </aside>
+
+        <div class="workspace">
+            <main class="main-content">
+                <header class="module-header list-header">
+                    <div class="module-header-icon" aria-hidden="true">
+                        {% if modulo_antibioticos %}<svg viewBox="0 0 24 24"><path d="m7 5 12 12a3 3 0 0 1-4 4L3 9a3 3 0 0 1 4-4Z"/><path d="m8 14 6-6"/><path d="M17 3v6M14 6h6"/></svg>{% else %}<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 15a5 5 0 0 1 5 5"/></svg>{% endif %}
+                    </div>
+                    <div class="module-header-copy">
+                        <span class="module-eyebrow">Enfermería / Solicitudes</span>
+                        <h1>{% if modulo_antibioticos %}Mis Colectivos de Antibióticos{% else %}Mis Colectivos{% endif %}</h1>
+                        <p>{% if modulo_antibioticos %}Gestiona tus solicitudes exclusivas de antibióticos a farmacia.{% else %}Gestiona tus solicitudes de medicamentos a farmacia.{% endif %}</p>
+                    </div>
+                    <div class="header-actions">
+                        <a href="{% url 'inv_gene_f' %}" class="header-secondary" target="_blank"><svg viewBox="0 0 24 24"><path d="M4 7 12 3l8 4v10l-8 4-8-4V7Z"/><path d="m4 7 8 4 8-4"/><path d="M12 11v10"/></svg><span>Ver inventario</span></a>
+                        <a href="{% if modulo_antibioticos %}{% url 'crear_colectivo_antibioticos' %}{% else %}{% url 'crear_colectivo' %}{% endif %}" class="btn-nuevo"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>{% if modulo_antibioticos %}Nuevo Colectivo de Antibióticos{% else %}Nuevo Colectivo{% endif %}</span></a>
+                    </div>
+                </header>
+
+                <section class="stats-grid" aria-label="Resumen de colectivos">
+                    <article class="stat-card stat-total"><span class="stat-number">{{ stats.total }}</span><span class="stat-label">Total</span></article>
+                    <article class="stat-card stat-pending"><span class="stat-number" style="color: #FFA500;">{{ stats.pendientes }}</span><span class="stat-label">Pendientes</span></article>
+                    <article class="stat-card stat-replied"><span class="stat-number" style="color: #BC955C;">{{ stats.respondidos }}</span><span class="stat-label">Respondidos</span></article>
+                    <article class="stat-card stat-completed"><span class="stat-number" style="color: #28A745;">{{ stats.completados }}</span><span class="stat-label">Completados</span></article>
+                </section>
+
+                <section class="filtros-container" aria-label="Filtros de colectivos">
+                    <form method="GET" class="filters-form">
+                        <div class="filtro-item"><label for="estado">Estado</label><select id="estado" name="estado" onchange="this.form.submit()"><option value="">Todos</option><option value="PENDIENTE" {% if estado_filtro == 'PENDIENTE' %}selected{% endif %}>Pendiente</option><option value="EN_REVISION" {% if estado_filtro == 'EN_REVISION' %}selected{% endif %}>En Revisión</option><option value="RESPONDIDO" {% if estado_filtro == 'RESPONDIDO' %}selected{% endif %}>Respondido</option><option value="COMPLETADO" {% if estado_filtro == 'COMPLETADO' %}selected{% endif %}>Completado</option><option value="CANCELADO" {% if estado_filtro == 'CANCELADO' %}selected{% endif %}>Cancelado</option></select></div>
+                        <div class="filtro-item filtro-search"><label for="buscar">Buscar</label><input id="buscar" type="search" name="q" placeholder="Folio, paciente, cama..." value="{{ busqueda }}"></div>
+                        <button type="submit" class="btn-filtrar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>Filtrar</span></button>
+                    </form>
+                </section>
+
+                <section class="colectivos-grid" aria-label="Lista de colectivos">
+                    {% for colectivo in colectivos %}
+                    <article class="colectivo-card" onclick="location.href='{% if modulo_antibioticos %}{% url 'detalle_colectivo_antibioticos' colectivo.id %}{% else %}{% url 'detalle_colectivo_enfermeria' colectivo.id %}{% endif %}';">
+                        <span class="estado-badge estado-{{ colectivo.estado }}">{{ colectivo.get_estado_display }}</span>
+                        <h2 class="colectivo-folio">{{ colectivo.folio }}</h2>
+                        <p class="colectivo-info"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>{{ colectivo.paciente.nombre_completo }}</p>
+                        <p class="colectivo-info"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12"/><path d="M8 20v-5h8v5"/></svg>Cama: {{ colectivo.numero_cama }} | {{ colectivo.servicio }}</p>
+                        <p class="colectivo-info"><svg viewBox="0 0 24 24"><path d="m7 5 12 12a3 3 0 0 1-4 4L3 9a3 3 0 0 1 4-4Z"/><path d="m8 14 6-6"/></svg>{{ colectivo.total_medicamentos }} medicamento(s)</p>
+                        <footer class="colectivo-footer"><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>{{ colectivo.fecha_solicitud|date:"d/m/Y H:i" }}</span>{% if colectivo.estado == 'RESPONDIDO' %}<span class="respuesta-recibida">Respuesta recibida</span>{% endif %}</footer>
+                    </article>
+                    {% empty %}
+                    <div class="empty-state"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="m4 8 8 5 8-5"/></svg><p>No hay colectivos para mostrar</p></div>
+                    {% endfor %}
+                </section>
+                <footer class="page-footer"><strong>INVENTFARM</strong><span>Servicios de Salud IMSS-Bienestar</span></footer>
+            </main>
         </div>
     </div>
-
-    <script>
-        window.COLECTIVOS_LISTA_URL = "{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}";
-    </script>
-    <script src="{% static 'enfermeria/js/colectivos.js' %}"></script>
-
-            <div class="page-footer">
-                <div class="footer-user-info">
-                    <i class="fas fa-user-circle"></i>
-                    <div class="footer-user-details">
-                        <span class="footer-username">{{ user.get_full_name|default:user.username }}</span>
-                        <span class="footer-user-role">
-                            {% if user.is_superuser %}
-                                Administrador
-                            {% else %}
-                                {{ user.get_rol_display }}
-                            {% endif %}
-                        </span>
-                    </div>
-                </div>
-                <a href="{% url 'logout' %}" class="footer-logout-btn">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Cerrar Sesión</span>
-                </a>
-            </div>
-        </a>
-    </div>
+    <script>window.COLECTIVOS_LISTA_URL = "{% if modulo_antibioticos %}{% url 'lista_colectivos_antibioticos' %}{% else %}{% url 'lista_colectivos_enfermeria' %}{% endif %}";</script>
+    <script src="{% static 'enfermeria/js/colectivos.js' %}?v=20260923-1"></script>
 </body>
 </html>

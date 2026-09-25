@@ -4,233 +4,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carga Masiva - INVENTFARM</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Carga masiva de medicamentos | INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
     <link rel="stylesheet" href="{% static 'farmacia/css/carga_masiva.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'farmacia/css/carga_masiva_moderno.css' %}?v=20260925-1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
-    <div class="app-container">
-        <!-- Barra Superior -->
-        <header class="top-bar">
-            <div class="top-bar-left">
-                <a href="{% url 'farmacia' %}" class="btn-back">
-                    <i class="fas fa-arrow-left"></i> Volver a Farmacia
-                </a>
-            </div>
-            <div class="top-bar-center">
-                <h1><i class="fas fa-file-upload"></i> Carga Masiva de Medicamentos</h1>
-            </div>
-            <div class="top-bar-right">
-                <span class="user-badge">
-                    <i class="fas fa-user"></i> {{ user.username }}
-                </span>
-            </div>
-        </header>
+<body class="carga-masiva-page">
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand"><div class="brand-logo-frame"><img src="{% static 'farmacia/img/imss-bienestar-horizontal.png' %}" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div><span class="brand-monogram" aria-hidden="true">IF</span></div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="{% url 'principal' %}" class="nav-link" title="Inicio"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span><span class="nav-label">Inicio</span></a>
+                <a href="{% url 'farmacia' %}" class="nav-link is-active" aria-current="page" title="Farmacia"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><span class="nav-label">Farmacia</span></a>
+                <a href="{% url 'enfermeria_principal' %}" class="nav-link" title="Enfermería"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span><span class="nav-label">Enfermería</span></a>
+                {% if user.is_superuser or user.rol == 'ADMIN' %}
+                    <span class="nav-section-label nav-section-secondary">Administración</span>
+                    {% if perms.farmacia.view_usuariopersonalizado %}<a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios"><span class="nav-icon"><i class="fas fa-users"></i></span><span class="nav-label">Config. usuarios</span></a>{% endif %}
+                    <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad"><span class="nav-icon"><i class="fas fa-database"></i></span><span class="nav-label">Copias de seguridad</span></a>
+                {% endif %}
+            </nav>
+            <div class="sidebar-footer"><div class="sidebar-user"><span class="user-avatar">{% if user.first_name or user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|slice:':2'|upper }}{% endif %}</span><span class="user-copy"><strong>{{ user.get_full_name|default:user.username }}</strong><small>{% if user.is_superuser %}Administrador{% else %}{{ user.get_rol_display }}{% endif %}</small></span></div><a href="{% url 'logout' %}" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión">↪</a></div>
+        </aside>
 
-        <!-- Contenido Principal -->
-        <main class="main-content">
-            <!-- Sección de Instrucciones -->
-            <section class="info-section">
+        <div class="workspace"><main class="main-content">
+            <header class="module-header">
+                <div class="module-header-icon" aria-hidden="true"><i class="fas fa-file-upload"></i></div>
+                <div class="module-header-copy"><span class="module-eyebrow">Farmacia / Inventario</span><h1>Carga masiva de medicamentos</h1><p>Incorpora medicamentos y lotes desde una plantilla de Excel.</p></div>
+                <div class="header-actions"><a href="{% url 'farmacia' %}" class="header-secondary"><i class="fas fa-arrow-left"></i> Volver a Farmacia</a><span class="session-chip"><i class="fas fa-circle"></i> Sesión activa</span></div>
+            </header>
+
+            {% if messages %}<div class="messages-stack">{% for message in messages %}<div class="alert alert-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+
+            <section class="info-section" aria-labelledby="guia-title">
                 <div class="info-card">
-                    <div class="info-header">
-                        <i class="fas fa-info-circle"></i>
-                        <h2>Instrucciones de Uso</h2>
-                    </div>
+                    <div class="info-header"><span class="guide-icon"><i class="fas fa-info"></i></span><div><span class="section-eyebrow">Antes de cargar</span><h2 id="guia-title">Prepara tu archivo</h2></div></div>
                     <div class="info-body">
                         <ol>
-                            <li>Descarga la <a href="#" id="descargar-plantilla" class="link-primary">plantilla de Excel</a> con el formato correcto</li>
-                            <li>Llena las columnas requeridas: <strong>clave, descripcion, lote, cantidad, precio, caducidad, origen, contrato, fuente_financiamiento</strong></li>
-                            <li>Si el medicamento es antibiótico, también puedes incluir estas columnas opcionales: <strong>via_administracion, codigo_atc, categoria_aware, gramos_por_pieza, valor_atc</strong></li>
-                            <li>Las fechas de caducidad pueden capturarse en formato <strong>YYYY-MM-DD</strong> o <strong>DD/MM/YYYY</strong></li>
-                            <li>Las cantidades deben ser números enteros positivos (sin decimales)</li>
-                            <li>Los precios pueden tener hasta 2 decimales (ej: 80.96, 682.57)</li>
-                            <li>La vía de administración válida para antibióticos debe ser: <strong>ORAL, INTRAMUSCULAR</strong> o <strong>INTRAVENOSA</strong></li>
-                            <li>La categoría AWaRe válida debe ser: <strong>Access, Watch</strong> o <strong>Reserve</strong></li>
-                            <li>Si capturas un <strong>codigo_atc</strong> existente en el catálogo WHO, el sistema puede completar automáticamente <strong>categoria_aware</strong> y <strong>valor_atc</strong> si vienen vacíos</li>
-                            <li>Si un medicamento con el mismo lote ya existe, se sumará la cantidad automáticamente</li>
+                            <li>Descarga la <a href="#" id="descargar-plantilla" class="link-primary">plantilla de Excel</a> y conserva sus encabezados.</li>
+                            <li>Incluye: <strong>clave, descripción, lote, cantidad, precio, caducidad, origen, contrato</strong> y <strong>fuente de financiamiento</strong>.</li>
+                            <li>Para antibióticos se admiten: <strong>vía de administración, código ATC, categoría AWaRe, gramos por pieza</strong> y <strong>valor ATC</strong>.</li>
                         </ol>
+                        <div class="guide-tags"><span>Fechas: AAAA-MM-DD o DD/MM/AAAA</span><span>Cantidades enteras positivas</span><span>Máximo 10 MB</span></div>
                     </div>
                 </div>
-
-                <div class="warnings-card">
-                    <div class="warning-item">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span>Las claves de medicamentos deben ser únicas</span>
-                    </div>
-                    <div class="warning-item">
-                        <i class="fas fa-ban"></i>
-                        <span>No se permiten cantidades negativas o decimales</span>
-                    </div>
-                    <div class="warning-item">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Las fechas de caducidad deben ser posteriores a hoy</span>
-                    </div>
+                <div class="warnings-card" aria-label="Validaciones principales">
+                    <div class="warning-item"><span class="requirement-icon"><i class="fas fa-fingerprint"></i></span><p><strong>Claves únicas</strong><small>Evita duplicados dentro de la plantilla, a menos que tengan lote diferente.</small></p></div>
+                    <div class="warning-item"><span class="requirement-icon"><i class="fas fa-layer-group"></i></span><p><strong>Lotes existentes</strong><small>El sistema suma la cantidad automáticamente de lotes iguales.</small></p></div>
+                    <div class="warning-item"><span class="requirement-icon"><i class="far fa-calendar-alt"></i></span><p><strong>Caducidad vigente</strong><small>Debe ser posterior a la fecha actual.</small></p></div>
                 </div>
             </section>
 
-            <!-- Sección de Carga -->
-            <section class="upload-section">
+            <section class="upload-section" aria-labelledby="carga-title">
                 <div class="upload-card">
+                    <div class="upload-card-heading"><div><span class="section-eyebrow">Archivo de carga</span><h2 id="carga-title">Selecciona tu plantilla</h2></div><span class="accepted-files">Excel .XLSX / .XLS</span></div>
                     <form id="form-carga-masiva" enctype="multipart/form-data">
                         {% csrf_token %}
                         <div class="upload-area" id="upload-area">
-                            <div class="upload-icon">
-                                <i class="fas fa-cloud-upload-alt"></i>
-                            </div>
+                            <span class="upload-orbit orbit-one"></span><span class="upload-orbit orbit-two"></span>
+                            <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
                             <h3>Arrastra tu archivo Excel aquí</h3>
-                            <p>o haz clic para seleccionar</p>
+                            <p>o selecciónalo desde tu equipo</p>
                             <input type="file" id="archivo-excel" name="archivo" accept=".xlsx,.xls" required>
-                            <button type="button" class="btn-select" onclick="document.getElementById('archivo-excel').click()">
-                                Seleccionar Archivo
-                            </button>
+                            <button type="button" class="btn-select" onclick="document.getElementById('archivo-excel').click()">Seleccionar Archivo</button>
+                            <small>Formatos permitidos: .xlsx y .xls</small>
                         </div>
 
                         <div class="file-info" id="file-info" style="display: none;">
-                            <i class="fas fa-file-excel"></i>
-                            <span id="file-name"></span>
-                            <button type="button" class="btn-remove" onclick="removerArchivo()">
-                                <i class="fas fa-times"></i>
-                            </button>
+                            <i class="fas fa-file-excel"></i><div><strong id="file-name"></strong><small>Archivo listo para procesar</small></div>
+                            <button type="button" class="btn-remove" onclick="removerArchivo()" aria-label="Quitar archivo"><i class="fas fa-times"></i></button>
                         </div>
 
                         <div class="form-actions">
-                            <button type="submit" class="btn btn-primary" id="btn-procesar">
-                                <i class="fas fa-cog"></i> Procesar Archivo
-                            </button>
-                            <button type="button" class="btn btn-secondary" onclick="location.href='{% url 'farmacia' %}'">
-                                <i class="fas fa-times"></i> Cancelar
-                            </button>
+                            <button type="submit" class="btn btn-primary" id="btn-procesar"><i class="fas fa-cog"></i> Procesar Archivo</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='{% url 'farmacia' %}'"><i class="fas fa-times"></i> Cancelar</button>
                         </div>
                     </form>
                 </div>
             </section>
 
-            <!-- Sección de Resultados -->
             <section class="results-section" id="results-section" style="display: none;">
                 <div class="results-card">
-                    <div class="results-header">
-                        <i class="fas fa-chart-pie"></i>
-                        <h2>Resultados de la Carga</h2>
-                    </div>
+                    <div class="results-header"><span class="results-icon"><i class="fas fa-chart-pie"></i></span><div><span class="section-eyebrow">Resultado del proceso</span><h2>Resultados de la carga</h2></div></div>
                     <div class="results-body">
                         <div class="stats-grid">
-                            <div class="stat-card stat-total">
-                                <i class="fas fa-list"></i>
-                                <div class="stat-content">
-                                    <span class="stat-label">Total Registros</span>
-                                    <span class="stat-value" id="stat-total">0</span>
-                                </div>
-                            </div>
-                            <div class="stat-card stat-success">
-                                <i class="fas fa-check-circle"></i>
-                                <div class="stat-content">
-                                    <span class="stat-label">Creados</span>
-                                    <span class="stat-value" id="stat-exitosos">0</span>
-                                </div>
-                            </div>
-                            <div class="stat-card stat-updated">
-                                <i class="fas fa-sync-alt"></i>
-                                <div class="stat-content">
-                                    <span class="stat-label">Actualizados</span>
-                                    <span class="stat-value" id="stat-actualizados">0</span>
-                                </div>
-                            </div>
-                            <div class="stat-card stat-error">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <div class="stat-content">
-                                    <span class="stat-label">Errores</span>
-                                    <span class="stat-value" id="stat-errores">0</span>
-                                </div>
-                            </div>
+                            <div class="stat-card stat-total"><i class="fas fa-list"></i><div class="stat-content"><span class="stat-label">Total registros</span><span class="stat-value" id="stat-total">0</span></div></div>
+                            <div class="stat-card stat-success"><i class="fas fa-check-circle"></i><div class="stat-content"><span class="stat-label">Creados</span><span class="stat-value" id="stat-exitosos">0</span></div></div>
+                            <div class="stat-card stat-updated"><i class="fas fa-sync-alt"></i><div class="stat-content"><span class="stat-label">Actualizados</span><span class="stat-value" id="stat-actualizados">0</span></div></div>
+                            <div class="stat-card stat-error"><i class="fas fa-exclamation-circle"></i><div class="stat-content"><span class="stat-label">Errores</span><span class="stat-value" id="stat-errores">0</span></div></div>
                         </div>
 
-                        <div class="advertencias-list" id="advertencias-list" style="display: none;">
-                            <h3>
-                                <i class="fas fa-exclamation-triangle"></i> 
-                                Advertencias (No Bloquean la Carga)
-                            </h3>
-                            <div class="advertencias-table-container">
-                                <table class="advertencias-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Tipo</th>
-                                            <th>Detalle</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="advertencias-tbody"></tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <div class="advertencias-list" id="advertencias-list" style="display: none;"><h3><i class="fas fa-exclamation-triangle"></i> Advertencias</h3><div class="advertencias-table-container"><table class="advertencias-table"><thead><tr><th>Tipo</th><th>Detalle</th></tr></thead><tbody id="advertencias-tbody"></tbody></table></div></div>
+                        <div class="procesados-list" id="procesados-list" style="display: none;"><h3><i class="fas fa-pills"></i> Medicamentos procesados</h3><div class="procesados-table-container"><table class="procesados-table"><thead><tr><th>Fila</th><th>Clave</th><th>Descripción</th><th>Lote</th><th>Cantidad</th><th>Precio</th><th>Caducidad</th><th>Antibiótico</th><th>Vía</th><th>Código ATC</th><th>AWaRe</th><th>Gramos/Pieza</th><th>Valor ATC</th></tr></thead><tbody id="procesados-tbody"></tbody></table></div></div>
+                        <div class="errors-list" id="errors-list" style="display: none;"><h3><i class="fas fa-bug"></i> Detalles de errores</h3><div class="errors-table-container"><table class="errors-table"><thead><tr><th>Fila</th><th>Clave</th><th>Error</th></tr></thead><tbody id="errors-tbody"></tbody></table></div></div>
 
-                        <div class="procesados-list" id="procesados-list" style="display: none;">
-                            <h3>
-                                <i class="fas fa-pills"></i>
-                                Medicamentos Procesados
-                            </h3>
-                            <div class="procesados-table-container">
-                                <table class="procesados-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Fila</th>
-                                            <th>Clave</th>
-                                            <th>Descripción</th>
-                                            <th>Lote</th>
-                                            <th>Cantidad</th>
-                                            <th>Precio</th>
-                                            <th>Caducidad</th>
-                                            <th>Antibiótico</th>
-                                            <th>Vía</th>
-                                            <th>Código ATC</th>
-                                            <th>AWaRe</th>
-                                            <th>Gramos/Pieza</th>
-                                            <th>Valor ATC</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="procesados-tbody"></tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div class="errors-list" id="errors-list" style="display: none;">
-                            <h3><i class="fas fa-bug"></i> Detalles de Errores</h3>
-                            <div class="errors-table-container">
-                                <table class="errors-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Fila</th>
-                                            <th>Clave</th>
-                                            <th>Error</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="errors-tbody">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div class="results-actions">
-                            <button class="btn btn-primary" onclick="location.href='{% url 'farmacia_g' %}'">
-                                <i class="fas fa-eye"></i> Ver Inventario
-                            </button>
-                            <button class="btn btn-secondary" onclick="location.reload()">
-                                <i class="fas fa-redo"></i> Nueva Carga
-                            </button>
-                        </div>
+                        <div class="results-actions"><button class="btn btn-primary" onclick="location.href='{% url 'farmacia_g' %}'"><i class="fas fa-eye"></i> Ver Inventario</button><button class="btn btn-secondary" onclick="location.reload()"><i class="fas fa-redo"></i> Nueva Carga</button></div>
                     </div>
                 </div>
             </section>
-
-            <!-- Loader -->
-            <div class="loader-overlay" id="loader" style="display: none;">
-                <div class="loader-content">
-                    <div class="spinner"></div>
-                    <p>Procesando archivo...</p>
-                    <small>Por favor espera, esto puede tomar unos momentos</small>
-                </div>
-            </div>
-        </main>
+        </main></div>
     </div>
 
+    <div class="loader-overlay" id="loader" style="display: none;"><div class="loader-content"><div class="spinner"></div><p>Procesando archivo...</p><small>Por favor espera, esto puede tomar unos momentos.</small></div></div>
     <script src="{% static 'farmacia/js/carga_masiva.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </body>

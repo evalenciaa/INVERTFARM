@@ -1,0 +1,33 @@
+@import url("inventario_general_propuesta.css");
+
+.lotes-header { align-items: center; margin-bottom: 27px; }
+.lotes-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.lotes-controls { margin-bottom: 25px; }
+.lotes-filter-grid { grid-template-columns: repeat(5, minmax(145px, 1fr)) auto; }
+.lotes-filter-grid .filter-actions { grid-template-columns: repeat(2, auto); }
+.lotes-filter-grid .btn-export { grid-column: 1 / -1; }
+
+.lotes-quick-action { display: flex; align-items: center; gap: 14px; margin-top: 17px; padding-top: 17px; border-top: 1px solid #e5ece9; }
+.lotes-quick-action > span { color: var(--muted); font-size: .78rem; }
+.btn-qr { color: #6c5222; background: #fbf3df; box-shadow: inset 0 0 0 1px #ead8a9; }
+.btn-qr:hover { background: #f6e8c4; }
+
+.lotes-table-card .table-wrap table { min-width: 1750px; }
+.lotes-table-card .table-wrap td { max-width: 310px; }
+.lote-code { display: inline-flex; align-items: center; min-height: 30px; max-width: 160px; padding: 5px 8px; overflow-wrap: anywhere; border-radius: 7px; color: var(--teal-deep); background: #edf5f2; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .73rem; font-weight: 800; }
+.breakable { overflow-wrap: anywhere; word-break: break-word; }
+.date-status { display: inline-flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 7px; font-weight: 800; white-space: nowrap; }
+.date-status small { font-size: .69rem; font-weight: 700; }
+.date-safe { color: #17643c; background: #effaf3; }
+.date-warning { color: #9b6800; background: #fff6dc; }
+.date-critical { color: #a23535; background: #fff0f0; }
+
+.qr-modal { position: fixed; z-index: 51; top: 50%; left: 50%; width: min(440px, calc(100vw - 32px)); padding: 25px; border: 1px solid #dbe8e3; border-radius: 15px; visibility: hidden; opacity: 0; background: #fff; box-shadow: 0 22px 55px rgba(12,43,36,.26); transform: translate(-50%, -46%); transition: opacity .2s ease, transform .2s ease, visibility .2s ease; }
+.qr-modal.is-open { visibility: visible; opacity: 1; transform: translate(-50%, -50%); }
+.qr-modal header { display: flex; align-items: flex-start; gap: 11px; }.qr-modal header > div { flex: 1; }.qr-modal h2 { margin: 0; color: var(--teal-deep); font-size: 1.25rem; }.qr-modal > p { margin: 18px 0; color: var(--muted); font-size: .88rem; }.qr-modal footer { display: flex; justify-content: flex-end; gap: 8px; }
+.expiry-export > span { color: #9b6800; background: #fff6dc; font-weight: 900; }
+
+@media (max-width: 1250px) { .lotes-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }.lotes-filter-grid .filter-actions { grid-template-columns: repeat(3, auto); }.lotes-filter-grid .btn-export { grid-column: auto; } }
+@media (max-width: 1000px) { .lotes-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 780px) { .lotes-filter-grid, .lotes-stats { grid-template-columns: 1fr; }.lotes-filter-grid .filter-actions { grid-template-columns: repeat(3, 1fr); }.lotes-quick-action { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 580px) { .lotes-filter-grid .filter-actions { grid-template-columns: 1fr; }.lotes-quick-action .btn { width: 100%; } }

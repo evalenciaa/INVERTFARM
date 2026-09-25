@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Propuesta visual para la carga masiva de medicamentos de INVENTFARM">
+    <title>Carga masiva | INVENTFARM</title>
+    <link rel="stylesheet" href="carga_masiva_propuesta.css">
+</head>
+<body>
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand">
+                <div class="brand-logo-frame"><img src="imss-bienestar.png" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div>
+                <span class="brand-monogram" aria-hidden="true">IF</span>
+            </div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="#" class="nav-link" title="Inicio"><span class="nav-icon">⌂</span><span class="nav-label">Inicio</span></a>
+                <a href="#" class="nav-link is-active" title="Farmacia"><span class="nav-icon">⌁</span><span class="nav-label">Farmacia</span></a>
+                <a href="#" class="nav-link" title="Enfermería"><span class="nav-icon">♙</span><span class="nav-label">Enfermería</span></a>
+                <span class="nav-section-label nav-section-secondary">Administración</span>
+                <a href="#" class="nav-link" title="Configuración"><span class="nav-icon">⚙</span><span class="nav-label">Configuración</span></a>
+            </nav>
+            <div class="sidebar-footer"><span class="user-avatar">UV</span><span class="user-copy"><strong>Usuario</strong><small>Administrador</small></span><a href="#" class="logout-link" aria-label="Cerrar sesión">↪</a></div>
+        </aside>
+
+        <div class="workspace">
+            <main class="main-content">
+                <header class="module-header">
+                    <div class="module-header-icon" aria-hidden="true">⇧</div>
+                    <div class="module-header-copy">
+                        <span class="module-eyebrow">Farmacia / Inventario</span>
+                        <h1>Carga masiva de medicamentos</h1>
+                        <p>Incorpora medicamentos y lotes desde una plantilla de Excel.</p>
+                    </div>
+                    <div class="header-actions"><a href="#" class="header-secondary">← Volver a Farmacia</a><span class="session-chip">● Sesión activa</span></div>
+                </header>
+
+                <section class="guide-panel" aria-labelledby="guia-title">
+                    <div class="guide-heading"><span class="guide-icon">i</span><div><span class="section-eyebrow">Antes de cargar</span><h2 id="guia-title">Prepara tu archivo</h2></div></div>
+                    <div class="guide-content">
+                        <ol>
+                            <li>Descarga la <a href="#" id="descargar-plantilla">plantilla de Excel</a> y conserva sus encabezados.</li>
+                            <li>Incluye: <strong>clave, descripción, lote, cantidad, precio, caducidad, origen, contrato</strong> y <strong>fuente de financiamiento</strong>.</li>
+                            <li>Para antibióticos se admiten las columnas adicionales de ATC y AWaRe.</li>
+                        </ol>
+                        <div class="guide-tags"><span>Fechas: AAAA-MM-DD o DD/MM/AAAA</span><span>Cantidades enteras positivas</span><span>Máximo 10 MB</span></div>
+                    </div>
+                    <div class="requirements" aria-label="Validaciones principales">
+                        <div><span class="requirement-icon">!</span><p><strong>Claves únicas</strong><small>Evita duplicados dentro de la plantilla.</small></p></div>
+                        <div><span class="requirement-icon">✓</span><p><strong>Lotes existentes</strong><small>El sistema suma la cantidad automáticamente.</small></p></div>
+                        <div><span class="requirement-icon">⌚</span><p><strong>Caducidad vigente</strong><small>Debe ser posterior a la fecha actual.</small></p></div>
+                    </div>
+                </section>
+
+                <section class="upload-card" aria-labelledby="carga-title">
+                    <div class="upload-card-heading"><div><span class="section-eyebrow">Archivo de carga</span><h2 id="carga-title">Selecciona tu plantilla</h2></div><span class="accepted-files">Excel .XLSX / .XLS</span></div>
+                    <form id="form-carga-masiva" novalidate>
+                        <input type="file" id="archivo-excel" accept=".xlsx,.xls" hidden>
+                        <div class="upload-area" id="upload-area" role="button" tabindex="0" aria-label="Seleccionar archivo de Excel">
+                            <span class="upload-orbit orbit-one"></span><span class="upload-orbit orbit-two"></span>
+                            <div class="upload-icon" aria-hidden="true">⇧</div>
+                            <h3>Arrastra tu archivo Excel aquí</h3>
+                            <p>o selecciónalo desde tu equipo</p>
+                            <button type="button" class="btn-select" id="btn-seleccionar">Seleccionar Archivo</button>
+                            <small>Formatos permitidos: .xlsx y .xls</small>
+                        </div>
+
+                        <div class="file-info" id="file-info" hidden>
+                            <span class="excel-icon" aria-hidden="true">X</span><div><strong id="file-name">archivo.xlsx</strong><small id="file-size">Listo para procesar</small></div>
+                            <button type="button" class="btn-remove" id="btn-remove" aria-label="Quitar archivo">×</button>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="btn-procesar"><span aria-hidden="true">⚙</span> Procesar Archivo</button>
+                            <button type="button" class="btn btn-secondary" id="btn-cancelar"><span aria-hidden="true">×</span> Cancelar</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="results-preview" aria-label="Vista previa de resultados">
+                    <div><span class="preview-icon">▦</span><p><strong>Los resultados aparecerán aquí</strong><small>Al procesar el archivo se mostrarán registros creados, actualizados, advertencias y errores.</small></p></div>
+                    <div class="preview-actions"><button type="button" class="btn-preview">Ver Inventario</button><button type="button" class="btn-preview muted">Nueva Carga</button></div>
+                </section>
+            </main>
+        </div>
+    </div>
+    <script src="carga_masiva_propuesta.js"></script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+/* Capa visual del inventario general. Conserva las clases e identificadores
+   que usa inv_gene_f.js para filtros, edición de CPM y exportaciones. */
+.inventory-page {
+    background: var(--canvas);
+    color: var(--text);
+    font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+}
+
+.inventory-page .workspace { min-width: 0; background: #f8faf9; }
+.inventory-page .main-content { min-width: 0; max-width: 1600px; margin: 0 auto; padding: 34px 38px 42px; }
+
+.inventory-page .inventory-header {
+    position: relative;
+    min-height: 134px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    overflow: hidden;
+    margin: 0 0 28px;
+    padding: 24px 30px;
+    border-radius: 17px;
+    color: #fff;
+    background: linear-gradient(115deg, var(--teal-deep), var(--teal) 78%);
+    box-shadow: 0 12px 28px rgba(16, 49, 43, .15);
+}
+.inventory-page .inventory-header::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 86% 14%, rgba(255,255,255,.12), transparent 35%); pointer-events: none; }
+.inventory-page .inventory-header::after { content: ""; position: absolute; inset: auto 0 0; height: 3px; background: linear-gradient(90deg, var(--gold), var(--sand), transparent); }
+.inventory-page .module-header-icon { position: relative; z-index: 1; width: 58px; height: 58px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; color: var(--sand); background: rgba(255,255,255,.13); font-size: 1.5rem; }
+.inventory-page .module-header-copy { position: relative; z-index: 1; min-width: 0; flex: 1; }
+.inventory-page .module-eyebrow { color: var(--sand); font-size: .7rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.inventory-page .inventory-header h1 { margin: 6px 0 4px; color: #fff; font-size: clamp(1.5rem, 2.2vw, 2.05rem); line-height: 1.18; letter-spacing: -.025em; }
+.inventory-page .inventory-header p { margin: 0; color: rgba(255,255,255,.76); font-size: .86rem; }
+.inventory-page .header-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; }
+.inventory-page .header-secondary, .inventory-page .btn-lotes {
+    min-height: 43px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 0 15px; border-radius: 999px; font-size: .79rem; font-weight: 800; text-decoration: none;
+    transition: transform .25s ease, box-shadow .25s ease, background .25s ease;
+}
+.inventory-page .header-secondary { color: #fff; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); }
+.inventory-page .btn-lotes { color: var(--teal-deep); background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+.inventory-page .header-secondary:hover, .inventory-page .btn-lotes:hover { transform: translateY(-2px); }
+.inventory-page .header-secondary:hover { background: rgba(255,255,255,.16); }
+.inventory-page .btn-lotes:hover { box-shadow: 0 11px 24px rgba(0,0,0,.18); }
+
+.inventory-page .stats-section { margin: 0 0 26px; }
+.inventory-page .stats-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; margin: 0; }
+.inventory-page .stat-card {
+    position: relative; min-width: 0; min-height: 108px; display: flex; align-items: center; gap: 14px;
+    padding: 20px; overflow: hidden; border: 1px solid #e1eae7; border-radius: 14px; background: #fff;
+    box-shadow: 0 5px 16px rgba(16,49,43,.07); transition: transform .25s ease, box-shadow .25s ease;
+}
+.inventory-page .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 23px rgba(16,49,43,.12); }
+.inventory-page .stat-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--teal); }
+.inventory-page .stat-icon { width: 53px; height: 53px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 12px; color: var(--teal); background: #e8f2ef; font-size: 1.45rem; }
+.inventory-page .stat-content { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.inventory-page .stat-label { color: #64736d; font-size: .79rem; font-weight: 700; }
+.inventory-page .stat-value { color: var(--text); font-size: 1.72rem; font-weight: 850; line-height: 1; }
+.inventory-page .stat-success::before { background: #168a50; }
+.inventory-page .stat-success .stat-icon { color: #168a50; background: #eaf7ef; }
+.inventory-page .stat-warning::before { background: #e89c00; }
+.inventory-page .stat-warning .stat-icon { color: #d88d00; background: #fff6dc; }
+.inventory-page .stat-danger::before { background: #c94848; }
+.inventory-page .stat-danger .stat-icon { color: #c94848; background: #fff0f0; }
+.inventory-page .stat-info::before { background: #287cb5; }
+.inventory-page .stat-info .stat-icon { color: #287cb5; background: #edf5ff; }
+
+.inventory-page .controls-section, .inventory-page .table-section { margin: 0 0 25px; }
+.inventory-page .controls-card, .inventory-page .table-card { overflow: hidden; border: 1px solid #e2eae7; border-radius: 14px; background: #fff; box-shadow: 0 5px 16px rgba(16,49,43,.07); }
+.inventory-page .controls-header, .inventory-page .table-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 22px; border-bottom: 1px solid #e5ece9; background: #fff; }
+.inventory-page .controls-header h3, .inventory-page .table-header h3 { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--teal); font-size: 1.06rem; }
+.inventory-page .controls-header h3 i, .inventory-page .table-header h3 i { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; color: var(--teal); background: #e8f2ef; font-size: .95rem; }
+.inventory-page .controls-body { padding: 21px 22px; }
+.inventory-page .filtros-container { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 14px; align-items: end; }
+.inventory-page .filtro-columna { min-width: 0; position: relative; }
+.inventory-page .filtro-columna label { display: block; color: var(--text); font-size: .84rem; font-weight: 800; }
+.inventory-page .filtro-columna label i { margin-right: 5px; color: var(--teal); }
+.inventory-page .filtro-columna .form-control {
+    width: 100%; height: 43px; display: block; margin-top: 8px; padding: 0 12px; border: 1px solid #d6e1dd;
+    border-radius: 8px; color: var(--text); background: #fff; font: inherit; font-size: .89rem; outline: none;
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+.inventory-page .filtro-columna .form-control:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(0,102,87,.12); }
+.inventory-page .resultados-busqueda { position: absolute; z-index: 3; width: 100%; }
+.inventory-page .filtro-acciones { display: grid; grid-template-columns: repeat(2, auto); gap: 7px; }
+.inventory-page .filtro-acciones .btn-success { grid-column: 1 / -1; }
+.inventory-page .btn {
+    min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px;
+    border: 0; border-radius: 8px; font: inherit; font-size: .82rem; font-weight: 800; cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.inventory-page .btn:hover { transform: translateY(-2px); }
+.inventory-page .btn-primary { color: #fff; background: linear-gradient(135deg, var(--teal), var(--teal-deep)); box-shadow: 0 5px 13px rgba(0,102,87,.18); }
+.inventory-page .btn-secondary { color: #596964; background: #eef2f0; }
+.inventory-page .btn-secondary:hover { background: #e1e9e5; }
+.inventory-page .btn-success { color: #fff; background: linear-gradient(135deg, #168a50, #08633a); }
+.inventory-page .btn-danger { color: #fff; background: linear-gradient(135deg, #b44242, #8d2828); }
+
+.inventory-page .table-header { padding: 20px 22px; }
+.inventory-page .table-count { padding: 8px 11px; border-radius: 8px; color: #60706a; background: #f0f5f3; font-size: .78rem; }
+.inventory-page .table-count strong { color: var(--teal); }
+.inventory-page .table-container { overflow-x: auto; }
+.inventory-page .tabla-medicamentos { width: 100%; min-width: 940px; margin: 0; border-collapse: collapse; border-spacing: 0; font-size: .84rem; }
+.inventory-page .tabla-medicamentos th { padding: 13px 15px; border: 0; color: #fff; background: var(--teal-deep); text-align: left; white-space: nowrap; }
+.inventory-page .tabla-medicamentos th i { margin-right: 5px; color: var(--sand); }
+.inventory-page .tabla-medicamentos td { padding: 14px 15px; border-top: 1px solid #e7eeeb; color: #596963; vertical-align: middle; }
+.inventory-page .tabla-medicamentos tbody tr:nth-child(even) { background: #fbfdfc; }
+.inventory-page .tabla-medicamentos tbody tr:hover { background: #f2f8f5; }
+.inventory-page .clave-cell { color: var(--teal-deep); font-weight: 800; white-space: nowrap; }
+.inventory-page .descripcion-cell { min-width: 260px; color: var(--text); font-weight: 650; }
+.inventory-page .badge-existencia { display: inline-flex; min-width: 42px; justify-content: center; padding: 6px 9px; border-radius: 7px; font-weight: 850; }
+.inventory-page .badge-adecuado { color: #17643c; background: #effaf3; }
+.inventory-page .badge-bajo { color: #9b6800; background: #fff6dc; }
+.inventory-page .badge-critico { color: #a23535; background: #fff0f0; }
+.inventory-page .badge-excedente { color: #1b6092; background: #edf5ff; }
+.inventory-page .cpm-input { width: 78px; height: 34px; padding: 0 8px; border: 1px solid #d6e1dd; border-radius: 7px; color: var(--text); background: #fff; font: inherit; font-size: .82rem; }
+.inventory-page .cpm-input:focus { border-color: var(--teal); outline: 0; box-shadow: 0 0 0 3px rgba(0,102,87,.12); }
+.inventory-page .badge { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; }
+.inventory-page .estado-contenido { display: flex; flex-direction: column; gap: 2px; }
+.inventory-page .estado-contenido strong { font-size: .76rem; }
+.inventory-page .estado-contenido small { font-size: .68rem; }
+.inventory-page .action-buttons { display: flex; gap: 7px; }
+.inventory-page .btn-action { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
+.inventory-page .btn-action:hover { transform: translateY(-2px); box-shadow: 0 5px 11px rgba(16,49,43,.15); }
+.inventory-page .btn-edit { color: var(--teal); background: #eaf4f1; }
+.inventory-page .btn-delete { color: #a23535; background: #fff0f0; }
+.inventory-page .empty-state { padding: 46px 20px !important; color: var(--muted) !important; text-align: center; }
+.inventory-page .empty-state i { color: var(--teal); font-size: 1.7rem; }
+
+/* Los modales conservan sus mismos ids y las funciones del JavaScript actual. */
+.inventory-page .modal { position: fixed; z-index: 10001; inset: 0; width: auto; height: auto; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; background: transparent; }
+.inventory-page .modal-content { width: min(520px, calc(100vw - 32px)); margin: 8vh auto; overflow: hidden; border: 1px solid #dbe8e3; border-radius: 15px; background: #fff; box-shadow: 0 22px 55px rgba(12,43,36,.26); }
+.inventory-page .modal-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 20px 22px; border-bottom: 1px solid #e5ece9; background: #fff; }
+.inventory-page .modal-header h3 { margin: 0; color: var(--teal-deep); font-size: 1.18rem; }
+.inventory-page .modal-header h3 i { margin-right: 7px; color: var(--teal); }
+.inventory-page .btn-close { width: 34px; height: 34px; border: 0; border-radius: 9px; color: #64736d; background: #eef3f1; font-size: 1.1rem; cursor: pointer; transition: background .2s ease, transform .2s ease; }
+.inventory-page .btn-close:hover { color: var(--teal-deep); background: #e1ece7; transform: rotate(5deg); }
+.inventory-page .modal-body { padding: 21px 22px; color: var(--muted); }
+.inventory-page .modal-body > p { margin-top: 0; font-size: .9rem; }
+.inventory-page .exportar-opciones { display: grid; gap: 10px; }
+.inventory-page .btn-exportar { min-height: 52px; justify-content: flex-start; padding: 0 16px; border: 1px solid #dce8e3; color: var(--text); background: #fff; box-shadow: none; }
+.inventory-page .btn-exportar:hover { border-color: #a8cec0; box-shadow: 0 6px 15px rgba(16,49,43,.1); }
+.inventory-page .btn-exportar.btn-success { color: #17643c; background: #effaf3; }
+.inventory-page .btn-exportar.btn-danger { color: #a23535; background: #fff1f1; }
+.inventory-page .btn-exportar.btn-warning { color: #1b6092; background: #edf5ff; }
+.inventory-page .modal-footer { display: flex; justify-content: flex-end; gap: 9px; padding: 16px 22px; border-top: 1px solid #e5ece9; background: #fafcfb; }
+.inventory-page .form-group { margin-bottom: 17px; }
+.inventory-page .form-group label { display: block; margin-bottom: 7px; color: var(--text); font-weight: 800; font-size: .85rem; }
+.inventory-page .form-control { border-color: #d6e1dd; }
+.inventory-page .readonly-field { margin: 0; padding: 10px 12px; border-radius: 8px; color: var(--text); background: #f1f6f4; }
+.inventory-page #modal-overlay-lotes, .inventory-page #modal-overlay-editar, .inventory-page #modal-overlay-eliminar, .inventory-page #modal-overlay-exportar { position: fixed; z-index: 10000; inset: 0; background: rgba(10,38,32,.45); }
+
+@media (max-width: 1100px) {
+    .inventory-page .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .inventory-page .filtros-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .inventory-page .filtro-acciones { grid-template-columns: repeat(3, auto); }
+    .inventory-page .filtro-acciones .btn-success { grid-column: auto; }
+}
+@media (max-width: 780px) {
+    .inventory-page .main-content { padding: 22px; }
+    .inventory-page .inventory-header { align-items: flex-start; flex-wrap: wrap; padding: 22px; }
+    .inventory-page .header-actions { width: 100%; }
+    .inventory-page .stats-grid, .inventory-page .filtros-container { grid-template-columns: 1fr; }
+    .inventory-page .filtro-acciones { grid-template-columns: repeat(3, 1fr); }
+    .inventory-page .table-header { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 580px) {
+    .inventory-page .main-content { padding: 16px; }
+    .inventory-page .module-header-icon { width: 48px; height: 48px; }
+    .inventory-page .header-secondary, .inventory-page .btn-lotes { flex: 1; padding-inline: 11px; }
+    .inventory-page .controls-body { padding: 18px; }
+    .inventory-page .filtro-acciones { grid-template-columns: 1fr; }
+    .inventory-page .btn { width: 100%; }
+    .inventory-page .modal-content { width: calc(100vw - 24px); margin: 4vh auto; }
+}

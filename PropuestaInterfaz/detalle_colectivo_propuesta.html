@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Propuesta visual para el detalle de colectivos de Enfermería">
+    <title>Detalle del Colectivo | INVENTFARM</title>
+    <link rel="stylesheet" href="detalle_colectivo_propuesta.css">
+</head>
+<body>
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand"><div class="brand-logo-frame"><img src="imss-bienestar.png" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div><span class="brand-monogram" aria-hidden="true">IF</span></div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="/principal/" class="nav-link" title="Inicio"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span><span class="nav-label">Inicio</span></a>
+                <a href="/farmacia/" class="nav-link" title="Farmacia"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><span class="nav-label">Farmacia</span></a>
+                <a href="/enfermeria/" class="nav-link is-active" title="Enfermería"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span><span class="nav-label">Enfermería</span></a>
+                <span class="nav-section-label nav-section-secondary">Administración</span>
+                <a href="/admin-usuarios/" class="nav-link" title="Configuración de usuarios"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span><span class="nav-label">Config. usuarios</span></a>
+                <a href="/backups/" class="nav-link" title="Copias de seguridad"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span class="nav-label">Copias de seguridad</span></a>
+            </nav>
+            <div class="sidebar-footer"><div class="sidebar-user"><span class="user-avatar" aria-hidden="true">UV</span><span class="user-copy"><strong>Usuario del sistema</strong><small>Administrador</small></span></div><a href="/logout/" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg></a></div>
+        </aside>
+
+        <div class="workspace">
+            <main class="main-content">
+                <header class="module-header detail-header">
+                    <div class="module-header-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h8l3 3v15H7z"/><path d="M15 3v4h4M10 12h5M10 16h5"/></svg></div>
+                    <div class="module-header-copy"><span class="module-eyebrow">Enfermería / Solicitudes</span><h1>Detalle del Colectivo</h1><p>Consulta el estado, la información y los medicamentos solicitados.</p></div>
+                    <div class="header-actions"><a href="/enfermeria/colectivos/" class="header-secondary"><svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Volver a colectivos</span></a><a href="/inventario-general/" target="_blank" class="btn-inventario"><svg viewBox="0 0 24 24"><path d="M4 7 12 3l8 4v10l-8 4-8-4V7Z"/><path d="m4 7 8 4 8-4"/><path d="M12 11v10"/></svg><span>Ver inventario</span></a></div>
+                </header>
+
+                <section class="detail-card" aria-label="Detalle del colectivo COL-20260831-0001">
+                    <div class="colectivo-summary">
+                        <div><span class="summary-label">Folio de solicitud</span><h2>COL-20260831-0001</h2><span class="summary-date"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>Creado el 31/08/2026 · 10:35</span></div>
+                        <span class="estado-badge estado-respondido"><span></span>Respondido</span>
+                    </div>
+
+                    <div class="info-grid">
+                        <article class="info-card"><h3><span class="section-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></span>Paciente</h3><dl><div><dt>Nombre</dt><dd>María Hernández López</dd></div><div><dt>CURP</dt><dd>HELM920614MDFRPR02</dd></div><div><dt>Fecha de nacimiento</dt><dd>14/06/1992</dd></div><div><dt>Cama</dt><dd>C-104</dd></div><div><dt>Servicio</dt><dd>Hospitalización Piso 2</dd></div></dl></article>
+                        <article class="info-card"><h3><span class="section-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span>Personal y seguimiento</h3><dl><div><dt>Solicitante</dt><dd>Elisa Valencia</dd></div><div><dt>Farmacéutico</dt><dd>Juan Pérez Ramos</dd></div><div><dt>Respuesta de farmacia</dt><dd>31/08/2026 · 11:20</dd></div><div><dt>Tipo de colectivo</dt><dd>Paciente</dd></div></dl></article>
+                    </div>
+
+                    <article class="notice notice-nursing"><h3><span class="notice-icon"><svg viewBox="0 0 24 24"><path d="M5 5h14v11H9l-4 4z"/><path d="M9 10h6"/></svg></span>Observaciones de Enfermería</h3><p>Paciente con tratamiento indicado por medicina interna. Administrar conforme a la prescripción médica.</p></article>
+                    <article class="notice notice-pharmacy"><h3><span class="notice-icon"><svg viewBox="0 0 24 24"><path d="M5 12h9M11 8l4 4-4 4"/><path d="M20 4v16"/></svg></span>Respuesta de Farmacia</h3><p>Los medicamentos solicitados están disponibles para surtimiento. Favor de confirmar las cantidades antes de reenviar.</p></article>
+
+                    <section class="medicamentos-detalle"><div class="section-heading"><div><span class="section-kicker">Solicitud</span><h3><span class="section-icon"><svg viewBox="0 0 24 24"><path d="m7 5 12 12a3 3 0 0 1-4 4L3 9a3 3 0 0 1 4-4Z"/><path d="m8 14 6-6"/></svg></span>Medicamentos solicitados</h3></div><span class="count-badge">3 medicamentos</span></div>
+                        <div class="table-wrap"><table><thead><tr><th>#</th><th>Clave</th><th>Descripción</th><th>Solicitado</th><th>Disponibilidad</th></tr></thead><tbody><tr><td>1</td><td><strong>010.000.0105.00</strong></td><td>Paracetamol 500 mg, tableta</td><td class="quantity">20</td><td><span class="available"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>Disponible</span></td></tr><tr><td>2</td><td><strong>010.000.0571.00</strong></td><td>Omeprazol 20 mg, cápsula</td><td class="quantity">14</td><td><span class="available"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>Disponible</span></td></tr><tr><td>3</td><td><strong>010.000.1921.00</strong></td><td>Metoclopramida 10 mg, tableta</td><td class="quantity">10</td><td><span class="unavailable"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg>No disponible</span><small>Stock insuficiente</small></td></tr></tbody></table></div>
+                    </section>
+
+                    <section class="timeline-section"><div class="section-heading"><div><span class="section-kicker">Seguimiento</span><h3><span class="section-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>Historial del colectivo</h3></div></div><ol class="timeline"><li class="timeline-item done"><span class="timeline-marker"></span><div><strong>Solicitud creada</strong><small>31/08/2026 · 10:35 · Elisa Valencia</small></div></li><li class="timeline-item done"><span class="timeline-marker"></span><div><strong>Respuesta de Farmacia</strong><small>31/08/2026 · 11:20 · Juan Pérez Ramos</small></div></li><li class="timeline-item"><span class="timeline-marker"></span><div><strong>Confirmación de surtido</strong><small>Pendiente de confirmación</small></div></li></ol></section>
+
+                    <div class="detail-actions"><a href="/enfermeria/colectivos/" class="btn btn-secondary"><svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>Volver a la lista</a><div class="main-actions"><button class="btn btn-outline"><svg viewBox="0 0 24 24"><path d="M4 12h12M12 6l6 6-6 6"/></svg>Editar y reenviar</button><button class="btn btn-danger"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M7 7l10 10"/></svg>Cancelar colectivo</button></div></div>
+                </section>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

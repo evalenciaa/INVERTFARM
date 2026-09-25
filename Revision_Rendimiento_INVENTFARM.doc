@@ -1,0 +1,34 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Aptos;}{\f1 Aptos Display;}}
+\paperw12240\paperh15840\margl1152\margr1152\margt1080\margb1080
+\f1\fs36\b Revision de rendimiento INVENTFARM\b0\par
+\f0\fs22\par
+\b Conclusion.\b0 La base de datos responde con rapidez en el estado actual. La percepcion de lentitud se concentra en la cantidad de contenido enviado al navegador, especialmente en los inventarios, y en las librerias cargadas al abrir Reportes.\par\par
+\b Alcance de la revision\b0\par
+Se midieron vistas y servicios reales con una cuenta administradora sobre la base de datos local. Los tiempos corresponden al procesamiento de la vista, sus consultas y el renderizado del HTML; no incluyen latencia de red, descarga de recursos externos ni el tiempo de dibujo del navegador.\par\par
+\b Mediciones principales\b0\par
+Pantalla o servicio\tab Tiempo\tab Consultas\tab Contenido generado\par
+Inventario general\tab 136 ms\tab 1\tab 2.38 MB\par
+Inventario por lotes\tab 368 ms\tab 2\tab 6.41 MB\par
+Reportes HTML\tab 57 ms\tab 0\tab 24 KB\par
+KPIs de reportes\tab 17 ms\tab 8\tab 148 B\par
+Salidas de reportes\tab 16 ms\tab 2\tab 31 KB\par
+Inventario de antibioticos\tab 8 ms\tab 2\tab 40 KB\par
+Colectivos de farmacia\tab 34 ms\tab 24\tab 27 KB\par\par
+\b Hallazgos prioritarios\b0\par
+\b Inventario por lotes.\b0 Se generan los 981 lotes completos en una sola respuesta. El navegador recibe 6.41 MB de HTML y debe crear todas las filas y ejecutar filtros del lado del cliente.\par
+\b Inventario general.\b0 Entrega los 487 medicamentos completos en una sola carga, con 2.38 MB de HTML.\par
+\b Reportes.\b0 Carga desde el inicio librerias para graficas, PDF, Excel y captura HTML. El archivo local de fuente para PDF mide aproximadamente 1.95 MB aunque solo se requiere al exportar.\par
+\b Colectivos.\b0 La lista ejecuta una consulta adicional para contar medicamentos de cada colectivo. Con 18 colectivos se observaron 24 consultas.\par
+\b Consultas por fecha.\b0 Fueron rapidas con los datos actuales, pero los planes muestran escaneos completos por fecha.\par
+\b Configuracion de ejecucion.\b0 DEBUG esta activo por defecto. La sesion tambien se guarda en cada solicitud autenticada.\par\par
+\b Orden recomendado de acciones\b0\par
+1. Paginar o cargar bajo demanda los inventarios general y por lotes desde el servidor.\par
+2. Cargar las librerias de exportacion de Reportes solo cuando el usuario solicite exportar.\par
+3. Eliminar las consultas repetidas de colectivos mediante un conteo preparado en la consulta principal.\par
+4. Concentrar las consultas de KPIs y corregir el armado de transferencias dentro del servicio de salidas.\par
+5. Agregar indices controlados para las fechas de recetas y transferencias mediante migracion.\par
+6. Definir la configuracion de produccion con DEBUG desactivado, estaticos comprimidos y revision selectiva de sesion y cache.\par\par
+\b Nota tecnica\b0\par
+En el servicio de salidas de Reportes, la construccion de la consulta de transferencias esta dentro del ciclo de recetas. No multiplico consultas en la medicion por la evaluacion diferida de Django, pero puede fallar si no hay recetas y debe corregirse junto con la optimizacion del servicio.\par
+}

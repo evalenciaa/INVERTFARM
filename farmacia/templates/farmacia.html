@@ -4,113 +4,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>INVENTFARM - Módulo de Farmacia</title>
-    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <meta name="description" content="Módulo de Farmacia de INVENTFARM">
+    <title>Módulo de Farmacia | INVENTFARM</title>
+    <link rel="stylesheet" href="{% static 'farmacia/css/farmacia.css' %}?v=20260923-4">
 </head>
 <body>
-        <!-- Contenido Principal -->
-        <main class="main-content">
-            <div class="module-header">
-                <h1><i class="fas fa-pills"></i> Módulo de Farmacia</h1>
-                <p class="user-info">Usuario: <strong>{{ request.user.username }}</strong> | Rol: <strong><i class="fas {{ request.user.get_rol_icono }}"></i> {{ request.user.get_rol_display }}</strong>
-                </p>
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand">
+                <div class="brand-logo-frame">
+                    <img src="{% static 'farmacia/img/imss-bienestar-horizontal.png' %}" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo">
+                </div>
+                <span class="brand-monogram" aria-hidden="true">IF</span>
             </div>
 
-            <div class="dashboard-grid">
-                <!-- Inventario General -->
-                <div class="module-card" onclick="location.href='{% url 'inv_gene_f' %}'">
-                    <div class="card-icon">
-                        <i class="fas fa-boxes"></i>
-                    </div>
-                    <h3>Inventario General</h3>
-                    <p>Consulta el stock completo de medicamentos</p>
-                </div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="{% url 'principal' %}" class="nav-link" title="Inicio">
+                    <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span>
+                    <span class="nav-label">Inicio</span>
+                </a>
+                <a href="{% url 'farmacia' %}" class="nav-link is-active" aria-current="page" title="Farmacia">
+                    <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span>
+                    <span class="nav-label">Farmacia</span>
+                </a>
+                <a href="{% url 'enfermeria_principal' %}" class="nav-link" title="Enfermería">
+                    <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span>
+                    <span class="nav-label">Enfermería</span>
+                </a>
+                {% if request.user.is_superuser or request.user.rol == 'ADMIN' %}
+                <span class="nav-section-label nav-section-secondary">Administración</span>
+                {% if perms.farmacia.view_usuariopersonalizado %}
+                <a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios">
+                    <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span>
+                    <span class="nav-label">Config. usuarios</span>
+                </a>
+                {% endif %}
+                <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad">
+                    <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
+                    <span class="nav-label">Copias de seguridad</span>
+                </a>
+                {% endif %}
+            </nav>
 
-                <!-- Inventario por Lote -->
-                <div class="module-card" onclick="location.href='{% url 'farmacia_g' %}';">
-                    <div class="card-icon">
-                        <i class="fas fa-barcode"></i>
-                    </div>
-                    <h3>Inventario por Lote</h3>
-                    <p>Gestión por números de lote y caducidades</p>
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <span class="user-avatar" aria-hidden="true">{% if request.user.first_name or request.user.last_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|slice:':2'|upper }}{% endif %}</span>
+                    <span class="user-copy"><strong>{{ request.user.get_full_name|default:request.user.username }}</strong><small>{% if request.user.is_superuser %}Administrador{% else %}{{ request.user.get_rol_display }}{% endif %}</small></span>
                 </div>
-
-                <!-- Inventario Antibióticos -->
-                <div class="module-card" onclick="location.href='{% url 'inventario_antibioticos' %}';">
-                    <div class="card-icon">
-                        <i class="fas fa-prescription-bottle-medical"></i>
-                    </div>
-                    <h3>Inventario Antibióticos</h3>
-                    <p>Consumo, DDD y clasificación AWaRe/ATC</p>
-                </div>
-
-                <!-- Nuevo Medicamento -->
-                <div class="module-card" onclick="location.href='{% url 'registro_medicamento' %}';">
-                    <div class="card-icon">
-                        <i class="fas fa-pills"></i>
-                    </div>
-                    <h3>Nuevo Medicamento</h3>
-                    <p>Registrar nuevo medicamento en el sistema</p>
-                </div>
-
-                <!-- Entradas -->
-                <div class="module-card" onclick="location.href='{% url 'entrada_medicamentos' %}';">
-                    <div class="card-icon">
-                        <i class="fas fa-arrow-down"></i>
-                    </div>
-                    <h3>Entradas</h3>
-                    <p>Registro de nuevas existencias</p>
-                </div>
-
-                <!-- Salidas -->
-                <div class="module-card" onclick="location.href='{% url 'registrar_salida' %}'">
-                    <div class="card-icon">
-                        <i class="fas fa-arrow-up"></i>
-                    </div>
-                    <h3>Salidas</h3>
-                    <p>Registro de medicamentos dispensados</p>
-                </div>
-
-
-                <!-- Surtir Colectivos -->
-                <div class="module-card" onclick="location.href='{% url 'lista_colectivos_farmacia' %}';">
-                    <div class="card-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <h3>Surtir Colectivos Medicamentos</h3>
-                    <p>Aprobar colectivos de medicamentos</p>
-                </div>
-
-                <div class="module-card" onclick="location.href='{% url 'lista_colectivos_antibioticos_farmacia' %}';">
-                    <div class="card-icon">
-                        <i class="fas fa-capsules"></i>
-                    </div>
-                    <h3>Surtir Colectivos de Antibióticos</h3>
-                    <p>Aprobar colectivos de antibióticos</p>
-                </div>
-
-                <!-- Surtir Recetas -->
-                <div class="module-card" onclick="location.href='{% url 'carga_masiva' %}'">
-                    <div class="card-icon">
-                        <i class="fas fa-file-prescription"></i>
-                    </div>
-                    <h3>Carga Masiva</h3>
-                    <p>Registro masivo de medicamentos</p>
-                </div>
-
-                <!-- Reportes -->
-                <div class="module-card" onclick="location.href='{% url 'reportes_farmacia' %}';">
-                    <div class="card-icon">
-                        <i class="fas fa-chart-bar"></i>
-                    </div>
-                    <h3>Reportes</h3>
-                    <p>Generar reportes estadísticos</p>
-                </div>
+                <a href="{% url 'logout' %}" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg>
+                </a>
             </div>
-        </main>
+        </aside>
+
+        <div class="workspace">
+            <main class="main-content">
+                <header class="module-header">
+                    <div class="module-header-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></div>
+                    <div class="module-header-copy">
+                        <span class="module-eyebrow">Sistema institucional / Inventfarm</span>
+                        <h1>Módulo de Farmacia</h1>
+                        <p>Medicamentos, existencias y movimientos en un solo lugar.</p>
+                    </div>
+                    <div class="header-user"><span class="header-user-label">Sesión activa</span><strong>{{ request.user.get_full_name|default:request.user.username }}</strong><small>{% if request.user.is_superuser %}Administrador{% else %}{{ request.user.get_rol_display }}{% endif %}</small></div>
+                </header>
+
+                <div class="modules-grid" aria-label="Accesos del módulo de Farmacia">
+                    <a class="module-card" href="{% url 'inv_gene_f' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7 12 3l8 4v10l-8 4-8-4V7Z"/><path d="m4 7 8 4 8-4"/><path d="M12 11v10"/></svg></span>
+                        <h3>Inventario General</h3>
+                        <p>Consulta el stock completo de medicamentos</p>
+                    </a>
+                    <a class="module-card" href="{% url 'farmacia_g' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5v14M7 5v14M10 5v14M14 5v14M17 5v14M20 5v14"/><path d="M3 20h18"/></svg></span>
+                        <h3>Inventario por Lote</h3>
+                        <p>Gestión por números de lote y caducidades</p>
+                    </a>
+                    <a class="module-card" href="{% url 'inventario_antibioticos' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h10v4H7zM6 7h12v14H6z"/><path d="M12 10v8M8 14h8"/></svg></span>
+                        <h3>Inventario Antibióticos</h3>
+                        <p>Consumo, DDD y clasificación AWaRe/ATC</p>
+                    </a>
+                    <a class="module-card" href="{% url 'registro_medicamento' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/><path d="M18 4v6M15 7h6"/></svg></span>
+                        <h3>Nuevo Medicamento</h3>
+                        <p>Registrar nuevo medicamento en el sistema</p>
+                    </a>
+                    <a class="module-card" href="{% url 'entrada_medicamentos' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5"/><path d="M4 19h16"/></svg></span>
+                        <h3>Entradas</h3>
+                        <p>Registro de nuevas existencias</p>
+                    </a>
+                    <a class="module-card" href="{% url 'registrar_salida' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21V8m-5 5 5-5 5 5"/><path d="M4 5h16"/></svg></span>
+                        <h3>Salidas</h3>
+                        <p>Registro de medicamentos dispensados</p>
+                    </a>
+                    <a class="module-card" href="{% url 'lista_colectivos_farmacia' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 15a5 5 0 0 1 5 5"/></svg></span>
+                        <h3>Surtir Colectivos Medicamentos</h3>
+                        <p>Aprobar colectivos de medicamentos</p>
+                    </a>
+                    <a class="module-card" href="{% url 'lista_colectivos_antibioticos_farmacia' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m7 5 12 12a3 3 0 0 1-4 4L3 9a3 3 0 0 1 4-4Z"/><path d="m8 14 6-6"/><path d="M17 3v6M14 6h6"/></svg></span>
+                        <h3>Surtir Colectivos de Antibióticos</h3>
+                        <p>Aprobar colectivos de antibióticos</p>
+                    </a>
+                    <a class="module-card" href="{% url 'carga_masiva' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h4M8 12h8M8 16h5"/></svg></span>
+                        <h3>Carga Masiva</h3>
+                        <p>Registro masivo de medicamentos</p>
+                    </a>
+                    <a class="module-card" href="{% url 'reportes_farmacia' %}">
+                        <span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16M6 17v-5M11 17V7M16 17v-8M21 17V4"/></svg></span>
+                        <h3>Reportes</h3>
+                        <p>Generar reportes estadísticos</p>
+                    </a>
+                </div>
+
+                <footer class="page-footer"><strong>INVENTFARM</strong><span>Servicios de Salud IMSS-Bienestar</span></footer>
+            </main>
+        </div>
     </div>
-
-    <script src="{% static 'farmacia/js/farmacia.js' %}"></script>
+    <script src="{% static 'farmacia/js/farmacia.js' %}?v=20260922-1"></script>
 </body>
 </html>

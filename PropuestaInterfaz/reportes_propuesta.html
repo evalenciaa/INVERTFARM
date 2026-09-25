@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Propuesta visual del módulo de reportes de INVENTFARM">
+    <title>Reportes y estadísticas | INVENTFARM</title>
+    <link rel="stylesheet" href="reportes_propuesta.css">
+</head>
+<body>
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand"><div class="brand-logo-frame"><img src="imss-bienestar.png" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div><span class="brand-monogram">IF</span></div>
+            <nav class="sidebar-nav"><span class="nav-section-label">Navegación</span><a href="#" class="nav-link"><span class="nav-icon">⌂</span><span class="nav-label">Inicio</span></a><a href="#" class="nav-link is-active"><span class="nav-icon">⌁</span><span class="nav-label">Farmacia</span></a><a href="#" class="nav-link"><span class="nav-icon">♙</span><span class="nav-label">Enfermería</span></a><span class="nav-section-label nav-section-secondary">Administración</span><a href="#" class="nav-link"><span class="nav-icon">⚙</span><span class="nav-label">Configuración</span></a></nav>
+            <div class="sidebar-footer"><span class="user-avatar">UV</span><span class="user-copy"><strong>Usuario</strong><small>Administrador</small></span><a class="logout-link" href="#">↪</a></div>
+        </aside>
+
+        <div class="workspace"><main class="main-content">
+            <header class="module-header">
+                <div class="module-header-icon">⌁</div>
+                <div class="module-header-copy"><span class="module-eyebrow">Farmacia / Análisis</span><h1>Reportes y estadísticas</h1><p>Consulta movimientos, consumos y tendencias del inventario.</p></div>
+                <a href="#" class="header-back">← Volver a Farmacia</a>
+            </header>
+
+            <section class="control-panel" aria-label="Filtros globales del reporte">
+                <div class="period-fields"><div class="date-field"><label for="inicio">Desde</label><input id="inicio" type="date" value="2026-08-01"></div><span class="date-divider">→</span><div class="date-field"><label for="fin">Hasta</label><input id="fin" type="date" value="2026-09-18"></div><button class="btn btn-filter">⌕ Filtrar</button></div>
+                <div class="control-divider"></div>
+                <div class="export-actions"><button class="btn btn-export pdf">▣ Exportar PDF</button><button class="btn btn-export excel">▤ Exportar Excel</button><button class="btn btn-refresh">↻ Actualizar</button></div>
+            </section>
+
+            <section class="kpi-container" aria-label="Indicadores del periodo">
+                <article class="kpi-card total"><span class="kpi-icon">↗</span><div><small>Total salidas</small><strong>1,248</strong><em>Movimientos registrados</em></div></article>
+                <article class="kpi-card meds"><span class="kpi-icon">⌁</span><div><small>Medicamentos dispensados</small><strong>3,860</strong><em>Unidades surtidas</em></div></article>
+                <article class="kpi-card patients"><span class="kpi-icon">♙</span><div><small>Pacientes atendidos</small><strong>482</strong><em>Durante el periodo</em></div></article>
+                <article class="kpi-card value"><span class="kpi-icon">$</span><div><small>Valor dispensado</small><strong>$248,731</strong><em>Valor de salida</em></div></article>
+                <article class="kpi-card transfers"><span class="kpi-icon">⌂</span><div><small>Instituciones atendidas</small><strong>12</strong><em>Transferencias</em></div></article>
+            </section>
+
+            <section class="tabs-container">
+                <div class="tabs-nav" role="tablist" aria-label="Secciones de reportes">
+                    <button class="tab-btn active" data-tab="historial">◷ Historial de salidas</button>
+                    <button class="tab-btn" data-tab="medicamentos">▥ Medicamentos dispensados</button>
+                    <button class="tab-btn" data-tab="pacientes">♙ Pacientes frecuentes</button>
+                    <button class="tab-btn" data-tab="tendencias">⌁ Tendencias</button>
+                    <button class="tab-btn" data-tab="lento">⌛ Lento movimiento</button>
+                    <button class="tab-btn" data-tab="recetas">▤ Registro de recetas</button>
+                </div>
+
+                <div class="tab-content active" id="historial">
+                    <div class="content-card">
+                        <div class="card-header"><div><span class="section-eyebrow">Detalle del periodo</span><h2>Historial completo de salidas</h2></div><button class="small-action">⇩ Medicamentos sin salidas</button></div>
+                        <div class="table-wrapper"><table class="data-table"><thead><tr><th>Fecha</th><th>Clave</th><th>Medicamento</th><th>Lote</th><th>Caducidad</th><th>Cantidad</th><th>Paciente / Destino</th><th>Responsable</th><th>Tipo</th><th>Acción</th></tr></thead><tbody><tr><td>18/09/2026</td><td>010.000.0142.00</td><td>Salbutamol solución para inhalación</td><td>LT-2386A</td><td>08/2027</td><td>12</td><td>Paciente hospitalizado</td><td>Farmacia</td><td><span class="status receta">Receta</span></td><td><button class="table-action">Ver</button></td></tr><tr><td>18/09/2026</td><td>010.000.0250.00</td><td>Paracetamol tabletas</td><td>PA-9201</td><td>01/2028</td><td>24</td><td>Enfermería</td><td>Farmacia</td><td><span class="status colectivo">Colectivo</span></td><td><button class="table-action">Ver</button></td></tr><tr><td>17/09/2026</td><td>010.000.0301.00</td><td>Amoxicilina cápsulas</td><td>AM-0059</td><td>05/2027</td><td>18</td><td>Paciente hospitalizado</td><td>Farmacia</td><td><span class="status receta">Receta</span></td><td><button class="table-action">Ver</button></td></tr></tbody></table></div>
+                        <footer class="table-footer"><span>Mostrando 1–10 de 1,248 movimientos</span><div class="pagination"><button>‹</button><strong>1</strong><button>›</button></div></footer>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="medicamentos"><div class="visual-grid"><div class="content-card chart-card"><div class="card-header"><h2>Medicamentos más dispensados</h2><select><option>Barras</option><option>Circular</option></select></div><div class="chart-placeholder"><div class="bar-row"><span>Paracetamol</span><i style="width:88%"></i><b>482</b></div><div class="bar-row"><span>Salbutamol</span><i style="width:70%"></i><b>384</b></div><div class="bar-row"><span>Amoxicilina</span><i style="width:54%"></i><b>297</b></div><div class="bar-row"><span>Ibuprofeno</span><i style="width:43%"></i><b>235</b></div></div></div><div class="content-card ranking-card"><span class="section-eyebrow">Ranking</span><h2>Mayor consumo</h2><ol><li><b>1</b> Paracetamol <span>482</span></li><li><b>2</b> Salbutamol <span>384</span></li><li><b>3</b> Amoxicilina <span>297</span></li><li><b>4</b> Ibuprofeno <span>235</span></li></ol></div></div></div>
+                <div class="tab-content" id="pacientes"><div class="empty-panel"><span>♙</span><h2>Pacientes frecuentes</h2><p>La gráfica y el detalle de pacientes se mostrarán en esta sección.</p></div></div>
+                <div class="tab-content" id="tendencias"><div class="empty-panel"><span>⌁</span><h2>Tendencias temporales</h2><p>Consulta aquí el comportamiento de salidas por mes, día y horario.</p></div></div>
+                <div class="tab-content" id="lento"><div class="empty-panel"><span>⌛</span><h2>Medicamentos de lento movimiento</h2><p>Identifica existencias con baja rotación y exporta su detalle.</p></div></div>
+                <div class="tab-content" id="recetas"><div class="empty-panel"><span>▤</span><h2>Registro de recetas</h2><p>Filtra recetas completas, parciales o no surtidas desde esta pestaña.</p></div></div>
+            </section>
+        </main></div>
+    </div>
+    <script src="reportes_propuesta.js"></script>
+</body>
+</html>

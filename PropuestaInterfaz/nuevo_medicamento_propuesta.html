@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Propuesta visual del registro de medicamentos de INVENTFARM">
+    <title>Nuevo Medicamento | INVENTFARM</title>
+    <link rel="stylesheet" href="nuevo_medicamento_propuesta.css">
+</head>
+<body>
+    <div class="app-container is-collapsed">
+        <aside class="sidebar" aria-label="Navegación principal">
+            <div class="sidebar-brand"><div class="brand-logo-frame"><img src="imss-bienestar.png" alt="Servicios de Salud IMSS-Bienestar" class="brand-logo"></div><span class="brand-monogram" aria-hidden="true">IF</span></div>
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Navegación</span>
+                <a href="/principal/" class="nav-link" title="Inicio"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M9 20v-6h6v6"/></svg></span><span class="nav-label">Inicio</span></a>
+                <a href="/farmacia/" class="nav-link is-active" title="Farmacia"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><span class="nav-label">Farmacia</span></a>
+                <a href="/enfermeria/" class="nav-link" title="Enfermería"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span><span class="nav-label">Enfermería</span></a>
+                <span class="nav-section-label nav-section-secondary">Administración</span>
+                <a href="/admin-usuarios/" class="nav-link" title="Configuración de usuarios"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span><span class="nav-label">Config. usuarios</span></a>
+                <a href="/backups/" class="nav-link" title="Copias de seguridad"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span class="nav-label">Copias de seguridad</span></a>
+            </nav>
+            <div class="sidebar-footer"><div class="sidebar-user"><span class="user-avatar" aria-hidden="true">UV</span><span class="user-copy"><strong>Usuario del sistema</strong><small>Administrador</small></span></div><a href="/logout/" class="logout-link" title="Cerrar sesión" aria-label="Cerrar sesión"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h6v18h-6"/></svg></a></div>
+        </aside>
+
+        <div class="workspace"><main class="main-content">
+            <header class="module-header medicamento-header">
+                <div class="module-header-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/><path d="M18 4v6M15 7h6"/></svg></div>
+                <div class="module-header-copy"><span class="module-eyebrow">Farmacia / Catálogo</span><h1>Nuevo Medicamento</h1><p>Registra un medicamento y, si corresponde, sus datos de clasificación antimicrobiana.</p></div>
+                <div class="header-actions"><a href="/farmacia/" class="header-secondary"><svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Volver a Farmacia</span></a></div>
+            </header>
+
+            <div class="registration-layout">
+                <section class="form-card" aria-labelledby="medicamento-title">
+                    <header class="form-card-header"><span class="form-icon"><svg viewBox="0 0 24 24"><path d="m8 5 11 11a3 3 0 0 1-4 4L4 9a3 3 0 0 1 4-4Z"/><path d="m8 13 5-5"/></svg></span><div><span class="section-kicker">Alta de catálogo</span><h2 id="medicamento-title">Datos del medicamento</h2><p>Los campos marcados con <b>*</b> son obligatorios.</p></div></header>
+                    <form id="form-medicamento" novalidate>
+                        <div class="form-grid-base">
+                            <label class="form-group">Clave del medicamento <b>*</b><input id="clave" type="text" placeholder="Ej: PAR-500" autocomplete="off"><small>Identificador único del medicamento.</small></label>
+                            <label class="form-group form-group-wide">Descripción <b>*</b><textarea id="descripcion" rows="3" placeholder="Ej: Paracetamol 500 mg tabletas"></textarea><small>Incluye concentración y presentación cuando corresponda.</small></label>
+                        </div>
+
+                        <section class="classification-card" aria-labelledby="classification-title"><div class="classification-copy"><span class="section-icon"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/><path d="M9 12h6M12 9v6"/></svg></span><div><h3 id="classification-title">Clasificación del medicamento</h3><p>Activa esta opción cuando requiera seguimiento antimicrobiano.</p></div></div><label class="switch"><input type="checkbox" id="es-antibiotico" checked><span class="switch-track" aria-hidden="true"></span><span>Es un antibiótico</span></label></section>
+
+                        <section class="antibiotico-details is-visible" id="datos-antibiotico" aria-labelledby="antibiotico-title"><header><div><span class="section-kicker">Datos requeridos para DDD/ATC</span><h3 id="antibiotico-title">Información del antibiótico</h3><p>El código ATC permite obtener automáticamente AWaRe y el valor de referencia disponible.</p></div><span class="antibiotico-state">Antibiótico</span></header><div class="form-grid-antibiotico"><label class="form-group">Vía de administración <b>*</b><select><option value="">Selecciona una vía</option><option selected>Oral</option><option>Intravenosa</option><option>Intramuscular</option></select></label><label class="form-group">Código ATC <b>*</b><input id="codigo-atc" type="text" value="J01CA04" placeholder="Ej: J01CA04"><small class="catalog-status success">✓ Datos encontrados en el catálogo.</small></label><label class="form-group">Categoría AWaRe<select><option>Access</option><option>Watch</option><option>Reserve</option></select></label><label class="form-group">Gramos por pieza <b>*</b><input type="number" value="0.5000" min="0" step="0.0001"></label><label class="form-group">Valor ATC<input type="number" value="1.0000" min="0" step="0.0001"><small>Referencia para calcular DDD/ATC.</small></label></div></section>
+
+                        <footer class="form-actions"><button type="button" class="btn btn-clean" id="limpiar-formulario"><svg viewBox="0 0 24 24"><path d="m4 16 8-8 8 8"/><path d="M7 16h10"/></svg>Limpiar</button><button type="submit" class="btn btn-save"><svg viewBox="0 0 24 24"><path d="M5 3h12l3 3v15H5z"/><path d="M8 3v6h8V3M8 20v-6h8v6"/></svg>Registrar medicamento</button></footer>
+                    </form>
+                </section>
+
+                <aside class="registration-aside"><section class="info-card"><span class="aside-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8h.01"/></svg></span><h2>Antes de registrar</h2><p>Después del alta podrás incorporar lotes, caducidades y existencias desde el módulo de Entradas.</p></section><section class="process-card"><span class="section-kicker">Flujo de trabajo</span><ol><li><span>1</span><div><strong>Registra el catálogo</strong><small>Clave y descripción del medicamento.</small></div></li><li><span>2</span><div><strong>Clasifica si aplica</strong><small>Completa ATC y AWaRe para antibióticos.</small></div></li><li><span>3</span><div><strong>Agrega existencias</strong><small>Continúa en Entradas para registrar lotes.</small></div></li></ol></section></aside>
+            </div>
+        </main></div>
+    </div>
+    <script src="nuevo_medicamento_propuesta.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+/* Formulario de colectivos: extensión visual del contenedor institucional. */
+.crear-colectivo-header { align-items: center; }
+.crear-colectivo-header .header-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 12px; }
+.header-secondary, .btn-inventario { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0 16px; border-radius: 999px; font-size: .8rem; font-weight: 800; text-decoration: none; transition: transform .25s ease, box-shadow .25s ease, background .25s ease; }
+.header-secondary { color: #fff; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); }
+.btn-inventario { color: var(--teal-deep); background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+.header-secondary:hover, .btn-inventario:hover { transform: translateY(-2px); }
+.header-secondary:hover { background: rgba(255,255,255,.16); }
+.btn-inventario:hover { box-shadow: 0 11px 24px rgba(0,0,0,.18); }
+.header-secondary svg, .btn-inventario svg { width: 18px; height: 18px; }
+
+.crear-colectivo-alert { display: flex; align-items: center; gap: 10px; max-width: 1180px; margin: 0 auto 18px; padding: 14px 16px; border: 1px solid #d8e7e2; border-radius: 10px; color: #1d5146; background: #f0f8f5; font-size: .9rem; }
+.crear-colectivo-alert i { color: var(--teal); }
+.crear-colectivo-alert.alert-error { border-color: #f0c4c4; color: #8a3030; background: #fff4f4; }
+.crear-colectivo-alert.alert-warning { border-color: #ecd9a2; color: #76580c; background: #fff9e8; }
+
+.form-container { max-width: 1180px; margin: 0 auto; padding: 30px; border: 1px solid #e2eae7; border-radius: 16px; background: #fff; box-shadow: 0 7px 22px rgba(16,49,43,.08); }
+.form-section { padding-bottom: 26px; margin-bottom: 27px; border-bottom: 1px solid #e5ece9; }
+.form-section:last-of-type { margin-bottom: 0; }
+.form-section h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 21px; color: var(--teal); font-size: 1.18rem; }
+.form-section h3 > i { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; color: var(--teal); background: #e8f2ef; font-size: .98rem; }
+
+.tipo-selector { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.tipo-card { position: relative; display: flex; align-items: center; gap: 16px; padding: 22px; border: 2px solid #dce7e3; border-radius: 13px; cursor: pointer; transition: border-color .3s ease, background .3s ease, box-shadow .3s ease, transform .3s ease; }
+.tipo-card input { position: absolute; opacity: 0; pointer-events: none; }
+.tipo-card:hover { border-color: var(--teal); box-shadow: 0 6px 16px rgba(0,102,87,.13); transform: translateY(-2px); }
+.tipo-card.selected { border-color: var(--teal); background: linear-gradient(135deg, #edf7f4, #f9fcfb); box-shadow: 0 6px 18px rgba(0,102,87,.14); }
+.tipo-icon { width: 62px; height: 62px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: #65746f; background: #f1f5f3; font-size: 1.55rem; transition: transform .3s ease, color .3s ease, background .3s ease, box-shadow .3s ease; }
+.tipo-card.selected .tipo-icon { color: #fff; background: linear-gradient(135deg, var(--teal), var(--teal-deep)); box-shadow: 0 5px 15px rgba(0,102,87,.28); transform: scale(1.06); }
+.tipo-content h4 { margin: 0 0 5px; color: var(--text); font-size: 1rem; }
+.tipo-content p { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.45; }
+
+.seccion-oculta { display: none; }
+.seccion-visible { display: block; animation: colectivo-fade-in .3s ease; }
+@keyframes colectivo-fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+.form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.medicines-row { grid-template-columns: minmax(0, 1fr) 150px auto; align-items: end; }
+.form-group { min-width: 0; }
+.form-group > label { display: block; margin-bottom: 8px; color: var(--text); font-size: .88rem; font-weight: 800; }
+.form-group > label.required::after { content: " *"; color: #b84343; }
+.form-container .form-control { width: 100%; padding: 12px 13px; border: 1px solid #d5e1dd; border-radius: 8px; color: var(--text); background: #fff; font: inherit; font-size: .92rem; outline: none; transition: border-color .2s ease, box-shadow .2s ease; }
+.form-container textarea.form-control { resize: vertical; }
+.form-container .form-control:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(0,102,87,.12); }
+.form-help { display: block; margin-top: 7px; color: var(--muted); font-size: .8rem; line-height: 1.4; }
+.form-help i { color: var(--teal); }
+.field-error { margin-top: 7px; color: #a53535; font-size: .8rem; }
+.field-error ul { margin: 0; padding-left: 18px; }
+
+.autocomplete-container { position: relative; }
+.autocomplete-results { position: absolute; z-index: 20; top: 69px; right: 0; left: 0; max-height: 245px; overflow-y: auto; border: 1px solid #cfe0da; border-radius: 9px; background: #fff; box-shadow: 0 12px 24px rgba(16,49,43,.15); }
+.autocomplete-item, .autocomplete-no-results, .autocomplete-error { padding: 11px 13px; border-bottom: 1px solid #edf1ef; color: var(--text); font-size: .86rem; cursor: pointer; }
+.autocomplete-item:last-child { border-bottom: 0; }
+.autocomplete-item:hover { background: #eef7f4; }
+.autocomplete-item small, .autocomplete-no-results small { color: var(--muted); }
+.autocomplete-no-results, .autocomplete-error { cursor: default; color: var(--muted); line-height: 1.45; }
+
+.alert { display: flex; align-items: center; gap: 9px; margin: 0 0 20px; padding: 13px 15px; border: 1px solid #c9e5dc; border-radius: 9px; color: #155b4c; background: #edf8f4; font-size: .88rem; }
+.alert > i { flex: 0 0 auto; }
+.alert-success { border-color: #bce1ca; color: #19623a; background: #effaf3; }
+.alert-error, .alert-danger { border-color: #f0c4c4; color: #8a3030; background: #fff4f4; }
+.alert-warning { border-color: #ecd9a2; color: #76580c; background: #fff9e8; }
+
+.form-group[style] { align-items: flex-end !important; }
+.btn { min-height: 43px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 18px; border: 0; border-radius: 8px; font: inherit; font-size: .9rem; font-weight: 800; text-decoration: none; cursor: pointer; transition: transform .25s ease, box-shadow .25s ease, background .25s ease; }
+.btn-success, .btn-primary { color: #fff; background: linear-gradient(135deg, var(--teal), var(--teal-deep)); box-shadow: 0 5px 14px rgba(0,102,87,.2); }
+.btn-success:hover, .btn-primary:hover { color: #fff; transform: translateY(-2px); box-shadow: 0 9px 20px rgba(0,102,87,.28); }
+.btn-secondary { color: #5d6c67; background: #eef2f0; }
+.btn-secondary:hover { color: #42524d; background: #e2e9e6; }
+.contador-medicamentos { display: inline-block; margin: 18px 0 14px; padding: 9px 13px; border-radius: 8px; color: var(--teal); background: #edf7f4; font-size: .85rem; font-weight: 800; }
+.medicamentos-table-container { overflow-x: auto; border: 1px solid #dfe9e5; border-radius: 9px; }
+.medicamentos-table { width: 100%; min-width: 610px; border-collapse: collapse; font-size: .9rem; }
+.medicamentos-table th { padding: 12px; color: #fff; background: var(--teal-deep); text-align: left; }
+.medicamentos-table td { padding: 14px 12px; border-top: 1px solid #e5ece9; color: var(--muted); }
+.btn-eliminar { width: 32px; height: 32px; display: inline-grid; place-items: center; border: 0; border-radius: 8px; color: #a63b3b; background: #fff0f0; cursor: pointer; transition: transform .2s ease, background .2s ease; }
+.btn-eliminar:hover { color: #fff; background: #b84343; transform: translateY(-1px); }
+.form-actions { display: flex; justify-content: flex-end; gap: 13px; margin-top: 30px; padding-top: 23px; border-top: 1px solid #e5ece9; }
+
+@media (max-width: 900px) { .crear-colectivo-header .header-actions { justify-content: flex-start; } .medicines-row { grid-template-columns: minmax(0, 1fr) 145px; } .medicines-row .form-group:last-child[style] { grid-column: 1 / -1; } .medicines-row .form-group:last-child[style] .btn { width: 100%; } }
+@media (max-width: 780px) { .crear-colectivo-header .header-actions { width: 100%; } .form-container { padding: 23px; } .tipo-selector, .form-row, .medicines-row { grid-template-columns: 1fr; } .medicines-row .form-group:last-child[style] { grid-column: auto; } .form-actions { flex-direction: column-reverse; } .form-actions .btn { width: 100%; } }
+@media (max-width: 580px) { .form-container { padding: 18px; } .header-secondary, .btn-inventario { flex: 1; padding-inline: 12px; } .tipo-card { align-items: flex-start; padding: 18px; } .tipo-icon { width: 52px; height: 52px; } .form-section h3 { font-size: 1.06rem; } .form-actions { margin-top: 23px; } }
