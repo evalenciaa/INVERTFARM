@@ -33,7 +33,7 @@ INSTALLED_APPS = [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'farmacia.authentication.InventFarmJWTAuthentication',
     ),  # ✅ FALTABA CERRAR TUPLA
 }  # ✅ FALTABA CERRAR DICCIONARIO
 
@@ -43,6 +43,11 @@ MIDDLEWARE = [  # ✅ FALTABA CORCHETE DE APERTURA
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'farmacia.middleware.PasswordChangeRequiredMiddleware',
+    'farmacia.middleware.RestoreMaintenanceMiddleware',
+    'farmacia.middleware.RequestLimitsMiddleware',
+    'farmacia.middleware.RateLimitMiddleware',
+    'farmacia.middleware.SecurityHeadersMiddleware',
     'auditoria.middleware.AuditoriaMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -52,7 +57,7 @@ MIDDLEWARE = [  # ✅ FALTABA CORCHETE DE APERTURA
 
 # ===== CONFIGURACIÓN DE SESIONES (SEGURIDAD) =====
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 3600
+SESSION_COOKIE_AGE = 20 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
@@ -61,6 +66,7 @@ SESSION_COOKIE_SECURE = not DEBUG
 
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG
 
 ROOT_URLCONF = 'inventfarm.urls'
 
@@ -188,6 +194,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 SECURE_CONTENT_TYPE_NOSNIFF = True      # Evita MIME-type sniffing
 X_FRAME_OPTIONS = 'DENY'               # Previene Clickjacking
 SECURE_BROWSER_XSS_FILTER = True       # Activa filtro XSS del navegador (legacy)
+SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = False
 
 # Límite de tamaño de subida de archivos: 5 MB máximo (previene DoS)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
@@ -205,14 +216,40 @@ AXES_VERBOSE = True
 AXES_FAILURE_LIMIT_PER_IP = None
 AXES_LOCK_OUT_AT_FAILURE = True
 
+# Solo activar detrás de un proxy inverso que sobrescriba de forma confiable la IP cliente.
+TRUST_X_FORWARDED_FOR = os.getenv('TRUST_X_FORWARDED_FOR', 'False') == 'True'
+
 
 # ===== CONFIGURACIÓN DE BACKUPS =====
-# Nota: No usamos django-dbbackup directamente, sino implementación custom
+# El sistema de copias verificables usa estas rutas; no se crean durante el
+# arranque de Django. En Windows Server deben apuntar a un volumen dedicado y
+# a una ruta externa (NAS o recurso compartido) con credenciales de servicio.
+def _entero_positivo_env(nombre, predeterminado):
+    try:
+        valor = int(os.getenv(nombre, str(predeterminado)))
+        return valor if valor > 0 else predeterminado
+    except ValueError:
+        return predeterminado
 
-# Directorio donde se guardarán los backups
-DBBACKUP_BACKUP_DIRECTORY = os.path.join(BASE_DIR, 'backups')
-if not os.path.exists(DBBACKUP_BACKUP_DIRECTORY):
-    os.makedirs(DBBACKUP_BACKUP_DIRECTORY)
+
+BACKUP_STORAGE_DIR = os.getenv('BACKUP_STORAGE_DIR', str(BASE_DIR / 'backups'))
+BACKUP_REMOTE_DIRECTORY = os.getenv('BACKUP_REMOTE_DIRECTORY', '').strip()
+BACKUP_REMOTE_REQUIRED = os.getenv('BACKUP_REMOTE_REQUIRED', 'False') == 'True'
+BACKUP_ALLOW_SAME_VOLUME = os.getenv('BACKUP_ALLOW_SAME_VOLUME', 'False') == 'True'
+BACKUP_LOCAL_RETENTION = _entero_positivo_env('BACKUP_LOCAL_RETENTION', 10)
+BACKUP_REMOTE_RETENTION = _entero_positivo_env('BACKUP_REMOTE_RETENTION', 30)
+BACKUP_MIN_FREE_GB = _entero_positivo_env('BACKUP_MIN_FREE_GB', 5)
+BACKUP_ALERT_RECIPIENTS = [
+    email.strip()
+    for email in os.getenv('BACKUP_ALERT_RECIPIENTS', '').split(',')
+    if email.strip()
+]
+BACKUP_JOB_STALE_MINUTES = _entero_positivo_env('BACKUP_JOB_STALE_MINUTES', 240)
+BACKUP_JOB_STATUS_TOKEN_AGE = _entero_positivo_env('BACKUP_JOB_STATUS_TOKEN_AGE', 3600)
+
+# Compatibilidad con django-dbbackup, que permanece instalado pero no es el
+# motor de creación/restauración del panel.
+DBBACKUP_BACKUP_DIRECTORY = BACKUP_STORAGE_DIR
 
 DBBACKUP_CONNECTORS = {
     'default': {
@@ -221,8 +258,8 @@ DBBACKUP_CONNECTORS = {
 }
 
 # Mantener los últimos 10 backups
-DBBACKUP_CLEANUP_KEEP = 10
-DBBACKUP_CLEANUP_KEEP_MEDIA = 10
+DBBACKUP_CLEANUP_KEEP = BACKUP_LOCAL_RETENTION
+DBBACKUP_CLEANUP_KEEP_MEDIA = BACKUP_LOCAL_RETENTION
 DBBACKUP_FILENAME_TEMPLATE = 'backup_{datetime}.{extension}'
 DBBACKUP_MEDIA_FILENAME_TEMPLATE = 'media_{datetime}.{extension}'
 DBBACKUP_COMPRESS_FILE = True

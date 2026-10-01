@@ -2,6 +2,8 @@ from django import forms
 from .models import Lote, Receta, RecetaMedicamento, Medicamento, Proveedor, Institucion, CatalogoAntibioticosWHO
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.contrib.auth.forms import SetPasswordForm
+import zipfile
 
 class RecetaForm(forms.ModelForm):
     class Meta:
@@ -11,6 +13,17 @@ class RecetaForm(forms.ModelForm):
             'fecha_emision': forms.DateInput(attrs={'type': 'date'}),
             'fecha_surtido': forms.DateInput(attrs={'type': 'date'}),
         }
+
+
+class CambioContrasenaObligatorioForm(SetPasswordForm):
+    """Evita reutilizar la contraseña temporal entregada por TI."""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('new_password2')
+        if password and self.user.check_password(password):
+            self.add_error('new_password2', 'La nueva contraseña debe ser distinta de la contraseña temporal.')
+        return cleaned_data
 
 class RecetaMedicamentoForm(forms.ModelForm):
     class Meta:
@@ -256,12 +269,16 @@ class SalidaTransferenciaForm(forms.Form):
     )
 
 class CargaMasivaForm(forms.Form):
+    MAX_TAMANO_ARCHIVO = 5 * 1024 * 1024
+    MAX_ARCHIVOS_INTERNOS = 1000
+    MAX_TAMANO_DESCOMPRIMIDO = 50 * 1024 * 1024
+
     archivo = forms.FileField(
         label='Archivo Excel',
         required=True,
-        help_text='Selecciona un archivo Excel (.xlsx o .xls) con los medicamentos',
+        help_text='Selecciona un archivo Excel .xlsx con los medicamentos',
         widget=forms.FileInput(attrs={
-            'accept': '.xlsx,.xls',
+            'accept': '.xlsx',
             'class': 'form-control',
             'id': 'archivo-excel'
         })
@@ -273,14 +290,31 @@ class CargaMasivaForm(forms.Form):
         if not archivo:
             raise ValidationError('Debes seleccionar un archivo')
         
-        # Validar extensión
+        # El procesador usa openpyxl: aceptar exclusivamente el contenedor OOXML.
         nombre_archivo = archivo.name.lower()
-        if not (nombre_archivo.endswith('.xlsx') or nombre_archivo.endswith('.xls')):
-            raise ValidationError('El archivo debe ser Excel (.xlsx o .xls)')
+        if not nombre_archivo.endswith('.xlsx'):
+            raise ValidationError('El archivo debe ser Excel (.xlsx).')
         
-        # Validar tamaño (máximo 10MB)
-        max_size = 10 * 1024 * 1024  # 10MB
-        if archivo.size > max_size:
-            raise ValidationError('El archivo es demasiado grande. Máximo 10MB permitido.')
+        # Validar tamaño (máximo 5 MB)
+        if archivo.size > self.MAX_TAMANO_ARCHIVO:
+            raise ValidationError('El archivo es demasiado grande. Máximo 5 MB permitido.')
+
+        try:
+            archivo.seek(0)
+            with zipfile.ZipFile(archivo) as libro:
+                archivos = libro.infolist()
+                tamanio_descomprimido = sum(item.file_size for item in archivos)
+                if len(archivos) > self.MAX_ARCHIVOS_INTERNOS:
+                    raise ValidationError('El archivo Excel contiene demasiados elementos internos.')
+                if tamanio_descomprimido > self.MAX_TAMANO_DESCOMPRIMIDO:
+                    raise ValidationError('El archivo Excel excede el límite seguro de descompresión.')
+                if any(item.filename.lower().endswith('vbaproject.bin') for item in archivos):
+                    raise ValidationError('No se permiten archivos Excel con macros.')
+                if '[content_types].xml' not in {item.filename.lower() for item in archivos}:
+                    raise ValidationError('El archivo no tiene una estructura Excel válida.')
+        except zipfile.BadZipFile as exc:
+            raise ValidationError('El archivo no es un Excel .xlsx válido.') from exc
+        finally:
+            archivo.seek(0)
         
         return archivo

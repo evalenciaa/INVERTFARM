@@ -3,8 +3,12 @@ import re
 import threading
 from datetime import date, timedelta
 from io import BytesIO
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group, Permission
+from django.contrib import admin
+from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, close_old_connections, transaction
@@ -12,19 +16,27 @@ from django.test import (
     Client, TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature,
 )
 from django.urls import reverse
+from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 from rest_framework.test import APIClient
+from axes.models import AccessAttempt, AccessFailureLog, AccessLog
 
 from .models import (
     Almacen, DetalleEntrada, DetalleSalidaTransferencia, Entrada,
     CPMMedicamento, FolioConsecutivo, FuenteFinanciamiento, Institucion, Lote,
     Medicamento, Paciente, Presentacion, Receta, RecetaMedicamento,
     MedicamentoNoSurtido, MedicamentoNoDisponibleTransferencia,
-    SalidaTransferencia, UsuarioPersonalizado,
+    SalidaTransferencia, UsuarioPersonalizado, CatalogoAntibioticosWHO,
+    TrabajoRespaldo,
 )
+from enfermeria.models import Colectivo, ColectivoMedicamento
+from auditoria.models import Bitacora
 from .cpm import actualizar_cpm_medicamento, calcular_estado_inventario, periodo_cpm
 from .services import descontar_lotes, surtir_fefo
 from .tasks import verificar_alertas_cpm
+from .access import PERFILES, sincronizar_perfil
+from .forms import CargaMasivaForm
+from .views import backup_views
 
 
 def conceder(user, *codenames):
@@ -68,19 +80,23 @@ class LoginFuncionalTests(TestCase):
         self.assertContains(response, 'class="login-shell"')
         self.assertContains(response, 'name="username"')
         self.assertContains(response, 'name="password"')
+        self.assertContains(response, 'autocomplete="off"')
+        self.assertNotContains(response, 'autocomplete="current-password"')
+        self.assertContains(response, 'data-manual-entry readonly')
         self.assertContains(response, 'name="csrfmiddlewaretoken"')
         self.assertContains(response, f'value="{reverse("farmacia")}"')
         self.assertContains(response, 'Acceso protegido')
         self.assertNotContains(response, 'Intento de acceso incorrecto')
 
-    def test_login_incorrecto_conserva_usuario_y_muestra_error(self):
+    def test_login_incorrecto_no_reemite_usuario_y_muestra_error(self):
         response = self.client.post(reverse('login'), {
             'username': self.usuario.username,
             'password': 'incorrecta',
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f'value="{self.usuario.username}"')
+        self.assertNotContains(response, f'value="{self.usuario.username}"')
+        self.assertContains(response, 'data-clear-username="true"')
         self.assertContains(response, 'Usuario o contraseña incorrectos')
 
     def test_login_correcto_conserva_redireccion_segura(self):
@@ -99,6 +115,20 @@ class LoginFuncionalTests(TestCase):
             str(self.client.session.get('_auth_user_id')),
             str(self.usuario.pk),
         )
+
+    def test_logout_elimina_sesion_y_login_no_reemite_credenciales(self):
+        self.client.force_login(self.usuario)
+
+        respuesta_salida = self.client.post(reverse('logout'))
+        self.assertRedirects(respuesta_salida, reverse('login'), fetch_redirect_response=False)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+        respuesta_login = self.client.get(reverse('login'))
+        self.assertEqual(respuesta_login.status_code, 200)
+        self.assertContains(respuesta_login, 'data-clear-username="true"')
+        self.assertNotContains(respuesta_login, f'value="{self.usuario.username}"')
+        self.assertNotContains(respuesta_login, 'autocomplete="current-password"')
+        self.assertNotContains(respuesta_login, 'name="password" value=')
 
 
 class CPMCalculadoTests(DatosFarmaciaMixin, TestCase):
@@ -591,6 +621,49 @@ class SeguridadEndpointsTests(DatosFarmaciaMixin, TestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 302)
 
+    def test_cabeceras_y_limites_de_solicitud_protegen_las_rutas(self):
+        respuesta = self.client.get(reverse('login'))
+        self.assertIn("object-src 'none'", respuesta['Content-Security-Policy'])
+        self.assertEqual(respuesta['Referrer-Policy'], 'same-origin')
+
+        consulta_extensa = '/api/medicamentos/buscar/?q=' + ('a' * 2050)
+        self.assertEqual(self.client.get(consulta_extensa).status_code, 414)
+
+        cuerpo_extenso = '{"contenido":"' + ('a' * (1024 * 1024)) + '"}'
+        self.assertEqual(
+            self.client.post(
+                reverse('guardar_entradas'), cuerpo_extenso,
+                content_type='application/json',
+            ).status_code,
+            413,
+        )
+
+    def test_limite_de_inicio_de_sesion_frena_abuso_por_origen(self):
+        cache.clear()
+        for _ in range(10):
+            self.client.post(reverse('login'), {'username': '', 'password': ''})
+        respuesta = self.client.post(reverse('login'), {'username': '', 'password': ''})
+        self.assertEqual(respuesta.status_code, 429)
+        cache.clear()
+
+    def test_carga_masiva_rechaza_archivos_no_xlsx_o_malformados(self):
+        archivo_xls = SimpleUploadedFile('carga.xls', b'contenido')
+        self.assertFalse(CargaMasivaForm(files={'archivo': archivo_xls}).is_valid())
+
+        archivo_falso = SimpleUploadedFile('carga.xlsx', b'no es un zip')
+        formulario = CargaMasivaForm(files={'archivo': archivo_falso})
+        self.assertFalse(formulario.is_valid())
+        self.assertIn('no es un Excel .xlsx válido', formulario.errors['archivo'][0])
+
+        libro = Workbook()
+        contenido = BytesIO()
+        libro.save(contenido)
+        archivo_valido = SimpleUploadedFile(
+            'carga.xlsx', contenido.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        self.assertTrue(CargaMasivaForm(files={'archivo': archivo_valido}).is_valid())
+
     def test_usuario_sin_permiso_no_consulta_datos_sensibles(self):
         self.client.force_login(self.usuario)
         response = self.client.get(reverse('get_paciente_info_json', args=[self.paciente.curp]))
@@ -618,15 +691,39 @@ class SeguridadEndpointsTests(DatosFarmaciaMixin, TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_registro_api_es_solo_para_administradores(self):
-        api = APIClient()
-        datos = {'username': 'externo', 'password': 'PruebaSegura123!', 'rol': 'FARMACIA'}
-        self.assertEqual(api.post(reverse('api_register'), datos).status_code, 401)
-        api.force_authenticate(self.admin)
-        datos['username'] = 'creado_por_admin'
-        response = api.post(reverse('api_register'), datos)
-        self.assertEqual(response.status_code, 201, response.data)
-        self.assertTrue(UsuarioPersonalizado.objects.filter(username='creado_por_admin').exists())
+    def test_no_existe_registro_de_usuarios_por_api(self):
+        self.assertEqual(self.client.post('/api/register/').status_code, 404)
+
+    @override_settings(AXES_ENABLED=True)
+    def test_login_api_funciona_con_axes_activo(self):
+        response = APIClient().post(
+            reverse('api_login'),
+            {'username': self.usuario.username, 'password': 'PruebaSegura123!'},
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn('access', response.data)
+
+    def test_django_admin_y_respaldos_son_exclusivos_de_superusuarios(self):
+        operador = UsuarioPersonalizado.objects.create_user(
+            username='operador-administrador', password='PruebaSegura123!', rol='ADMIN'
+        )
+        grupo = Group.objects.create(name='Administrador')
+        grupo.permissions.add(
+            Permission.objects.get(
+                content_type__app_label='farmacia',
+                codename='view_usuariopersonalizado',
+            )
+        )
+        operador.groups.add(grupo)
+
+        self.client.force_login(operador)
+        self.assertNotEqual(self.client.get(reverse('admin:index')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('panel_backups')).status_code, 403)
+
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse('admin:index')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('panel_backups')).status_code, 200)
 
     def test_reportes_de_entrada_conservan_proteccion_csrf(self):
         conceder(self.usuario, 'add_entrada')
@@ -674,6 +771,43 @@ class SeguridadEndpointsTests(DatosFarmaciaMixin, TestCase):
             reverse('descargar_backup', args=['..\\requirements.txt'])
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_admin_ti_administra_catalogo_who_y_solo_consulta_evidencias(self):
+        self.client.force_login(self.admin)
+
+        respuesta = self.client.get(reverse('admin:farmacia_catalogoantibioticoswho_add'))
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'codigo_atc')
+
+        respuesta = self.client.post(
+            reverse('admin:farmacia_catalogoantibioticoswho_add'),
+            {
+                'codigo_atc': 'J01AA01', 'categoria_aware': 'Access',
+                'valor_atc': '1.0000', 'fuente_valor_atc': 'manual',
+                '_save': 'Guardar',
+            },
+        )
+        self.assertEqual(respuesta.status_code, 302, respuesta.content)
+        self.assertTrue(CatalogoAntibioticosWHO.objects.filter(codigo_atc='J01AA01').exists())
+
+        solo_lectura = (
+            'farmacia_salidatransferencia',
+            'farmacia_detallesalidatransferencia',
+            'farmacia_medicamentonodisponibletransferencia',
+            'axes_accessattempt',
+            'axes_accessfailurelog',
+            'axes_accesslog',
+        )
+        for etiqueta in solo_lectura:
+            with self.subTest(modelo=etiqueta):
+                self.assertEqual(
+                    self.client.get(reverse(f'admin:{etiqueta}_changelist')).status_code,
+                    200,
+                )
+                self.assertEqual(
+                    self.client.get(reverse(f'admin:{etiqueta}_add')).status_code,
+                    403,
+                )
 
 
 class FlujosInventarioTests(DatosFarmaciaMixin, TestCase):
@@ -1040,6 +1174,388 @@ class RegistroRecetasReportesTests(DatosFarmaciaMixin, TestCase):
         self.assertEqual(pdf['Content-Type'], 'application/pdf')
         self.assertTrue(pdf.content.startswith(b'%PDF'))
         self.assertIn('Registro_Recetas_parcial_', pdf['Content-Disposition'])
+
+
+class PerfilesYContrasenasTests(TestCase):
+    def crear_usuario(self, rol, username):
+        usuario = UsuarioPersonalizado.objects.create_user(
+            username=username,
+            password='TemporalSegura123!',
+            rol=rol,
+        )
+        sincronizar_perfil(usuario)
+        return usuario
+
+    def test_cada_perfil_recibe_solo_el_grupo_y_permisos_definidos(self):
+        for rol, configuracion in PERFILES.items():
+            with self.subTest(rol=rol):
+                usuario = self.crear_usuario(rol, f'perfil-{rol.lower()}')
+                self.assertEqual(
+                    list(usuario.groups.values_list('name', flat=True)),
+                    [configuracion['grupo']],
+                )
+                permisos = usuario.get_all_permissions()
+                self.assertEqual(permisos, configuracion['permisos'])
+
+    def test_contrasena_temporal_bloquea_modulos_hasta_ser_reemplazada(self):
+        usuario = self.crear_usuario('FARMACIA', 'temporal')
+        usuario.requiere_cambio_contrasena = True
+        usuario.save(update_fields=['requiere_cambio_contrasena'])
+
+        self.client.force_login(usuario)
+        response = self.client.get(reverse('principal'))
+        self.assertRedirects(response, reverse('cambiar_contrasena_obligatoria'))
+
+        response = self.client.post(reverse('cambiar_contrasena_obligatoria'), {
+            'new_password1': 'PersonalSegura456!',
+            'new_password2': 'PersonalSegura456!',
+        })
+        self.assertRedirects(response, reverse('principal'))
+        usuario.refresh_from_db()
+        self.assertFalse(usuario.requiere_cambio_contrasena)
+        self.assertTrue(usuario.check_password('PersonalSegura456!'))
+
+    def test_api_no_entrega_token_mientras_exista_contrasena_temporal(self):
+        usuario = self.crear_usuario('FARMACIA', 'temporal-api')
+        usuario.requiere_cambio_contrasena = True
+        usuario.save(update_fields=['requiere_cambio_contrasena'])
+
+        response = APIClient().post(reverse('api_login'), {
+            'username': usuario.username,
+            'password': 'TemporalSegura123!',
+        })
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(response.data['password_change_required'])
+
+    def test_alta_desde_admin_asigna_perfil_y_exige_cambio_de_contrasena(self):
+        ti = UsuarioPersonalizado.objects.create_superuser(
+            username='ti-admin', password='TemporalSegura123!', rol='PENDIENTE'
+        )
+        self.client.force_login(ti)
+        response = self.client.post(
+            reverse('admin:farmacia_usuariopersonalizado_add'),
+            {
+                'username': 'usuario-nuevo',
+                'password1': 'TemporalSegura123!',
+                'password2': 'TemporalSegura123!',
+                'rol': 'ENFERMERIA',
+                'is_active': 'on',
+                '_save': 'Guardar',
+            },
+        )
+        self.assertEqual(response.status_code, 302, response.content)
+        usuario = UsuarioPersonalizado.objects.get(username='usuario-nuevo')
+        self.assertTrue(usuario.requiere_cambio_contrasena)
+        self.assertEqual(list(usuario.groups.values_list('name', flat=True)), ['Enfermero/a'])
+
+    def test_matriz_de_acceso_no_permite_cruzar_modulos(self):
+        jefe_farmacia = self.crear_usuario('JEFE_FARMACIA', 'jefe-farmacia')
+        jefe_enfermeria = self.crear_usuario('JEFE_ENFERMERIA', 'jefe-enfermeria')
+        farmaceutico = self.crear_usuario('FARMACIA', 'farmaceutico')
+        enfermero = self.crear_usuario('ENFERMERIA', 'enfermero')
+
+        self.client.force_login(jefe_farmacia)
+        self.assertEqual(self.client.get(reverse('entrada_medicamentos')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('lista_colectivos_farmacia')).status_code, 200)
+
+        self.client.force_login(jefe_enfermeria)
+        self.assertEqual(self.client.get(reverse('inv_gene_f')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('inventario_antibioticos')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('farmacia')).status_code, 403)
+
+        self.client.force_login(farmaceutico)
+        self.assertEqual(self.client.get(reverse('enfermeria_principal')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('farmacia_g')).status_code, 403)
+
+        self.client.force_login(enfermero)
+        self.assertEqual(self.client.get(reverse('inv_gene_f')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('farmacia')).status_code, 403)
+
+
+class PruebasLiberacionAccesoTests(DatosFarmaciaMixin, TestCase):
+    """Contrato de liberación: los perfiles no deben poder cruzar sus alcances."""
+
+    def setUp(self):
+        cache.clear()
+        self.crear_catalogos()
+        self.lote = self.crear_lote()
+        self.jefe_farmacia = self._crear_usuario('JEFE_FARMACIA', 'p3-jefe-farmacia')
+        self.jefe_enfermeria = self._crear_usuario('JEFE_ENFERMERIA', 'p3-jefe-enfermeria')
+        self.farmaceutico = self._crear_usuario('FARMACIA', 'p3-farmaceutico')
+        self.enfermero = self._crear_usuario('ENFERMERIA', 'p3-enfermero')
+        self.paciente = Paciente.objects.create(
+            nombre_completo='Paciente P3', curp='P3PRUEBA1234567890',
+            fecha_nacimiento=date(1990, 1, 1),
+        )
+        from enfermeria.models import Colectivo
+        self.colectivo = Colectivo.objects.create(
+            tipo_colectivo='PACIENTE', paciente=self.paciente, numero_cama='P3-01',
+            servicio='Urgencias', enfermero_solicitante=self.jefe_enfermeria,
+            estado='PENDIENTE',
+        )
+
+    @staticmethod
+    def _crear_usuario(rol, username):
+        usuario = UsuarioPersonalizado.objects.create_user(
+            username=username, password='PruebaSegura123!', rol=rol,
+        )
+        sincronizar_perfil(usuario)
+        return usuario
+
+    def test_matriz_de_rutas_operativas_por_perfil(self):
+        matriz = (
+            (
+                self.jefe_farmacia,
+                {
+                    'lista_colectivos_farmacia': 200,
+                    'farmacia_g': 200,
+                    'entrada_medicamentos': 403,
+                    'carga_masiva': 403,
+                    'enfermeria_principal': 403,
+                    'panel_backups': 403,
+                },
+            ),
+            (
+                self.jefe_enfermeria,
+                {
+                    'inv_gene_f': 200,
+                    'inventario_antibioticos': 200,
+                    'crear_colectivo': 200,
+                    'farmacia': 403,
+                    'lista_colectivos_farmacia': 403,
+                    'panel_backups': 403,
+                },
+            ),
+            (
+                self.farmaceutico,
+                {
+                    'farmacia': 200,
+                    'entrada_medicamentos': 200,
+                    'registro_medicamento': 200,
+                    'editar_lote': 403,
+                    'carga_masiva': 403,
+                    'enfermeria_principal': 403,
+                },
+            ),
+            (
+                self.enfermero,
+                {
+                    'inv_gene_f': 200,
+                    'inventario_antibioticos': 200,
+                    'crear_colectivo': 200,
+                    'farmacia': 403,
+                    'entrada_medicamentos': 403,
+                    'reportes_farmacia': 403,
+                },
+            ),
+        )
+        argumentos = {'editar_lote': [self.lote.id]}
+
+        for usuario, expectativas in matriz:
+            with self.subTest(usuario=usuario.username):
+                self.client.force_login(usuario)
+                for nombre_url, estado_esperado in expectativas.items():
+                    with self.subTest(ruta=nombre_url):
+                        respuesta = self.client.get(
+                            reverse(nombre_url, args=argumentos.get(nombre_url, []))
+                        )
+                        self.assertEqual(respuesta.status_code, estado_esperado)
+
+    def test_solo_jefatura_enfermeria_puede_cancelar_un_colectivo(self):
+        self.client.force_login(self.enfermero)
+        respuesta = self.client.post(
+            reverse('cancelar_colectivo', args=[self.colectivo.id])
+        )
+        self.assertEqual(respuesta.status_code, 403)
+        self.colectivo.refresh_from_db()
+        self.assertEqual(self.colectivo.estado, 'PENDIENTE')
+
+        self.client.force_login(self.jefe_enfermeria)
+        respuesta = self.client.post(
+            reverse('cancelar_colectivo', args=[self.colectivo.id])
+        )
+        self.assertRedirects(
+            respuesta, reverse('lista_colectivos_enfermeria'),
+            fetch_redirect_response=False,
+        )
+        self.colectivo.refresh_from_db()
+        self.assertEqual(self.colectivo.estado, 'CANCELADO')
+
+    def test_acciones_de_cambio_rechazan_metodos_no_permitidos(self):
+        self.client.force_login(self.farmaceutico)
+        self.assertEqual(
+            self.client.get(reverse('eliminar_medicamento')).status_code,
+            405,
+        )
+        self.assertEqual(
+            self.client.get(reverse('guardar_entradas')).status_code,
+            405,
+        )
+        self.assertTrue(Medicamento.objects.filter(pk=self.medicamento.pk).exists())
+
+    def test_sesion_autenticada_tiene_ventana_de_inactividad_de_veinte_minutos(self):
+        self.client.force_login(self.farmaceutico)
+        self.assertEqual(self.client.session.get_expiry_age(), 20 * 60)
+
+    def test_rutas_historicas_de_administracion_de_usuarios_no_existen(self):
+        self.client.force_login(self.jefe_farmacia)
+        for ruta in ('/admin-usuarios/', '/admin-grupos/', '/api/register/'):
+            with self.subTest(ruta=ruta):
+                self.assertEqual(self.client.get(ruta).status_code, 404)
+
+
+class AdministracionHistoricaSoloLecturaTests(TestCase):
+    def setUp(self):
+        self.admin = UsuarioPersonalizado.objects.create_superuser(
+            username='ti-historicos', password='PruebaSegura123!'
+        )
+        self.client.force_login(self.admin)
+
+    def test_registros_historicos_solo_se_consultan_desde_admin(self):
+        modelos = (
+            Bitacora, Colectivo, ColectivoMedicamento, Entrada, DetalleEntrada,
+            MedicamentoNoSurtido, SalidaTransferencia,
+            DetalleSalidaTransferencia, MedicamentoNoDisponibleTransferencia,
+        )
+        for modelo in modelos:
+            with self.subTest(modelo=modelo._meta.label):
+                administrador = admin.site._registry[modelo]
+                self.assertFalse(administrador.has_add_permission(None))
+                self.assertFalse(administrador.has_change_permission(None))
+                self.assertFalse(administrador.has_delete_permission(None))
+
+    def test_listados_historicos_abren_para_ti(self):
+        for ruta in (
+            '/admin/auditoria/bitacora/',
+            '/admin/enfermeria/colectivo/',
+            '/admin/enfermeria/colectivomedicamento/',
+            '/admin/farmacia/entrada/',
+            '/admin/farmacia/detalleentrada/',
+            '/admin/farmacia/medicamentonosurtido/',
+            '/admin/farmacia/salidatransferencia/',
+            '/admin/farmacia/medicamentonodisponibletransferencia/',
+        ):
+            with self.subTest(ruta=ruta):
+                self.assertEqual(self.client.get(ruta).status_code, 200)
+
+
+class BackupsVerificablesTests(TestCase):
+    def setUp(self):
+        self.admin = UsuarioPersonalizado.objects.create_superuser(
+            username='ti-backups', password='PruebaSegura123!'
+        )
+        self.client.force_login(self.admin)
+
+    def test_importacion_externa_esta_deshabilitada(self):
+        respuesta = self.client.post(
+            reverse('subir_backup'),
+            {'archivo_backup': SimpleUploadedFile('externo.sql', b'SELECT 1;')},
+        )
+
+        self.assertEqual(respuesta.status_code, 410)
+        self.assertIn('deshabilitada', respuesta.json()['error'])
+
+    def test_panel_muestra_historial_de_operaciones(self):
+        TrabajoRespaldo.objects.create(
+            tipo=TrabajoRespaldo.Tipo.CREAR,
+            estado=TrabajoRespaldo.Estado.COMPLETADO,
+            progreso=100,
+            etapa='Operación completada',
+        )
+
+        respuesta = self.client.get(reverse('panel_backups'))
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Historial de operaciones')
+        self.assertContains(respuesta, 'Crear copia')
+
+    @override_settings(BACKUP_REMOTE_REQUIRED=True)
+    def test_repositorio_externo_obligatorio_reporta_fallo_sin_perder_copia_local(self):
+        datos = {
+            'database': 'backup_local.sql.gz', 'media': 'media_local.tar.gz',
+            'manifest': 'backup_local.manifest.json', 'size_bytes': 10,
+            'replica': {'configurada': False, 'correcta': False, 'detalle': 'Sin repositorio externo configurado.'},
+        }
+        with patch('farmacia.views.backup_views._crear_respaldo', return_value=datos):
+            respuesta = self.client.post(reverse('crear_backup'))
+            self.assertEqual(respuesta.status_code, 202)
+            trabajo = backup_views.procesar_siguiente_trabajo_respaldo()
+
+        self.assertEqual(trabajo.estado, TrabajoRespaldo.Estado.ERROR)
+        self.assertIn('réplica externa', trabajo.error)
+
+    def test_restauracion_verificada_prepara_media_y_ejecuta_la_copia(self):
+        nombre_bd = 'backup_20261001T120000000000.sql.gz'
+        manifiesto = {'media': {'archivo': 'media_20261001T120000000000.tar.gz'}}
+        with patch('farmacia.views.backup_views._carga_manifiesto', return_value=(manifiesto, object(), object())), \
+             patch('farmacia.views.backup_views._preparar_media_para_restauracion', return_value=(object(), object())), \
+             patch('farmacia.views.backup_views._crear_respaldo', return_value={
+                 'database': 'backup_emergencia.sql.gz',
+                 'media': 'media_emergencia.tar.gz',
+                 'manifest': 'backup_emergencia.manifest.json',
+                 'size_bytes': 10,
+                 'replica': {'configurada': False, 'correcta': False, 'detalle': 'Sin repositorio externo configurado.'},
+             }), \
+             patch('farmacia.views.backup_views._restaurar_base_datos', return_value=3) as restaurar_bd, \
+             patch('farmacia.views.backup_views._activar_media_restaurada') as activar_media:
+            respuesta = self.client.post(reverse('restaurar_backup'), {'filename': nombre_bd})
+            self.assertEqual(respuesta.status_code, 202, respuesta.content)
+            trabajo = backup_views.procesar_siguiente_trabajo_respaldo()
+
+        self.assertEqual(trabajo.estado, TrabajoRespaldo.Estado.COMPLETADO)
+        restaurar_bd.assert_called_once()
+        self.assertIn(
+            TrabajoRespaldo._meta.db_table,
+            restaurar_bd.call_args.kwargs['preservar_tablas'],
+        )
+        activar_media.assert_called_once()
+
+    def test_solo_se_encola_un_trabajo_y_el_estado_usa_recibo_firmado(self):
+        primera = self.client.post(reverse('crear_backup'))
+        self.assertEqual(primera.status_code, 202)
+        trabajo = primera.json()['job']
+
+        segunda = self.client.post(reverse('crear_backup'))
+        self.assertEqual(segunda.status_code, 409)
+        self.assertEqual(segunda.json()['job']['id'], trabajo['id'])
+        self.assertEqual(TrabajoRespaldo.objects.filter(estado='PENDIENTE').count(), 1)
+
+        respuesta_estado = self.client.get(
+            reverse('estado_trabajo_respaldo', args=[trabajo['id']]),
+            {'token': trabajo['token']},
+        )
+        self.assertEqual(respuesta_estado.status_code, 200)
+        self.assertEqual(respuesta_estado.json()['job']['estado'], TrabajoRespaldo.Estado.PENDIENTE)
+
+    def test_restauracion_activa_activa_mantenimiento_para_usuarios_operativos(self):
+        usuario = UsuarioPersonalizado.objects.create_user(
+            username='operativo-mantenimiento', password='PruebaSegura123!', rol='FARMACIA',
+        )
+        TrabajoRespaldo.objects.create(
+            tipo=TrabajoRespaldo.Tipo.RESTAURAR,
+            estado=TrabajoRespaldo.Estado.EJECUTANDO,
+            iniciado_en=timezone.now(),
+        )
+        cache.clear()
+        self.addCleanup(cache.clear)
+        cliente_operativo = Client()
+        cliente_operativo.force_login(usuario)
+
+        respuesta = cliente_operativo.get(reverse('farmacia'))
+
+        self.assertEqual(respuesta.status_code, 503)
+
+    def test_restauracion_rechaza_copia_sin_manifiesto_antes_de_ejecutar_sql(self):
+        with patch(
+            'farmacia.views.backup_views._carga_manifiesto',
+            side_effect=backup_views.CopiaNoRestaurable('La copia no tiene un manifiesto verificable.'),
+        ), patch('farmacia.views.backup_views._crear_respaldo') as crear_respaldo, \
+             patch('farmacia.views.backup_views._restaurar_base_datos') as restaurar_bd:
+            respuesta = self.client.post(reverse('restaurar_backup'), {'filename': 'backup_historico.sql.gz'})
+
+        self.assertEqual(respuesta.status_code, 400)
+        crear_respaldo.assert_not_called()
+        restaurar_bd.assert_not_called()
 
 
 @skipUnlessDBFeature('has_select_for_update')

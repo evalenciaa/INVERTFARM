@@ -20,6 +20,7 @@ class ProcesadorCargaMasiva:
         'gramos_por_pieza',
         'valor_atc',
     ]
+    MAX_FILAS = 5000
     
     def __init__(self, archivo):
         self.archivo = archivo
@@ -42,6 +43,9 @@ class ProcesadorCargaMasiva:
                 engine='openpyxl', 
                 dtype={'clave': str, 'lote': str}
             )
+
+            if len(df) > self.MAX_FILAS:
+                return {'error': f'El archivo excede el límite de {self.MAX_FILAS} filas por carga.'}
             
             # Validar columnas
             error_columnas = self._validar_columnas(df)

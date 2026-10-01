@@ -32,12 +32,12 @@
                     <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M18 6h4"/><path d="M20 4v4"/></svg></span>
                     <span class="nav-label">Enfermería</span>
                 </a>
-                {% if request.user.is_superuser or request.user.rol == 'ADMIN' %}
+                {% if request.user.is_superuser %}
                 <span class="nav-section-label nav-section-secondary">Administración</span>
-                {% if perms.farmacia.view_usuariopersonalizado %}
-                <a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios">
+                {% if request.user.is_superuser %}
+                <a href="{% url 'admin:index' %}" class="nav-link" title="Administración TI">
                     <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg></span>
-                    <span class="nav-label">Config. usuarios</span>
+                    <span class="nav-label">Administración TI</span>
                 </a>
                 {% endif %}
                 <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad">

@@ -9,6 +9,8 @@ class Bitacora(models.Model):
         ('ELIMINAR', 'Eliminación'),
         ('ACCESO', 'Login/Acceso'),
         ('SALIDA', 'Logout'),
+        ('FALLO_ACCESO', 'Acceso fallido'),
+        ('RESPALDO', 'Operación de respaldo'),
     )
 
     # ¿Quién?
@@ -31,6 +33,10 @@ class Bitacora(models.Model):
 
     # ¿Desde dónde y cuándo?
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    correlacion_id = models.CharField(max_length=32, blank=True, db_index=True)
+    ruta = models.CharField(max_length=255, blank=True)
+    metodo = models.CharField(max_length=10, blank=True)
+    user_agent = models.CharField(max_length=512, blank=True)
     fecha_hora = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:

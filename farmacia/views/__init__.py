@@ -5,7 +5,7 @@ Permite importar las vistas desde farmacia.views.nombre_vista
 evitando refactorizar inmediatamente urls.py.
 """
 
-from .auth_views import inicio, login_view, logout_view, bienvenida, vista_farmacia, vista_farmacia_g
+from .auth_views import inicio, login_view, logout_view, bienvenida, vista_farmacia, vista_farmacia_g, cambiar_contrasena_obligatoria
 from .inventario_views import (
     alertas, editar_lote, farmacia_g, 
     tiene_acceso_farmacia, guardar_descripcion, inventario_general,
@@ -28,7 +28,7 @@ from .salida_views import (
     get_paciente_info_json, get_paciente_by_name
 )
 from .pdf_views import generar_reporte_pdf, generar_reporte_excel
-from .api_views import RegisterAPIView, LoginAPIView, buscar_instituciones_autocomplete
+from .api_views import LoginAPIView, buscar_instituciones_autocomplete
 from .colectivo_views import (
     lista_colectivos_farmacia, detalle_colectivo_farmacia, responder_colectivo,
     completar_colectivo, generar_pdf_colectivo,
@@ -38,13 +38,9 @@ from .colectivo_views import (
     completar_colectivo_antibioticos,
     generar_pdf_colectivo_antibioticos,
 )
-from .admin_views import (
-    admin_usuarios, admin_usuario_detalle, admin_crear_usuario, admin_eliminar_usuario,
-    admin_grupos, admin_grupo_detalle, admin_crear_grupo, admin_eliminar_grupo
-)
 from .backup_views import (
     panel_backups, crear_backup, limpiar_backups_antiguos, descargar_backup,
-    eliminar_backup, restaurar_backup, subir_backup
+    eliminar_backup, restaurar_backup, subir_backup, estado_trabajo_respaldo,
 )
 from .reporte_views import (
     exportar_inventario_excel, exportar_inventario_pdf, exportar_inventario_general_excel,

@@ -1,5 +1,4 @@
-/* ===== IMPORTS DEL ESTILO BASE (reutiliza el de admin_usuarios) ===== */
-/* Puedes copiar los estilos base de admin_usuarios.css o importarlos */
+/* ===== ESTILOS BASE DEL PANEL DE RESPALDOS ===== */
 
 /* ===== RESET Y BASE ===== */
 * {
@@ -21,7 +20,7 @@ body {
     padding: 30px;
 }
 
-/* ===== HEADER (igual que admin_usuarios) ===== */
+/* ===== HEADER ===== */
 .admin-header {
     background: linear-gradient(135deg, #750000 0%, #a00000 100%);
     padding: 30px 40px;

@@ -71,7 +71,8 @@
                     </div>
                 {% endif %}
 
-                <form class="login-form" method="post" novalidate>
+                <form class="login-form" method="post" novalidate autocomplete="off"
+                      data-clear-username="true">
                     {% csrf_token %}
                     {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
 
@@ -80,9 +81,10 @@
                         <div class="input-control">
                             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
                             <input type="text" id="username" name="username"
-                                   value="{{ username|default:'' }}"
-                                   placeholder="Escribe tu usuario" autocomplete="username"
+                                   value=""
+                                   placeholder="Escribe tu usuario" autocomplete="off"
                                    autocapitalize="none" spellcheck="false" required
+                                   data-manual-entry readonly
                                    {% if not bloqueado %}autofocus{% endif %}>
                         </div>
                     </div>
@@ -93,7 +95,7 @@
                             <svg class="field-icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
                             <input type="password" id="password" name="password"
                                    placeholder="Escribe tu contraseña"
-                                   autocomplete="current-password" required>
+                                   autocomplete="off" data-manual-entry readonly required>
                             <button type="button" class="toggle-password"
                                     aria-label="Mostrar contraseña" aria-controls="password"
                                     aria-pressed="false" title="Mostrar contraseña">
@@ -111,6 +113,38 @@
                         {% if not bloqueado %}<svg class="button-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>{% endif %}
                     </button>
                 </form>
+
+                <script>
+                    // Impide que el autocompletado se inyecte al mostrar el
+                    // formulario. Los controles se habilitan únicamente tras
+                    // una interacción deliberada de la persona usuaria.
+                    (() => {
+                        const form = document.querySelector('.login-form');
+                        const inputs = form?.querySelectorAll('[data-manual-entry]') || [];
+                        let entradaManual = false;
+                        const temporizadores = [];
+
+                        const limpiarCredenciales = () => {
+                            if (entradaManual) return;
+                            inputs.forEach((input) => { input.value = ''; });
+                        };
+                        const habilitarEntradaManual = () => {
+                            entradaManual = true;
+                            temporizadores.forEach((id) => window.clearTimeout(id));
+                            inputs.forEach((input) => { input.removeAttribute('readonly'); });
+                        };
+
+                        limpiarCredenciales();
+                        [0, 100, 300].forEach((espera) => {
+                            temporizadores.push(window.setTimeout(limpiarCredenciales, espera));
+                        });
+                        inputs.forEach((input) => {
+                            input.addEventListener('pointerdown', habilitarEntradaManual, { once: true });
+                            input.addEventListener('keydown', habilitarEntradaManual, { once: true });
+                        });
+                        window.addEventListener('pageshow', limpiarCredenciales);
+                    })();
+                </script>
 
                 {% if bloqueado %}
                     <div class="security-notice security-danger" role="alert">

@@ -28,16 +28,68 @@ class Departamento(models.Model):
         return self.nombre
 
 
+class TrabajoRespaldo(models.Model):
+    """Solicitud durable de copia o restauración procesada fuera de la web."""
+
+    class Tipo(models.TextChoices):
+        CREAR = 'CREAR', 'Crear copia'
+        RESTAURAR = 'RESTAURAR', 'Restaurar copia'
+
+    class Estado(models.TextChoices):
+        PENDIENTE = 'PENDIENTE', 'En espera'
+        EJECUTANDO = 'EJECUTANDO', 'En ejecución'
+        COMPLETADO = 'COMPLETADO', 'Completado'
+        ERROR = 'ERROR', 'Error'
+
+    identificador = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    tipo = models.CharField(max_length=12, choices=Tipo.choices)
+    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.PENDIENTE)
+    solicitado_por = models.CharField(max_length=150, blank=True)
+    archivo_base_datos = models.CharField(max_length=255, blank=True)
+    progreso = models.PositiveSmallIntegerField(default=0)
+    etapa = models.CharField(max_length=160, default='En espera')
+    detalles = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    iniciado_en = models.DateTimeField(null=True, blank=True)
+    finalizado_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Trabajo de respaldo'
+        verbose_name_plural = 'Trabajos de respaldo'
+        ordering = ('-creado_en',)
+        indexes = [
+            models.Index(fields=('estado', 'creado_en'), name='trab_respaldo_estado_fecha_idx'),
+            models.Index(fields=('tipo', 'estado'), name='trab_respaldo_tipo_estado_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} · {self.get_estado_display()} · {self.creado_en:%d/%m/%Y %H:%M}'
+
+
+class ControlRespaldo(models.Model):
+    """Fila centinela para serializar la cola en MySQL entre procesos."""
+    clave = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+
+    class Meta:
+        verbose_name = 'Control interno de respaldos'
+        verbose_name_plural = 'Control interno de respaldos'
+
+
 class UsuarioPersonalizado(AbstractUser):
     ROLES = (
-        ('ADMIN', 'Administrador'),
+        ('PENDIENTE', 'Sin perfil operativo'),
+        ('JEFE_FARMACIA', 'Jefe de Farmacia'),
+        ('JEFE_ENFERMERIA', 'Jefe de Enfermería'),
         ('FARMACIA', 'Farmacéutico'),
         ('ENFERMERIA', 'Enfermero/a'),
-        ('MEDICO', 'Médico/a'),  # ✅ NUEVO
+        ('MEDICO', 'Médico/a'),
     )
     rol = models.CharField(max_length=20, choices=ROLES)
     departamento = models.ForeignKey(Departamento, on_delete=models.SET_NULL, null=True, blank=True)
     telefono = models.CharField(max_length=15, blank=True)
+    requiere_cambio_contrasena = models.BooleanField(default=False)
+    tokens_validos_desde = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         verbose_name = 'Usuario'
@@ -59,24 +111,11 @@ class UsuarioPersonalizado(AbstractUser):
     
     def get_rol_display(self):
         """
-        Retorna el rol del usuario de forma legible.
-        Si es superusuario, retorna 'Administrador'.
-        Si tiene grupos, retorna el primero.
-        Si no tiene grupos, retorna 'Sin rol'.
+        Retorna el perfil operativo definido para el usuario.
         """
         if self.is_superuser:
-            return 'Administrador'
-        
-        grupos = self.groups.all()
-        if grupos:
-            # Si tiene un solo grupo
-            if grupos.count() == 1:
-                return grupos.first().name
-            # Si tiene múltiples grupos
-            else:
-                return ', '.join([g.name for g in grupos])
-        
-        return 'Sin rol asignado'
+            return 'Superusuario / TI'
+        return dict(self.ROLES).get(self.rol, 'Sin perfil asignado')
     
     def get_rol_icono(self):
         """

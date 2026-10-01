@@ -1,54 +1,20 @@
-"""
-farmacia/views/api_views.py
-Vistas REST (DRF): RegisterAPIView, LoginAPIView.
-"""
+"""Vistas REST de autenticación y consultas autorizadas."""
 import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from axes.models import AccessAttempt
 from axes.handlers.proxy import AxesProxyHandler
 
-from farmacia.serializers import UserSerializer, LoginSerializer
+from farmacia.serializers import LoginSerializer
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required, permission_required
 from django.views.decorators.http import require_GET
 from farmacia.models import Institucion
+from auditoria.services import registrar_evento
 
 logger = logging.getLogger(__name__)
-
-
-class EsAdministrador(BasePermission):
-    """Restringe operaciones administrativas a superusuarios o su grupo."""
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(
-            user
-            and user.is_authenticated
-            and (
-                user.is_superuser
-                or user.groups.filter(name='Administrador').exists()
-            )
-        )
-
-
-class RegisterAPIView(APIView):
-    permission_classes = [EsAdministrador]
-
-    def post(self, request):
-        serializer = UserSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'user': serializer.data,
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginAPIView(APIView):
@@ -59,6 +25,10 @@ class LoginAPIView(APIView):
 
         # Verificar si está bloqueado
         if username and AxesProxyHandler.is_locked(request, credentials={'username': username}):
+            registrar_evento(
+                'FALLO_ACCESO', 'API', detalles={'motivo': 'cuenta_bloqueada'},
+                usuario_texto=username,
+            )
             intentos = AccessAttempt.objects.filter(username=username).first()
             fallos = intentos.failures_since_start if intentos else 5
             return Response({
@@ -67,17 +37,34 @@ class LoginAPIView(APIView):
                 'locked': True
             }, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = LoginSerializer(data=request.data)
+        serializer = LoginSerializer(
+            data=request.data,
+            context={'request': request._request},
+        )
 
         if serializer.is_valid():
             user = serializer.validated_data
             if not user.is_active:
+                registrar_evento(
+                    'FALLO_ACCESO', 'API', detalles={'motivo': 'cuenta_inactiva'},
+                    usuario=user,
+                )
                 return Response({
                     'error': 'Cuenta inactiva',
                     'detail': 'Tu cuenta ha sido desactivada. Contacta al administrador.'
                 }, status=status.HTTP_403_FORBIDDEN)
 
+            if user.requiere_cambio_contrasena and not user.is_superuser:
+                return Response({
+                    'error': 'Cambio de contraseña requerido',
+                    'detail': 'Inicia sesión en la aplicación web para establecer tu contraseña personal.',
+                    'password_change_required': True,
+                }, status=status.HTTP_403_FORBIDDEN)
+
             refresh = RefreshToken.for_user(user)
+            registrar_evento(
+                'ACCESO', 'API', detalles={'evento': 'inicio_sesion_exitoso'}, usuario=user,
+            )
             logger.info(f"API Login exitoso: usuario='{user.username}'")
             return Response({
                 'refresh': str(refresh),
@@ -90,6 +77,10 @@ class LoginAPIView(APIView):
             })
 
         logger.warning(f"API Login fallido para: '{username}'")
+        registrar_evento(
+            'FALLO_ACCESO', 'API', detalles={'motivo': 'credenciales_invalidas'},
+            usuario_texto=username or 'ANONIMO',
+        )
         if username:
             intentos = AccessAttempt.objects.filter(username=username).first()
             if intentos:

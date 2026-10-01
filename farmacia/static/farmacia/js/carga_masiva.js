@@ -41,11 +41,11 @@ fileInput.addEventListener('change', (e) => {
 
 // Validar tipo de archivo
 function validarArchivo(file) {
-    const extensionesValidas = ['.xlsx', '.xls'];
+    const extensionesValidas = ['.xlsx'];
     const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     
     if (!extensionesValidas.includes(extension)) {
-        alert('Por favor selecciona un archivo Excel válido (.xlsx o .xls)');
+        alert('Por favor selecciona un archivo Excel .xlsx válido, sin macros.');
         return false;
     }
     

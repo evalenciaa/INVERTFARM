@@ -40,16 +40,8 @@
                     <span class="nav-label">Enfermería</span>
                 {% if enfermeria_acceso %}</a>{% else %}</span>{% endif %}
 
-                {% if can_admin_users or can_manage_backups %}
+                {% if can_manage_backups %}
                     <span class="nav-section-label nav-section-secondary">Administración</span>
-                {% endif %}
-                {% if can_admin_users %}
-                    <a href="{% url 'admin_usuarios' %}" class="nav-link" title="Configuración de usuarios">
-                        <span class="nav-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2"/><path d="M17 8h4"/><path d="M19 6v4"/></svg>
-                        </span>
-                        <span class="nav-label">Config. usuarios</span>
-                    </a>
                 {% endif %}
                 {% if can_manage_backups %}
                     <a href="{% url 'panel_backups' %}" class="nav-link" title="Copias de seguridad">

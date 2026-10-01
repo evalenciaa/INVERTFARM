@@ -55,6 +55,22 @@ def group_required(*group_names):
     return decorator
 
 
+def superuser_required(view_func):
+    """Restringe operaciones de infraestructura al equipo de TI."""
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if (
+            request.user.is_authenticated
+            and request.user.is_active
+            and request.user.is_superuser
+        ):
+            return view_func(request, *args, **kwargs)
+
+        raise PermissionDenied('Esta operación está reservada para el equipo de TI.')
+
+    return _wrapped_view
+
+
 def permission_required_or_superuser(perm):
     """
     Decorador que verifica permisos pero siempre permite superusuarios.

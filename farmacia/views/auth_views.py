@@ -11,8 +11,11 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
+from farmacia.forms import CambioContrasenaObligatorioForm
+from farmacia.decorators import group_required
 from axes.models import AccessAttempt
 from axes.handlers.proxy import AxesProxyHandler
+from auditoria.services import registrar_evento
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +28,13 @@ def inicio(request):
 
 
 @login_required(login_url='login')
+@group_required('Farmacéutico', 'Jefe de Farmacia')
 def vista_farmacia(request):
     return render(request, 'farmacia.html')
 
 
 @login_required(login_url='login')
+@group_required('Jefe de Farmacia')
 def vista_farmacia_g(request):
     """Vista para el inventario por lotes"""
     return render(request, 'farmacia_g.html', {
@@ -49,11 +54,20 @@ def login_view(request):
         password = request.POST.get('password', '')
 
         if not username or not password:
+            registrar_evento(
+                'FALLO_ACCESO', 'Sistema',
+                detalles={'motivo': 'credenciales_incompletas'},
+                usuario_texto=username or 'ANONIMO',
+            )
             messages.error(request, 'Usuario y contraseña son requeridos')
-            return render(request, 'inicio.html', {'username': username})
+            return render(request, 'inicio.html')
 
         # Verificar si el usuario está bloqueado por Axes
         if AxesProxyHandler.is_locked(request, credentials={'username': username}):
+            registrar_evento(
+                'FALLO_ACCESO', 'Sistema',
+                detalles={'motivo': 'cuenta_bloqueada'}, usuario_texto=username or 'ANONIMO',
+            )
             intentos = AccessAttempt.objects.filter(username=username).first()
             if intentos:
                 fallos = intentos.failures_since_start
@@ -69,7 +83,7 @@ def login_view(request):
                     'Intenta de nuevo en 1 hora.'
                 )
             logger.warning(f"Cuenta bloqueada: intento para '{username}' desde IP {request.META.get('REMOTE_ADDR')}")
-            return render(request, 'inicio.html', {'username': username, 'bloqueado': True})
+            return render(request, 'inicio.html', {'bloqueado': True})
 
         user = authenticate(request, username=username, password=password)
 
@@ -80,14 +94,25 @@ def login_view(request):
                 request.session.save()
                 logger.info(f"Login exitoso: usuario='{user.username}' rol='{user.rol}'")
 
+                if user.requiere_cambio_contrasena and not user.is_superuser:
+                    return redirect('cambiar_contrasena_obligatoria')
+
                 next_url = request.POST.get('next') or request.GET.get('next', '')
                 if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
                     next_url = 'principal'
                 return redirect(next_url)
             else:
                 messages.error(request, 'Tu cuenta ha sido desactivada. Contacta al administrador.')
+                registrar_evento(
+                    'FALLO_ACCESO', 'Sistema',
+                    detalles={'motivo': 'cuenta_inactiva'}, usuario_texto=username,
+                )
                 logger.warning(f"Intento de acceso a cuenta inactiva: '{username}'")
         else:
+            registrar_evento(
+                'FALLO_ACCESO', 'Sistema',
+                detalles={'motivo': 'credenciales_invalidas'}, usuario_texto=username or 'ANONIMO',
+            )
             messages.error(request, 'Usuario o contraseña incorrectos')
             logger.warning(f"Login fallido para '{username}' desde IP {request.META.get('REMOTE_ADDR')}")
 
@@ -100,7 +125,7 @@ def login_view(request):
                 if intentos_restantes == 0:
                     messages.warning(request, '⚠️ Último intento. La próxima vez tu cuenta será bloqueada por 1 hora.')
 
-            return render(request, 'inicio.html', {'username': username, 'intentos_restantes': intentos_restantes})
+            return render(request, 'inicio.html', {'intentos_restantes': intentos_restantes})
 
     return render(request, 'inicio.html')
 
@@ -123,6 +148,28 @@ def logout_view(request):
 
 @never_cache
 @login_required(login_url='login')
+@require_http_methods(['GET', 'POST'])
+def cambiar_contrasena_obligatoria(request):
+    """Permite sustituir la contraseña temporal antes de usar el sistema."""
+    if request.user.is_superuser or not request.user.requiere_cambio_contrasena:
+        return redirect('principal')
+
+    form = CambioContrasenaObligatorioForm(request.user, request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        request.user.requiere_cambio_contrasena = False
+        request.user.tokens_validos_desde = timezone.now()
+        request.user.save(update_fields=['requiere_cambio_contrasena', 'tokens_validos_desde'])
+        from django.contrib.auth import update_session_auth_hash
+        update_session_auth_hash(request, request.user)
+        messages.success(request, 'Contraseña actualizada. Ya puedes utilizar el sistema.')
+        return redirect('principal')
+
+    return render(request, 'cambiar_contrasena_obligatoria.html', {'form': form})
+
+
+@never_cache
+@login_required(login_url='login')
 def bienvenida(request):
     def tiene_acceso(user, grupos_requeridos, permiso=None):
         if user.is_superuser:
@@ -130,17 +177,8 @@ def bienvenida(request):
         pertenece_al_grupo = user.groups.filter(name__in=grupos_requeridos).exists()
         return pertenece_al_grupo and (permiso is None or user.has_perm(permiso))
 
-    grupos_farmacia = [
-        'Administrador', 'Farmacéutico', 'Farmaceutico', 'Jefe de Farmacia',
-        'Jefe farmacia', 'Capturista_Farmacia', 'Supervisor_Farmacia',
-    ]
-    grupos_enfermeria = [
-        'Administrador', 'Enfermero', 'Enfermero/a', 'Jefe de Enfermería',
-        'Jefe enfermeros', 'Enfermeria',
-    ]
-    es_administrador = request.user.is_superuser or request.user.groups.filter(
-        name='Administrador'
-    ).exists()
+    grupos_farmacia = ['Farmacéutico', 'Jefe de Farmacia']
+    grupos_enfermeria = ['Enfermero', 'Jefe de Enfermería']
 
     modulos = [
         {
@@ -167,9 +205,6 @@ def bienvenida(request):
         'farmacia_acceso': modulos[0]['acceso'],
         'enfermeria_acceso': modulos[1]['acceso'],
         'fecha_actual': timezone.localdate(),
-        'can_admin_users': es_administrador and request.user.has_perm(
-            'farmacia.view_usuariopersonalizado'
-        ),
-        'can_manage_backups': request.user.is_superuser or request.user.rol == 'ADMIN',
+        'can_manage_backups': request.user.is_superuser,
         'can_view_alertas': request.user.has_perm('farmacia.view_lote'),
     })

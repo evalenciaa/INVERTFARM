@@ -89,11 +89,7 @@ def tiene_acceso_farmacia(user):
     return (
         user.is_authenticated and (
             user.is_superuser
-            or user.rol in ['ADMIN', 'FARMACIA']
-            or user.groups.filter(name__in=[
-                'Administradores', 'Administrador',
-                'Capturista_Farmacia', 'Supervisor_Farmacia'
-            ]).exists()
+            or user.rol in {'FARMACIA', 'JEFE_FARMACIA'}
         )
     )
 
@@ -136,15 +132,9 @@ def alertas(request):
 
 @login_required
 @require_http_methods(["POST", "GET"])
+@group_required('Jefe de Farmacia')
 @permission_required('farmacia.change_lote', raise_exception=True)
 def editar_lote(request, lote_id):
-    es_admin = (
-        request.user.is_superuser or
-        request.user.groups.filter(name__in=['Administrador', 'Administradores']).exists()
-    )
-    if not es_admin:
-        return JsonResponse({'success': False, 'error': 'No autorizado'}, status=403)
-
     lote = get_object_or_404(Lote, id=lote_id)
 
     if request.method == 'POST':
@@ -186,7 +176,7 @@ def editar_lote(request, lote_id):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET', 'POST'])
-@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia')
+@group_required('Jefe de Farmacia')
 @permission_required('farmacia.change_lote', raise_exception=True)
 def farmacia_g(request):
     if request.method == 'POST':
@@ -242,10 +232,7 @@ def farmacia_g(request):
             criticos += 1
 
     medicamentos = Medicamento.objects.filter(activo=True)
-    es_admin = (
-        request.user.is_superuser or
-        request.user.groups.filter(name__in=['Administrador', 'Administradores']).exists()
-    )
+    es_admin = request.user.is_superuser or request.user.rol == 'JEFE_FARMACIA'
 
     context = {
         'lotes': lotes_con_dias,
@@ -279,7 +266,7 @@ def guardar_descripcion(request):
 
 @login_required(login_url='login')
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería', 'Médico')
+@group_required('Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería')
 @permission_required('farmacia.view_lote', raise_exception=True)
 def inventario_general(request):
     """Vista de inventario general - suma de existencias por medicamento"""
@@ -493,7 +480,8 @@ def buscar_catalogo_antibiotico(request):
 
 @login_required
 @require_http_methods(['GET'])
-@permission_required('farmacia.view_reportes', raise_exception=True)
+@group_required('Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería')
+@permission_required('farmacia.view_lote', raise_exception=True)
 def inventario_antibioticos(request):
     hoy = timezone.now().date()
 

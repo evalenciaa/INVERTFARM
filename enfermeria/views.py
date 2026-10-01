@@ -18,7 +18,17 @@ from farmacia.decorators import group_required
 
 def farmacia_requerida(user):
     """Verifica que el usuario sea de farmacia"""
-    return user.is_authenticated and (user.rol == 'FARMACIA' or user.is_superuser)
+    return user.is_authenticated and (user.rol in {'FARMACIA', 'JEFE_FARMACIA'} or user.is_superuser)
+
+
+def es_jefe_enfermeria(user):
+    return user.is_superuser or user.rol == 'JEFE_ENFERMERIA'
+
+
+def colectivos_visibles_por_enfermeria(user):
+    """El personal ve lo propio; la jefatura administra todo el módulo."""
+    colectivos = Colectivo.objects.all()
+    return colectivos if es_jefe_enfermeria(user) else colectivos.filter(enfermero_solicitante=user)
 
 
 def medicamentos_permitidos_en_colectivos():
@@ -51,7 +61,7 @@ def ids_colectivos_antibioticos():
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.view_colectivo', raise_exception=True)
 def enfermeria_principal(request):
     """
@@ -67,7 +77,7 @@ def enfermeria_principal(request):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.view_colectivo', raise_exception=True)
 def lista_colectivos_enfermeria(request):
     """
@@ -79,9 +89,9 @@ def lista_colectivos_enfermeria(request):
     busqueda = request.GET.get('q', '')
     
     # Query base - solo colectivos del enfermero actual
-    colectivos = Colectivo.objects.filter(
-        enfermero_solicitante=request.user
-    ).exclude(id__in=ids_colectivos_antibioticos()).select_related(
+    colectivos = colectivos_visibles_por_enfermeria(request.user).exclude(
+        id__in=ids_colectivos_antibioticos()
+    ).select_related(
         'paciente', 
         'enfermero_solicitante', 
         'farmaceutico_asignado'
@@ -119,15 +129,14 @@ def lista_colectivos_enfermeria(request):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.view_colectivo', raise_exception=True)
 def lista_colectivos_antibioticos(request):
     """Lista los colectivos de antibióticos creados por el enfermero actual."""
     estado_filtro = request.GET.get('estado', '')
     busqueda = request.GET.get('q', '')
 
-    colectivos = Colectivo.objects.filter(
-        enfermero_solicitante=request.user,
+    colectivos = colectivos_visibles_por_enfermeria(request.user).filter(
         id__in=ids_colectivos_antibioticos(),
     ).select_related(
         'paciente', 'enfermero_solicitante', 'farmaceutico_asignado'
@@ -162,6 +171,7 @@ def lista_colectivos_antibioticos(request):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET', 'POST'])
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.create_colectivo', raise_exception=True)
 def crear_colectivo(request):
     """
@@ -285,7 +295,7 @@ def crear_colectivo(request):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET', 'POST'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.create_colectivo', raise_exception=True)
 def crear_colectivo_antibioticos(request):
     """Crea un colectivo que admite exclusivamente antibióticos o medicamentos con ATC."""
@@ -380,7 +390,7 @@ def crear_colectivo_antibioticos(request):
 
 @require_http_methods(['GET'])
 @login_required
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.create_colectivo', raise_exception=True)
 def buscar_pacientes_autocomplete(request):  # ← Nuevo nombre
     """
@@ -417,7 +427,7 @@ def buscar_pacientes_autocomplete(request):  # ← Nuevo nombre
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.view_colectivo', raise_exception=True)
 def detalle_colectivo_enfermeria(request, colectivo_id):
     """
@@ -425,11 +435,10 @@ def detalle_colectivo_enfermeria(request, colectivo_id):
     Permite editar si está en estado RESPONDIDO
     """
     colectivo = get_object_or_404(
-        Colectivo.objects.exclude(
+        colectivos_visibles_por_enfermeria(request.user).exclude(
             id__in=ids_colectivos_antibioticos()
         ).select_related('paciente', 'farmaceutico_asignado'),
         id=colectivo_id,
-        enfermero_solicitante=request.user  # Solo puede ver sus propios colectivos
     )
     
     medicamentos = colectivo.medicamentos.select_related('medicamento').all()
@@ -444,16 +453,15 @@ def detalle_colectivo_enfermeria(request, colectivo_id):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.view_colectivo', raise_exception=True)
 def detalle_colectivo_antibioticos(request, colectivo_id):
     """Muestra el detalle de un colectivo de antibióticos del enfermero actual."""
     colectivo = get_object_or_404(
-        Colectivo.objects.filter(
+        colectivos_visibles_por_enfermeria(request.user).filter(
             id__in=ids_colectivos_antibioticos()
         ).select_related('paciente', 'farmaceutico_asignado'),
         id=colectivo_id,
-        enfermero_solicitante=request.user,
     )
     medicamentos = colectivo.medicamentos.select_related('medicamento').all()
     return render(request, 'detalle_colectivo_antibioticos.html', {
@@ -468,15 +476,15 @@ def detalle_colectivo_antibioticos(request, colectivo_id):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['POST'])
+@group_required('Jefe de Enfermería')
 @permission_required('enfermeria.delete_colectivo', raise_exception=True)
 def cancelar_colectivo(request, colectivo_id):
     """
     Cancelar un colectivo (solo si está PENDIENTE o RESPONDIDO)
     """
     colectivo = get_object_or_404(
-        Colectivo.objects.exclude(id__in=ids_colectivos_antibioticos()),
+        colectivos_visibles_por_enfermeria(request.user).exclude(id__in=ids_colectivos_antibioticos()),
         id=colectivo_id,
-        enfermero_solicitante=request.user
     )
     
     if colectivo.estado in ['PENDIENTE', 'RESPONDIDO']:
@@ -492,13 +500,13 @@ def cancelar_colectivo(request, colectivo_id):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['POST'])
+@group_required('Jefe de Enfermería')
 @permission_required('enfermeria.delete_colectivo', raise_exception=True)
 def cancelar_colectivo_antibioticos(request, colectivo_id):
     """Cancela un colectivo de antibióticos propio que siga abierto."""
     colectivo = get_object_or_404(
-        Colectivo.objects.filter(id__in=ids_colectivos_antibioticos()),
+        colectivos_visibles_por_enfermeria(request.user).filter(id__in=ids_colectivos_antibioticos()),
         id=colectivo_id,
-        enfermero_solicitante=request.user,
     )
     if colectivo.estado in ['PENDIENTE', 'RESPONDIDO']:
         colectivo.estado = 'CANCELADO'
@@ -552,9 +560,10 @@ def _editar_colectivo_por_tipo(
     try:
         with transaction.atomic():
             colectivo = get_object_or_404(
-                colectivos_permitidos.select_for_update(),
+                colectivos_visibles_por_enfermeria(request.user).filter(
+                    pk__in=colectivos_permitidos
+                ).select_for_update(),
                 id=colectivo_id,
-                enfermero_solicitante=request.user,
             )
             if colectivo.estado != 'RESPONDIDO':
                 messages.error(request, 'Solo se pueden editar colectivos respondidos por farmacia.')
@@ -630,7 +639,7 @@ def editar_colectivo_antibioticos(request, colectivo_id):
 
 @login_required
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.create_colectivo', raise_exception=True)
 def api_buscar_medicamentos(request):
     """API para autocompletado de medicamentos"""
@@ -657,7 +666,7 @@ def api_buscar_medicamentos(request):
 
 @login_required
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.create_colectivo', raise_exception=True)
 def api_buscar_medicamentos_antibioticos(request):
     """API de autocompletado exclusiva para antibióticos o medicamentos con ATC."""
@@ -681,7 +690,7 @@ def api_buscar_medicamentos_antibioticos(request):
 # ===== API: BUSCAR PACIENTES =====
 @login_required
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.create_colectivo', raise_exception=True)
 def api_buscar_pacientes(request):
     """

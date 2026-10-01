@@ -26,6 +26,7 @@ from farmacia.models import (
 )
 
 logger = logging.getLogger(__name__)
+MAX_DETALLES_POR_ENTRADA = 500
 
 
 @never_cache
@@ -138,6 +139,10 @@ def guardar_entradas(request):
 
         if not isinstance(data['detalles'], list) or len(data['detalles']) == 0:
             return JsonResponse({'error': 'Debe incluir al menos un medicamento'}, status=400)
+        if len(data['detalles']) > MAX_DETALLES_POR_ENTRADA:
+            return JsonResponse({
+                'error': f'Una entrada no puede contener más de {MAX_DETALLES_POR_ENTRADA} medicamentos.'
+            }, status=400)
 
         tipo = data['tipo_entrada']
         almacen_id = data.get('almacen')
@@ -186,6 +191,8 @@ def guardar_entradas(request):
             detalle_fields = {f.name for f in DetalleEntrada._meta.fields}
 
             for det in data['detalles']:
+                if not isinstance(det, dict):
+                    return JsonResponse({'error': 'Cada detalle debe tener un formato válido.'}, status=400)
                 detalle_required = [
                     'medicamento_id',
                     'lote',

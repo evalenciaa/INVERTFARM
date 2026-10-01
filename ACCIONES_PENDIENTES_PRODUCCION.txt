@@ -9,7 +9,6 @@ FASE 1 - SEGURIDAD BASICA PENDIENTE
 1. Separar la configuracion de desarrollo y produccion.
 2. Configurar en produccion:
    - DEBUG=False.
-   - SECRET_KEY larga, aleatoria y exclusiva del entorno.
    - ALLOWED_HOSTS y CSRF_TRUSTED_ORIGINS explicitos.
    - Redireccion obligatoria de HTTP a HTTPS.
    - SESSION_COOKIE_SECURE=True y CSRF_COOKIE_SECURE=True.

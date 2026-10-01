@@ -7,6 +7,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const buttonText = submitButton?.querySelector('.btn-text');
     const errorMessage = document.getElementById('error-message');
 
+    // La contraseña nunca se conserva en el formulario. También se limpia al
+    // volver a esta página desde el historial, que puede restaurar el DOM.
+    const clearSensitiveFields = () => {
+        if (passwordInput) passwordInput.value = '';
+        if (form?.dataset.clearUsername === 'true' && usernameInput) {
+            usernameInput.value = '';
+        }
+    };
+
+    clearSensitiveFields();
+    window.addEventListener('pageshow', clearSensitiveFields);
+
     if (togglePassword && passwordInput) {
         togglePassword.addEventListener('click', () => {
             const isVisible = passwordInput.type === 'text';

@@ -44,13 +44,71 @@ function hideLoading() {
     overlay.classList.remove('active');
 }
 
+function mostrarProgresoTrabajo(job) {
+    const porcentaje = Math.max(0, Math.min(100, Number(job.progreso || 0)));
+    showLoading(`${job.etapa || 'Procesando respaldo'} (${porcentaje}%)`);
+}
+
+function monitorearTrabajo(job) {
+    if (!job || !job.id) {
+        hideLoading();
+        mostrarNotificacion('❌ No fue posible consultar el estado del trabajo.', 'error');
+        return;
+    }
+    let intentos = 0;
+    const consultar = () => {
+        const token = job.token ? `?token=${encodeURIComponent(job.token)}` : '';
+        fetch(`/backups/trabajos/${encodeURIComponent(job.id)}/estado/${token}`, {
+            credentials: 'same-origin',
+            cache: 'no-store'
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || !data.success) {
+                throw new Error(data.error || 'No se pudo consultar el trabajo');
+            }
+            const actual = data.job;
+            mostrarProgresoTrabajo(actual);
+            if (actual.estado === 'COMPLETADO') {
+                hideLoading();
+                if (actual.tipo === 'RESTAURAR') {
+                    alert('La base de datos y los archivos media fueron restaurados.\n\nPor seguridad, debes iniciar sesión de nuevo.');
+                    window.location.href = '/login/';
+                    return;
+                }
+                mostrarNotificacion('✅ Copia verificable creada exitosamente', 'success');
+                setTimeout(() => window.location.reload(), 900);
+                return;
+            }
+            if (actual.estado === 'ERROR') {
+                hideLoading();
+                mostrarNotificacion('❌ ' + (actual.error || 'El trabajo no se completó'), 'error');
+                return;
+            }
+            intentos = 0;
+            setTimeout(consultar, 1500);
+        })
+        .catch(error => {
+            intentos += 1;
+            if (intentos >= 4) {
+                hideLoading();
+                mostrarNotificacion('❌ No se pudo consultar el avance: ' + error.message, 'error');
+                return;
+            }
+            setTimeout(consultar, 2000);
+        });
+    };
+    mostrarProgresoTrabajo(job);
+    consultar();
+}
+
 /* ===== CREAR NUEVO BACKUP ===== */
 function crearBackup() {
-    if (!confirm('¿Deseas crear un nuevo backup?\n\nEsto incluirá:\n✓ Base de datos completa\n✓ Archivos media\n\nEl proceso puede tardar unos momentos.')) {
+    if (!confirm('¿Deseas crear un nuevo respaldo verificable?\n\nIncluirá como un solo conjunto:\n✓ Base de datos completa\n✓ Archivos media\n✓ Manifiesto de integridad firmado\n\nEl proceso puede tardar unos momentos.')) {
         return;
     }
     
-    showLoading('Creando backup...');
+    showLoading('Enviando la solicitud de respaldo...');
     
     const csrftoken = getCSRFToken();
     if (!csrftoken) {
@@ -67,22 +125,16 @@ function crearBackup() {
         },
         credentials: 'same-origin'
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        hideLoading();
-        
+    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+    .then(({ ok, data }) => {
         if (data.success) {
-            mostrarNotificacion('✅ Backup creado exitosamente', 'success');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+            monitorearTrabajo(data.job);
         } else {
+            hideLoading();
             mostrarNotificacion('❌ ' + (data.error || 'Error al crear backup'), 'error');
+            if (data.job) {
+                monitorearTrabajo(data.job);
+            }
         }
     })
     .catch(error => {
@@ -98,7 +150,7 @@ function descargarBackup(filename) {
     
     // Crear un enlace temporal para la descarga
     const link = document.createElement('a');
-    link.href = `/backups/descargar/${filename}/`;
+    link.href = `/backups/descargar/${encodeURIComponent(filename)}/`;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
@@ -113,7 +165,8 @@ function confirmarRestaurar(filename) {
     const confirmMsg = `⚠️ ADVERTENCIA: RESTAURAR BACKUP\n\n` +
                       `Archivo: ${filename}\n\n` +
                       `Esta acción:\n` +
-                      `• Sobrescribirá TODA la base de datos actual\n` +
+                      `• Sobrescribirá la base de datos y los archivos media actuales\n` +
+                      `• Cerrará todas las sesiones activas\n` +
                       `• NO se puede deshacer\n` +
                       `• Puede tardar varios minutos\n\n` +
                       `¿Estás COMPLETAMENTE seguro de continuar?\n\n` +
@@ -132,7 +185,7 @@ function confirmarRestaurar(filename) {
 }
 
 function restaurarBackup(filename) {
-    showLoading('Restaurando backup... NO cierres esta ventana');
+    showLoading('Enviando la restauración al proceso seguro...');
     
     const csrftoken = getCSRFToken();
     if (!csrftoken) {
@@ -152,23 +205,16 @@ function restaurarBackup(filename) {
         body: formData,
         credentials: 'same-origin'
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        hideLoading();
-        
+    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+    .then(({ ok, data }) => {
         if (data.success) {
-            mostrarNotificacion('✅ Backup restaurado exitosamente', 'success');
-            setTimeout(() => {
-                alert('La base de datos ha sido restaurada.\n\nLa página se recargará ahora.');
-                window.location.href = '/principal/';
-            }, 2000);
+            monitorearTrabajo(data.job);
         } else {
+            hideLoading();
             mostrarNotificacion('❌ ' + (data.error || 'Error al restaurar backup'), 'error');
+            if (data.job) {
+                monitorearTrabajo(data.job);
+            }
         }
     })
     .catch(error => {
@@ -197,7 +243,7 @@ function eliminarBackup(filename) {
         return;
     }
     
-    fetch(`/backups/eliminar/${filename}/`, {
+    fetch(`/backups/eliminar/${encodeURIComponent(filename)}/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -229,86 +275,6 @@ function eliminarBackup(filename) {
         mostrarNotificacion('❌ Error de conexión: ' + error.message, 'error');
     });
 }
-
-/* ===== SUBIR BACKUP EXTERNO ===== */
-function subirBackup(file) {
-    if (!file) {
-        mostrarNotificacion('❌ No se seleccionó ningún archivo', 'error');
-        return;
-    }
-    
-    // Validar extensión
-    const validExtensions = ['.sql', '.sql.gz', '.tar.gz', '.tar'];
-    const fileName = file.name.toLowerCase();
-    const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-    
-    if (!isValid) {
-        mostrarNotificacion('❌ Formato no válido. Solo: .sql, .sql.gz, .tar.gz', 'error');
-        return;
-    }
-    
-    // Validar tamaño (500MB máximo)
-    const maxSize = 500 * 1024 * 1024; // 500MB
-    if (file.size > maxSize) {
-        mostrarNotificacion('❌ Archivo demasiado grande. Máximo: 500MB', 'error');
-        return;
-    }
-    
-    if (!confirm(`¿Deseas subir este backup?\n\nArchivo: ${file.name}\nTamaño: ${(file.size / (1024*1024)).toFixed(2)} MB`)) {
-        // Limpiar input
-        document.getElementById('fileInput').value = '';
-        return;
-    }
-    
-    showLoading('Subiendo backup... Esto puede tardar unos momentos');
-    
-    const csrftoken = getCSRFToken();
-    if (!csrftoken) {
-        hideLoading();
-        mostrarNotificacion('Error: No se pudo obtener el token CSRF', 'error');
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append('backup_file', file);
-    
-    fetch('/backups/subir/', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': csrftoken
-        },
-        body: formData,
-        credentials: 'same-origin'
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        hideLoading();
-        
-        if (data.success) {
-            mostrarNotificacion(`✅ ${data.message}`, 'success');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        } else {
-            mostrarNotificacion('❌ ' + (data.error || 'Error al subir backup'), 'error');
-        }
-        
-        // Limpiar input
-        document.getElementById('fileInput').value = '';
-    })
-    .catch(error => {
-        hideLoading();
-        console.error('Error:', error);
-        mostrarNotificacion('❌ Error de conexión: ' + error.message, 'error');
-        document.getElementById('fileInput').value = '';
-    });
-}
-
 
 /* ===== MOSTRAR NOTIFICACIONES ===== */
 function mostrarNotificacion(mensaje, tipo) {
@@ -409,4 +375,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     console.log('✅ Panel de Backups cargado correctamente');
+    const trabajoActivo = document.getElementById('trabajoActivoRespaldo');
+    if (trabajoActivo && trabajoActivo.dataset.jobId) {
+        monitorearTrabajo({ id: trabajoActivo.dataset.jobId });
+    }
 });

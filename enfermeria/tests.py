@@ -14,8 +14,8 @@ from .models import Colectivo, ColectivoMedicamento
 
 class FlujoColectivosTests(TestCase):
     def setUp(self):
-        self.grupo_farmacia = Group.objects.create(name='Farmacéutico')
-        self.grupo_enfermeria = Group.objects.create(name='Enfermero')
+        self.grupo_farmacia, _ = Group.objects.get_or_create(name='Farmacéutico')
+        self.grupo_enfermeria, _ = Group.objects.get_or_create(name='Enfermero')
         self.farmaceutico = UsuarioPersonalizado.objects.create_user(
             username='farmacia', password='PruebaSegura123!', rol='FARMACIA'
         )
@@ -132,7 +132,7 @@ class FlujoColectivosTests(TestCase):
         self.lote.refresh_from_db()
         self.assertEqual(self.lote.existencia, 10)
 
-    def test_no_se_completa_antes_de_responder_la_revision(self):
+    def test_se_completa_directamente_en_revision_si_hay_existencia(self):
         self.client.force_login(self.farmaceutico)
         response = self.client.post(
             reverse('completar_colectivo', args=[self.colectivo.id]),
@@ -141,9 +141,9 @@ class FlujoColectivosTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.colectivo.refresh_from_db()
         self.lote.refresh_from_db()
-        self.assertEqual(self.colectivo.estado, 'EN_REVISION')
-        self.assertEqual(self.lote.existencia, 10)
-        self.assertFalse(Receta.objects.filter(id_folio=self.colectivo.folio).exists())
+        self.assertEqual(self.colectivo.estado, 'COMPLETADO')
+        self.assertEqual(self.lote.existencia, 6)
+        self.assertTrue(Receta.objects.filter(id_folio=self.colectivo.folio).exists())
 
     def test_stock_insuficiente_editar_agregar_revisar_y_completar(self):
         self.item.cantidad_solicitada = 12

@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.urls import path
 from . import views
-from .views import RegisterAPIView, LoginAPIView
+from .views import LoginAPIView
 
 urlpatterns = [
     path('', views.inicio, name='inicio'),
@@ -24,6 +24,7 @@ urlpatterns = [
     path('farmacia/', views.vista_farmacia, name='farmacia'),
     path('principal/', views.bienvenida, name='principal'),
     path('logout/', views.logout_view, name='logout'),
+    path('cuenta/cambiar-contrasena/', views.cambiar_contrasena_obligatoria, name='cambiar_contrasena_obligatoria'),
     path('alertas/', views.alertas, name='alertas'),
     path('medicamentos/nuevo/', views.registro_medicamento, name='registro_medicamento'),
     path('api/catalogo-antibioticos/buscar/', views.buscar_catalogo_antibiotico, name='buscar_catalogo_antibiotico'),
@@ -36,7 +37,6 @@ urlpatterns = [
     path('editar-cpm/', views.editar_cpm_medicamento, name='editar_cpm_medicamento'),
     path('actualizar_cpm/', views.actualizar_cpm, name='actualizar_cpm'),
     path('eliminar_medicamento/', views.eliminar_medicamento, name='eliminar_medicamento'),
-    path('api/register/', views.RegisterAPIView.as_view(), name='api_register'),
     path('api/login/', views.LoginAPIView.as_view(), name='api_login'),
     path('salidas/', views.registrar_salida, name='registrar_salida'),
     path('salidas/comprobante/<int:receta_id>/', views.descargar_comprobante, name='descargar_comprobante'),
@@ -101,21 +101,10 @@ urlpatterns = [
     path('colectivos-antibioticos-farmacia/<int:colectivo_id>/pdf/', views.generar_pdf_colectivo_antibioticos, name='generar_pdf_colectivo_antibioticos'),
     
     
-    # ===== ADMINISTRACIÓN DE USUARIOS Y GRUPOS =====
-    path('admin-usuarios/', views.admin_usuarios, name='admin_usuarios'),
-    path('admin-usuarios/crear/', views.admin_crear_usuario, name='admin_crear_usuario'),
-    path('admin-usuarios/<int:user_id>/', views.admin_usuario_detalle, name='admin_usuario_detalle'),
-    path('admin-usuarios/eliminar/<int:user_id>/', views.admin_eliminar_usuario, name='admin_eliminar_usuario'),
-
-    path('admin-grupos/', views.admin_grupos, name='admin_grupos'),
-    path('admin-grupos/crear/', views.admin_crear_grupo, name='admin_crear_grupo'),
-    path('admin-grupos/<int:grupo_id>/', views.admin_grupo_detalle, name='admin_grupo_detalle'),
-    path('admin-grupos/eliminar/<int:grupo_id>/', views.admin_eliminar_grupo, name='admin_eliminar_grupo'),
-    
-    
     # BACKUPS
     path('backups/', views.panel_backups, name='panel_backups'),
     path('backups/crear/', views.crear_backup, name='crear_backup'),
+    path('backups/trabajos/<uuid:identificador>/estado/', views.estado_trabajo_respaldo, name='estado_trabajo_respaldo'),
     path('backups/subir/', views.subir_backup, name='subir_backup'),
     path('backups/descargar/<str:filename>/', views.descargar_backup, name='descargar_backup'),
     path('backups/eliminar/<str:filename>/', views.eliminar_backup, name='eliminar_backup'),

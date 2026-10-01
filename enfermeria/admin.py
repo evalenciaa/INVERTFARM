@@ -1,8 +1,24 @@
 from django.contrib import admin
 from .models import Colectivo, ColectivoMedicamento
 
+
+class RegistroColectivoSoloLecturaAdmin(admin.ModelAdmin):
+    """Los colectivos son evidencia operativa y no se modifican desde Admin."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return [campo.name for campo in self.model._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 @admin.register(Colectivo)
-class ColectivoAdmin(admin.ModelAdmin):
+class ColectivoAdmin(RegistroColectivoSoloLecturaAdmin):
     list_display = (
         'folio', 
         'tipo_colectivo', 
@@ -23,7 +39,6 @@ class ColectivoAdmin(admin.ModelAdmin):
         'farmaceutico_asignado__username'
     )
     readonly_fields = ('folio', 'fecha_solicitud', 'fecha_respuesta_farmacia', 'fecha_completado', 'created_at', 'updated_at')
-    date_hierarchy = 'fecha_solicitud'
     ordering = ('-fecha_solicitud',)
     
     fieldsets = (
@@ -59,13 +74,8 @@ class ColectivoAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         return qs.select_related('paciente', 'enfermero_solicitante', 'farmaceutico_asignado')
     
-    def has_add_permission(self, request):
-        # Prevenir crear colectivos desde el admin
-        return False
-
-
 @admin.register(ColectivoMedicamento)
-class ColectivoMedicamentoAdmin(admin.ModelAdmin):
+class ColectivoMedicamentoAdmin(RegistroColectivoSoloLecturaAdmin):
     list_display = (
         'colectivo', 
         'medicamento', 

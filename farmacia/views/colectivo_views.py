@@ -20,6 +20,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Sum, Q
 from django.http import HttpResponse
@@ -49,6 +50,15 @@ def colectivos_por_modulo(antibioticos=False):
     if antibioticos:
         return colectivos.filter(id__in=ids_colectivos_antibioticos())
     return colectivos.exclude(id__in=ids_colectivos_antibioticos())
+
+
+def puede_descargar_colectivo(usuario, colectivo):
+    """La farmacia ve todos; enfermería ve los propios y su jefatura todos."""
+    return (
+        usuario.is_superuser
+        or usuario.rol in {'FARMACIA', 'JEFE_FARMACIA', 'JEFE_ENFERMERIA'}
+        or colectivo.enfermero_solicitante_id == usuario.id
+    )
 
 
 @login_required(login_url='login')
@@ -162,6 +172,7 @@ def detalle_colectivo_antibioticos_farmacia(request, colectivo_id):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['POST'])
+@group_required('Farmacéutico', 'Jefe de Farmacia')
 @permission_required('enfermeria.respond_colectivo', raise_exception=True)
 def responder_colectivo(request, colectivo_id, antibioticos=False):
     """Farmacia responde al colectivo indicando disponibilidad"""
@@ -203,6 +214,7 @@ def responder_colectivo_antibioticos(request, colectivo_id):
 @never_cache
 @login_required(login_url='login')
 @require_http_methods(['POST'])
+@group_required('Farmacéutico', 'Jefe de Farmacia')
 @permission_required('enfermeria.complete_colectivo', raise_exception=True)
 def completar_colectivo(request, colectivo_id, antibioticos=False):
     """Marca el colectivo como completado y descuenta del inventario"""
@@ -216,7 +228,7 @@ def completar_colectivo(request, colectivo_id, antibioticos=False):
             if colectivo.estado not in estados_confirmables:
                 messages.error(
                     request,
-                    'El colectivo debe estar en revisión o contar con una respuesta de farmacia antes de completarse.'
+                    'El colectivo debe estar en revisión o respondido por farmacia antes de completarse.'
                 )
                 detalle_url = (
                     'detalle_colectivo_antibioticos_farmacia'
@@ -314,7 +326,7 @@ def completar_colectivo_antibioticos(request, colectivo_id):
 
 @login_required(login_url='login')
 @require_http_methods(['GET'])
-@group_required('Administrador', 'Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería')
+@group_required('Farmacéutico', 'Jefe de Farmacia', 'Enfermero', 'Jefe de Enfermería')
 @permission_required('enfermeria.view_colectivo', raise_exception=True)
 def generar_pdf_colectivo(request, colectivo_id, antibioticos=False):
     """Genera PDF con la información del colectivo completado"""
@@ -324,6 +336,8 @@ def generar_pdf_colectivo(request, colectivo_id, antibioticos=False):
         ),
         id=colectivo_id,
     )
+    if not puede_descargar_colectivo(request.user, colectivo):
+        raise PermissionDenied('Solo puedes descargar los reportes de tus propios colectivos.')
     if colectivo.estado != 'COMPLETADO':
         messages.error(request, 'Solo se puede generar PDF de colectivos completados')
         return redirect(
